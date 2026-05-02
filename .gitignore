@@ -14,14 +14,14 @@ build/
 out/
 
 # ── Environment Variables ─────────────────────
-# NEVER commit secrets to git
+# NEVER commit any .env file to git
 .env
+.env.*
 .env.local
+.env.development
+.env.production
+.env.staging
 .env.*.local
-
-# These are safe to commit (no secrets, only public URLs):
-# .env.development  ← commit OK
-# .env.production   ← commit OK (update URL before deploy)
 
 # ── Logs ──────────────────────────────────────
 logs/
