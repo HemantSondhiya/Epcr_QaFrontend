@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-900: #0f172a;
+  --color-navy-800: #1e293b;
+  --color-navy-700: #334155;
+  --color-teal-400: #2dd4bf;
+  --color-teal-500: #14b8a6;
+  --color-sky-400: #38bdf8;
+  --color-sky-500: #0ea5e9;
+  
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    --bg-main: #0f172a;
+    --bg-panel: rgba(30, 41, 59, 0.6);
+    --border-color: rgba(51, 65, 85, 0.5);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-glow: rgba(45, 212, 191, 0.15);
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  
+  .glass-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .text-gradient {
+    background: linear-gradient(to right, #2dd4bf, #0ea5e9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hover-glow {
+    transition: all 0.3s ease;
+  }
+  
+  .hover-glow:hover {
+    box-shadow: 0 0 15px var(--accent-glow);
+    border-color: rgba(45, 212, 191, 0.3);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-main); 
+}
+ 
+::-webkit-scrollbar-thumb {
+  background: var(--border-color); 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-navy-700); 
+}
