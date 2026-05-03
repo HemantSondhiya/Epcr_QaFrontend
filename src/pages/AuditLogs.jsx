@@ -1,12 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Server, Search, Filter, RefreshCw, FileText } from 'lucide-react';
+import { Server, Search, RefreshCw, FileText } from 'lucide-react';
+import client from '../api/client';
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
+  const [usersById, setUsersById] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterAction, setFilterAction] = useState('ALL');
+
+  const displayUser = (log) => {
+    const userId = log.userId || log.actorId || log.performedBy || log.createdBy;
+    const user = userId ? usersById[userId] : null;
+    if (user) return `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || userId;
+    return log.username || log.userName || log.user || userId || '—';
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await client.get('/api/users', { hideToast: true });
+      const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+      const map = {};
+      list.forEach(user => {
+        if (user.id) map[user.id] = user;
+        if (user.userId) map[user.userId] = user;
+      });
+      setUsersById(map);
+    } catch {
+      setUsersById({});
+    }
+  };
   
   const fetchLogs = async (pageNum = 0, isAppend = false) => {
     if (!isAppend) setLoading(true);
@@ -15,11 +41,12 @@ const AuditLogs = () => {
       const size = 20;
       const res = await client.get(`/api/audit/logs?page=${pageNum}&size=${size}`);
       
-      const isPaginated = res.data && res.data.content !== undefined;
-      const newLogs = isPaginated ? res.data.content : (res.data || []);
+      const data = res.data;
+      const isPaginated = data && data.content !== undefined;
+      const newLogs = isPaginated ? data.content : (Array.isArray(data) ? data : []);
       
       setLogs(prev => isAppend ? [...prev, ...newLogs] : newLogs);
-      setHasMore(isPaginated ? !res.data.last : false);
+      setHasMore(isPaginated ? !data.last : false);
       setPage(pageNum);
     } catch (err) {
       console.error(err);
@@ -30,8 +57,35 @@ const AuditLogs = () => {
   };
 
   useEffect(() => {
+    fetchUsers();
     fetchLogs(0, false);
   }, []);
+
+  // Get unique action types for filter dropdown
+  const actionTypes = [...new Set((Array.isArray(logs) ? logs : []).map(l => l.action).filter(Boolean))];
+
+  // Filter logs by search term and action type
+  const filteredLogs = (Array.isArray(logs) ? logs : []).filter(log => {
+    const matchSearch = !searchTerm || 
+      log.action?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      displayUser(log).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.entityType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.ipAddress?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.details?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchAction = filterAction === 'ALL' || log.action === filterAction;
+    return matchSearch && matchAction;
+  });
+
+  const getActionColor = (action) => {
+    const colors = {
+      LOGIN: 'text-sky-400',
+      LOGOUT: 'text-slate-400',
+      CREATE: 'text-teal-400',
+      UPDATE: 'text-amber-400',
+      DELETE: 'text-rose-400',
+    };
+    return colors[action] || 'text-slate-300';
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -57,14 +111,22 @@ const AuditLogs = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="Search logs by action or user..." 
+              placeholder="Search logs by action, user, or entity..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors">
-            <Filter size={18} />
-            <span>Filter Options</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <select
+              value={filterAction}
+              onChange={e => setFilterAction(e.target.value)}
+              className="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none appearance-none"
+            >
+              <option value="ALL">All Actions</option>
+              {actionTypes.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="overflow-x-auto min-h-[300px]">
@@ -88,22 +150,22 @@ const AuditLogs = () => {
                     Loading logs...
                   </td>
                 </tr>
-              ) : logs.length === 0 && !error ? (
+              ) : filteredLogs.length === 0 && !error ? (
                 <tr>
                   <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
-                    No logs found.
+                    {logs.length === 0 ? 'No audit logs recorded yet.' : 'No logs match your search.'}
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-800/30 transition-colors">
+                filteredLogs.map((log, idx) => (
+                  <tr key={log.id || idx} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {new Date(log.timestamp || log.time).toLocaleString()}
+                      {log.timestamp || log.time ? new Date(log.timestamp || log.time).toLocaleString() : '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Server size={14} className="text-slate-500" />
-                        <span className="text-sm font-medium text-slate-200">{log.action}</span>
+                        <span className={`text-sm font-medium ${getActionColor(log.action)}`}>{log.action}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -117,13 +179,13 @@ const AuditLogs = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                      {log.username || log.user || log.userId}
+                      {displayUser(log)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
                       {log.ipAddress || log.details || '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border ${log.status === 'SUCCESS' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border ${log.status === 'SUCCESS' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : log.status === 'FAILURE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>
                         {log.status || 'INFO'}
                       </span>
                     </td>
@@ -134,7 +196,7 @@ const AuditLogs = () => {
           </table>
         </div>
         <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center text-sm text-slate-400">
-          <span>Showing {logs.length} logs</span>
+          <span>Showing {filteredLogs.length} of {(Array.isArray(logs) ? logs : []).length} logs</span>
           {hasMore && (
             <button 
               onClick={() => fetchLogs(page + 1, true)}

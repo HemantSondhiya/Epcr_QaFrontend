@@ -98,7 +98,7 @@ const DataTable = ({
               paginated.map((row, i) => (
                 <tr key={row.id || i}
                   onClick={() => onRowClick?.(row)}
-                  className={`hover:bg-slate-800/30 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}>
+                  className={`hover:bg-slate-800/30 transition-colors group ${onRowClick ? 'cursor-pointer' : ''}`}>
                   {columns.map(c => (
                     <td key={c.key} className="px-5 py-3.5 text-sm text-slate-300 whitespace-nowrap">
                       {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '—')}
@@ -106,7 +106,7 @@ const DataTable = ({
                   ))}
                   {actions && (
                     <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         {actions(row)}
                       </div>
                     </td>

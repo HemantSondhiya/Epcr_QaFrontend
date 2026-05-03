@@ -32,10 +32,19 @@ const QaForms = () => {
     setLoading(true); setError('');
     try {
       const orgId = user?.organizationId;
-      const res = orgId
-        ? await client.get(`/api/qa/forms/organization/${orgId}`)
-        : await client.get('/api/qa/forms');
-      setForms(Array.isArray(res.data) ? res.data : []);
+      if (orgId) {
+        const res = await client.get(`/api/qa/forms/organization/${orgId}`);
+        const data = res.data;
+        setForms(Array.isArray(data) ? data : (data?.content || []));
+      } else {
+        const orgRes = await client.get('/api/organizations');
+        const formLists = await Promise.all(
+          (orgRes.data || []).map(org =>
+            client.get(`/api/qa/forms/organization/${org.id}`).then(res => res.data || []).catch(() => [])
+          )
+        );
+        setForms(formLists.flat());
+      }
     } catch { 
       dispatch(addToast({ type: 'error', message: 'Failed to load QA forms.' }));
     }
@@ -123,13 +132,13 @@ const QaForms = () => {
           <div className="col-span-3 glass-card rounded-2xl p-12 text-center">
             <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" /><p className="text-slate-400">Loading forms...</p>
           </div>
-        ) : forms.length === 0 ? (
+        ) : (Array.isArray(forms) ? forms : []).length === 0 ? (
           <div className="col-span-3 glass-card rounded-2xl p-16 text-center">
             <ClipboardList className="w-14 h-14 text-slate-600 mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-slate-300">No QA Forms</h2>
             <p className="text-slate-500 mt-2 text-sm">Create your first evaluation form to get started.</p>
           </div>
-        ) : forms.map(form => (
+        ) : (Array.isArray(forms) ? forms : []).map(form => (
           <div key={form.id} className="glass-card rounded-2xl p-5 hover-glow transition-all">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">

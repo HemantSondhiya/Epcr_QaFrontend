@@ -38,8 +38,10 @@ const Workflows = () => {
         client.get(endpoint),
         client.get('/api/organizations').catch(() => ({ data: [] }))
       ]);
-      setWorkflows(wfRes.data || []);
-      setOrgs(orgRes.data || []);
+      const wfData = wfRes.data;
+      const orgData = orgRes.data;
+      setWorkflows(Array.isArray(wfData) ? wfData : (wfData?.content || []));
+      setOrgs(Array.isArray(orgData) ? orgData : (orgData?.content || []));
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to load workflows.' }));
     }
@@ -105,13 +107,10 @@ const Workflows = () => {
     setIsSubmitting(true); setError('');
     try {
       await client.post('/api/workflows/deployments', {
-        sourceOrganizationId: selectedWf.organizationId,
         targetOrganizationIds: deployTargets,
         configType: 'WORKFLOW',
         configId: selectedWf.id,
-        configVersion: 1,
-        status: 'PENDING',
-        initiatedBy: user?.userId || user?.id
+        configVersion: 1
       });
       setIsDeployOpen(false);
       dispatch(addToast({ type: 'success', message: 'Deployment initiated successfully!' }));
@@ -237,13 +236,13 @@ const Workflows = () => {
           <div className="col-span-2 glass-card rounded-2xl p-12 text-center">
             <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" /><p className="text-slate-400">Loading workflows...</p>
           </div>
-        ) : workflows.length === 0 ? (
+        ) : (Array.isArray(workflows) ? workflows : []).length === 0 ? (
           <div className="col-span-2 glass-card rounded-2xl p-16 text-center">
             <GitBranch className="w-14 h-14 text-slate-600 mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-slate-300">No Workflows</h2>
             <p className="text-slate-500 mt-2 text-sm">Create your first workflow to get started.</p>
           </div>
-        ) : workflows.map(wf => (
+        ) : (Array.isArray(workflows) ? workflows : []).map(wf => (
           <div key={wf.id} className="glass-card rounded-2xl p-5 hover-glow transition-all">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">

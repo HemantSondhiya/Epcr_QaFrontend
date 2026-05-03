@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectRole } from '../store/slices/authSlice';
 import { fetchRecords, selectRecords, selectEpcrLoading } from '../store/slices/epcrSlice';
 import { fetchQaReviews, fetchPendingReviews, selectReviews, selectPendingReviews } from '../store/slices/qaSlice';
-import { fetchNotifications, selectUnreadCount } from '../store/slices/notificationSlice';
+import { fetchUnreadNotifications, selectUnreadCount } from '../store/slices/notificationSlice';
 import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
 import StatsCard from '../components/common/StatsCard';
 import { FileText, CheckSquare, Bell, GitBranch, Users, Building2, TrendingUp, Clock, AlertCircle } from 'lucide-react';
@@ -59,8 +59,8 @@ const ManagerDashboard = ({ reviews, pending, workflows, unread, loading }) => (
   </div>
 );
 
-const ParamedicDashboard = ({ records, unread, loading, userId }) => {
-  const myRecords = records.filter(r => r.paramedicsId === userId);
+const ParamedicDashboard = ({ records, unread, loading }) => {
+  const myRecords = records;
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
@@ -244,7 +244,7 @@ const Dashboard = () => {
     }
     // Notifications — all roles except those explicitly blocked
     if (ROLE_MENU[role]?.includes('Notifications')) {
-      dispatch(fetchNotifications(user?.userId || user?.id));
+      dispatch(fetchUnreadNotifications());
     }
     // Workflows — ADMIN and MANAGER have access
     if (role === 'ADMIN' || role === 'MANAGER') {

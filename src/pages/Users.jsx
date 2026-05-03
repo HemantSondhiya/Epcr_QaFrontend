@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { Plus, Search, Trash2, RefreshCw, X, Edit2, User as UserIcon, Mail, Phone, Building, Lock, Shield, Check } from 'lucide-react';
-import client from '../api/client';
+import { fetchUsers, createUser, updateUser, deleteUser } from '../store/slices/userSlice';
+import { fetchOrganizations } from '../store/slices/orgSlice';
 import { addToast } from '../store/slices/uiSlice';
 
 const ROLES = ['ADMIN','MANAGER','PARAMEDIC','PHYSICIAN','QA_REVIEWER','VIEWER'];
@@ -18,10 +19,10 @@ const ROLE_COLORS = {
 
 const Users = () => {
   const dispatch = useDispatch();
-  const [users, setUsers]             = useState([]);
-  const [organizations, setOrgs]      = useState([]);
+  const { users, loading } = useSelector(state => state.users);
+  const { organizations } = useSelector(state => state.org);
+  
   const [searchTerm, setSearchTerm]   = useState('');
-  const [loading, setLoading]         = useState(true);
   const [isAddOpen, setIsAddOpen]     = useState(false);
   const [isEditOpen, setIsEditOpen]   = useState(false);
   const [editUser, setEditUser]       = useState(null);
@@ -30,29 +31,21 @@ const Users = () => {
   const [addForm, setAddForm] = useState({ firstName:'', lastName:'', email:'', phone:'', organizationId:'', role:'PARAMEDIC', password:'' });
   const [editForm, setEditForm] = useState({ firstName:'', lastName:'', phone:'', role:'PARAMEDIC', active: true });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [uRes, oRes] = await Promise.all([client.get('/api/users'), client.get('/api/organizations').catch(() => ({ data:[] }))]);
-      setUsers(uRes.data || []);
-      setOrgs(oRes.data || []);
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to fetch users.' }));
-    } finally { setLoading(false); }
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    dispatch(fetchUsers());
+    dispatch(fetchOrganizations());
+  }, [dispatch]);
 
   const handleCreate = async (e) => {
-    e.preventDefault(); setIsSubmitting(true);
+    e.preventDefault(); 
+    setIsSubmitting(true);
     try {
-      await client.post('/api/users', addForm);
+      await dispatch(createUser(addForm)).unwrap();
       setIsAddOpen(false);
       setAddForm({ firstName:'', lastName:'', email:'', phone:'', organizationId:'', role:'PARAMEDIC', password:'' });
       dispatch(addToast({ type: 'success', message: 'User created successfully' }));
-      fetchData();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to create user.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to create user.' }));
     } finally { setIsSubmitting(false); }
   };
 
@@ -63,35 +56,39 @@ const Users = () => {
   };
 
   const handleEdit = async (e) => {
-    e.preventDefault(); setIsSubmitting(true);
+    e.preventDefault(); 
+    setIsSubmitting(true);
     try {
-      await client.put(`/api/users/${editUser.id}`, editForm);
-      setIsEditOpen(false); setEditUser(null);
+      await dispatch(updateUser({ id: editUser.id, data: editForm })).unwrap();
+      setIsEditOpen(false); 
+      setEditUser(null);
       dispatch(addToast({ type: 'success', message: 'User updated successfully' }));
-      fetchData();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to update user.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to update user.' }));
     } finally { setIsSubmitting(false); }
   };
 
   const handleDelete = async (userId) => {
     if (!window.confirm('Delete this user?')) return;
     try {
-      await client.delete(`/api/users/${userId}`);
+      await dispatch(deleteUser(userId)).unwrap();
       dispatch(addToast({ type: 'success', message: 'User deleted.' }));
-      fetchData();
-    } catch {
+    } catch (err) {
       dispatch(addToast({ type: 'error', message: 'Failed to delete user.' }));
     }
   };
 
-  const filtered = users.filter(u =>
+  const filtered = Array.isArray(users) ? users.filter(u =>
     u.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) : [];
 
-  const orgName = (id) => organizations.find(o => o.id === id)?.name || id?.substring(0,12) + '...' || '—';
+  const orgName = (id) => {
+    // Try to find in organizations from workflow slice first
+    const org = Array.isArray(organizations) ? organizations.find(o => o.id === id) : null;
+    return org?.name || (id ? id.substring(0,12) + '...' : '—');
+  };
 
   const FieldRow = ({ icon, label, name, type='text', form, setForm, opts }) => (
     <div className="space-y-1.5">
@@ -119,7 +116,7 @@ const Users = () => {
           <p className="text-slate-400 text-sm mt-1">Manage system personnel, roles, and access.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={fetchData} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
+          <button onClick={() => dispatch(fetchUsers())} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
           <button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">

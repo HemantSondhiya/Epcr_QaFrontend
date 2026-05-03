@@ -13,6 +13,8 @@ const STATUS_STYLES = {
 };
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
 
+const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
+
 const FeedbackThreads = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
@@ -37,7 +39,8 @@ const FeedbackThreads = () => {
           ? `/api/feedback/threads/user/${user?.userId || user?.id}`
           : '/api/feedback/threads';
       const res = await client.get(endpoint);
-      setThreads(res.data || []);
+      const data = res.data;
+      setThreads(Array.isArray(data) ? data : (data?.content || []));
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to load feedback threads.' }));
     } finally { setLoading(false); }
@@ -48,7 +51,7 @@ const FeedbackThreads = () => {
   useEffect(() => {
     const canFetchEpcr = ['ADMIN', 'PARAMEDIC', 'PHYSICIAN', 'QA_REVIEWER'].includes(user?.role);
     if (canFetchEpcr) {
-      client.get('/api/epcr/records', { hideToast: true }).then(r => setRecords(r.data || [])).catch(() => {});
+      client.get('/api/epcr/records', { hideToast: true }).then(r => setRecords(asList(r.data))).catch(() => {});
     }
   }, [user]);
 
@@ -58,8 +61,7 @@ const FeedbackThreads = () => {
     try {
       await client.post('/api/feedback/threads', {
         patientCareRecordId: createForm.patientCareRecordId || undefined,
-        organizationId: createForm.organizationId || user?.organizationId,
-        initiatedBy: user?.userId || user?.id,
+        userId: user?.userId || user?.id,
         subject: createForm.subject,
         messages: [],
         status: 'OPEN'
@@ -79,10 +81,7 @@ const FeedbackThreads = () => {
     try {
       const updated = await client.post(`/api/feedback/threads/${threadId}/messages`, {
         senderId: user?.userId || user?.id,
-        senderName: user?.email || 'Unknown',
-        message: msg,
-        timestamp: new Date().toISOString(),
-        attachmentIds: []
+        message: msg
       });
       setThreads(prev => prev.map(t => t.id === threadId ? updated.data : t));
       setMsgInputs(prev => ({ ...prev, [threadId]: '' }));
@@ -145,13 +144,13 @@ const FeedbackThreads = () => {
             <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" />
             <p className="text-slate-400">Loading threads...</p>
           </div>
-        ) : threads.length === 0 ? (
+        ) : (Array.isArray(threads) ? threads : []).length === 0 ? (
           <div className="glass-card rounded-2xl p-16 text-center">
             <MessageSquare className="w-14 h-14 text-slate-600 mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-slate-300">No threads yet</h2>
             <p className="text-slate-500 mt-2 text-sm">Start a discussion by creating a new thread.</p>
           </div>
-        ) : threads.map(thread => {
+        ) : (Array.isArray(threads) ? threads : []).map(thread => {
           const isExpanded = expandedId === thread.id;
           const statusStyle = STATUS_STYLES[thread.status?.toUpperCase()] || STATUS_STYLES.OPEN;
           return (

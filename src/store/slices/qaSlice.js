@@ -1,11 +1,20 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import client from '../../api/client';
 
+const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
+
 // ── QA Forms ────────────────────────────────────────────────────────
 export const fetchQaForms = createAsyncThunk('qa/fetchForms', async (orgId, { rejectWithValue }) => {
   try {
-    const url = orgId ? `/api/qa/forms/organization/${orgId}` : '/api/qa/forms';
-    return (await client.get(url, { hideToast: true })).data;
+    if (orgId) {
+      return (await client.get(`/api/qa/forms/organization/${orgId}`, { hideToast: true })).data;
+    }
+
+    const orgs = (await client.get('/api/organizations', { hideToast: true })).data || [];
+    const forms = await Promise.all(
+      orgs.map(org => client.get(`/api/qa/forms/organization/${org.id}`, { hideToast: true }).then(res => res.data || []).catch(() => []))
+    );
+    return forms.flat();
   } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load QA forms'); }
 });
 
@@ -51,7 +60,7 @@ const qaSlice = createSlice({
      .addCase(createQaForm.fulfilled,  (s, a) => { s.forms.unshift(a.payload); })
 
      .addCase(fetchQaReviews.pending,  (s) => { s.reviewsLoading = true; })
-     .addCase(fetchQaReviews.fulfilled,(s, a) => { s.reviewsLoading = false; s.reviews = a.payload; })
+     .addCase(fetchQaReviews.fulfilled,(s, a) => { s.reviewsLoading = false; s.reviews = asList(a.payload); })
      .addCase(fetchQaReviews.rejected, (s, a) => { s.reviewsLoading = false; s.error = a.payload; })
 
      .addCase(fetchPendingReviews.fulfilled, (s, a) => { s.pendingReviews = a.payload; })

@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import client from '../../api/client';
 
+const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
+
 // ── Async Thunks ────────────────────────────────────────────────────
 export const fetchRecords = createAsyncThunk('epcr/fetchAll', async (_, { rejectWithValue }) => {
   try { return (await client.get('/api/epcr/records', { hideToast: true })).data; }
@@ -40,7 +42,7 @@ const epcrSlice = createSlice({
     const rejected  = (s, a) => { s.loading = false; s.error = a.payload; };
 
     b.addCase(fetchRecords.pending,   pending)
-     .addCase(fetchRecords.fulfilled, (s, a) => { s.loading = false; s.records = a.payload; })
+     .addCase(fetchRecords.fulfilled, (s, a) => { s.loading = false; s.records = asList(a.payload); })
      .addCase(fetchRecords.rejected,  rejected)
 
      .addCase(createRecord.pending,   pending)

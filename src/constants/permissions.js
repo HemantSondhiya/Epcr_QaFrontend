@@ -1,6 +1,6 @@
 // Role → Menu map — aligned with verified backend permission matrix
 export const ROLE_MENU = {
-  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','Workflows','Deployments','Reports','Feedback','Notifications'],
+  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications'],
   MANAGER:     ['Dashboard','Organizations','Users','QA Forms','QA Reviews','Workflows','Reports','Feedback','Notifications'],
   PARAMEDIC:   ['Dashboard','EPCR','Feedback','Notifications'],
   PHYSICIAN:   ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications'],
@@ -17,8 +17,9 @@ export const ROUTE_MAP = {
   'QA Forms':     '/qa/forms',
   'QA Reviews':   '/qa/reviews',
   Workflows:      '/workflows',
-  Deployments:    '/workflows/deployments',
+  Deployments:    '/deployments',
   Reports:        '/reports',
+  'Audit Logs':   '/audit-logs',
   Feedback:       '/feedback',
   Notifications:  '/notifications',
 };
@@ -39,15 +40,15 @@ export const ROLES = {
 };
 
 export const DEMO_CREDENTIALS = [
-  { role: 'ADMIN',       email: 'ornge.admin@demo.local',      password: 'DemoPass123!' },
-  { role: 'MANAGER',     email: 'ornge.manager@demo.local',    password: 'DemoPass123!' },
-  { role: 'PARAMEDIC',   email: 'provider.paramedic@demo.local', password: 'DemoPass123!' },
-  { role: 'PHYSICIAN',   email: 'ornge.physician@demo.local',  password: 'DemoPass123!' },
-  { role: 'QA_REVIEWER', email: 'provider.reviewer@demo.local',  password: 'DemoPass123!' },
-  { role: 'VIEWER',      email: 'provider.viewer@demo.local',    password: 'DemoPass123!' },
-  { role: 'MANAGER (NorthStar)',     email: 'northstar.manager@demo.local',    password: 'DemoPass123!' },
-  { role: 'QA_REVIEWER (NorthStar)', email: 'northstar.reviewer@demo.local', password: 'DemoPass123!' },
-  { role: 'PARAMEDIC (NorthStar)',   email: 'northstar.paramedic@demo.local',  password: 'DemoPass123!' },
-  { role: 'PHYSICIAN (NorthStar)',   email: 'northstar.physician@demo.local',  password: 'DemoPass123!' },
-  { role: 'VIEWER (NorthStar)',      email: 'northstar.viewer@demo.local',     password: 'DemoPass123!' },
+  { role: 'ADMIN',       email: 'admin@metroems.com',        password: 'Password@123' },
+  { role: 'MANAGER',     email: 'manager@metroems.com',      password: 'Password@123' },
+  { role: 'PARAMEDIC',   email: 'john.smith@metroems.com',    password: 'Password@123' },
+  { role: 'PARAMEDIC',   email: 'emily.davis@metroems.com',   password: 'Password@123' },
+  { role: 'PARAMEDIC',   email: 'robert.wilson@metroems.com', password: 'Password@123' },
+  { role: 'PARAMEDIC',   email: 'jessica.brown@metroems.com', password: 'Password@123' },
+  { role: 'PHYSICIAN',   email: 'dr.kumar@metroems.com',     password: 'Password@123' },
+  { role: 'QA_REVIEWER', email: 'qa.reviewer1@metroems.com', password: 'Password@123' },
+  { role: 'QA_REVIEWER', email: 'qa.reviewer2@metroems.com', password: 'Password@123' },
+  { role: 'VIEWER',      email: 'viewer@metroems.com',       password: 'Password@123' },
+  { role: 'VIEWER',      email: 'viewer2@metroems.com',      password: 'Password@123' },
 ];

@@ -191,18 +191,68 @@ const Reports = () => {
         </form>
 
         {custom && (
-          <div className="mt-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800">
-            <div className="flex justify-between items-center mb-3">
-              <p className="text-sm font-semibold text-white">Custom Report Results</p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(custom).slice(0,8).map(([key, val]) => (
-                <div key={key} className="p-3 bg-slate-800/50 rounded-lg">
-                  <p className="text-lg font-bold text-teal-400">{typeof val === 'number' ? val.toLocaleString() : String(val)}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{key.replace(/([A-Z])/g,' $1').replace(/_/g,' ').trim()}</p>
+          <div className="mt-6 space-y-6">
+            {/* Statistics */}
+            {custom.statistics && Object.keys(custom.statistics).length > 0 && (
+              <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                <p className="text-sm font-semibold text-white mb-3">General Statistics</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(custom.statistics).map(([key, val]) => (
+                    <div key={key} className="p-3 bg-slate-800/50 rounded-lg">
+                      <p className="text-lg font-bold text-teal-400">{typeof val === 'number' ? val.toLocaleString() : String(val)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{key.replace(/([A-Z])/g,' $1').replace(/_/g,' ').trim()}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* QA Performance */}
+            {custom.qaPerformance && Object.keys(custom.qaPerformance).length > 0 && (
+              <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                <p className="text-sm font-semibold text-white mb-3">QA Performance</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(custom.qaPerformance).map(([key, val]) => (
+                    <div key={key} className="p-3 bg-slate-800/50 rounded-lg">
+                      <p className="text-lg font-bold text-sky-400">
+                        {typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(1)) : String(val)}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">{key.replace(/([A-Z])/g,' $1').replace(/_/g,' ').trim()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Records By Status */}
+            {custom.recordsByStatus && Object.keys(custom.recordsByStatus).length > 0 && (
+              <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                <p className="text-sm font-semibold text-white mb-3">Records By Status</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(custom.recordsByStatus).map(([key, val]) => (
+                    <div key={key} className="p-3 bg-slate-800/50 rounded-lg">
+                      <p className="text-lg font-bold text-purple-400">{typeof val === 'number' ? val.toLocaleString() : String(val)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{key.replace(/([A-Z])/g,' $1').replace(/_/g,' ').trim()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fallback if flat map (legacy support) */}
+            {(!custom.statistics && !custom.qaPerformance && !custom.recordsByStatus) && (
+              <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                <p className="text-sm font-semibold text-white mb-3">Custom Report Results</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(custom).map(([key, val]) => (
+                    <div key={key} className="p-3 bg-slate-800/50 rounded-lg">
+                      <p className="text-lg font-bold text-teal-400">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{key}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

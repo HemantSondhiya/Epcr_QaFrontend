@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { logout, selectUser, selectRole } from '../../store/slices/authSlice';
-import { fetchNotifications, markAllRead, selectUnreadCount } from '../../store/slices/notificationSlice';
+import { fetchUnreadNotifications, selectUnreadCount } from '../../store/slices/notificationSlice';
 import { ROLE_MENU } from '../../constants/permissions';
-import { Bell, Search, LogOut, User, ChevronDown } from 'lucide-react';
+import { Bell, Search, LogOut, User, ChevronDown, Menu } from 'lucide-react';
 
 const PAGE_TITLES = {
   '/dashboard':              'Dashboard',
@@ -22,7 +22,7 @@ const PAGE_TITLES = {
   '/settings':               'System Settings',
 };
 
-const Header = () => {
+const Header = ({ setIsMobileMenuOpen }) => {
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
   const location  = useLocation();
@@ -31,16 +31,15 @@ const Header = () => {
   const unread    = useSelector(selectUnreadCount);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
-  const recipientId = user?.userId || user?.id;
 
   // Poll unread count every 60s — only for roles that have Notifications
   useEffect(() => {
     const canViewNotifs = ROLE_MENU[role]?.includes('Notifications');
-    if (!recipientId || !canViewNotifs) return;
-    dispatch(fetchNotifications(recipientId));
-    const iv = setInterval(() => dispatch(fetchNotifications(recipientId)), 60000);
+    if (!canViewNotifs) return;
+    dispatch(fetchUnreadNotifications());
+    const iv = setInterval(() => dispatch(fetchUnreadNotifications()), 60000);
     return () => clearInterval(iv);
-  }, [recipientId, role, dispatch]);
+  }, [role, dispatch]);
 
   // Close profile on outside click
   useEffect(() => {
@@ -54,10 +53,16 @@ const Header = () => {
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 glass-panel border-b border-y-0 border-x-0 border-[var(--border-color)] sticky top-0 z-30 shrink-0">
-      {/* Left: search / title */}
-      <div className="flex-1 max-w-xl">
-        <div className="relative hidden sm:block">
+    <header className="h-16 flex items-center justify-between px-4 md:px-6 glass-panel border-b border-y-0 border-x-0 border-[var(--border-color)] sticky top-0 z-30 shrink-0">
+      {/* Left: search / title / hamburger */}
+      <div className="flex-1 max-w-xl flex items-center gap-3">
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="md:hidden p-2 -ml-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/50"
+        >
+          <Menu size={24} />
+        </button>
+        <div className="relative hidden sm:block w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input type="text" placeholder={`Search in ${pageTitle}...`}
             className="w-full bg-slate-900/50 border border-slate-700/50 rounded-full pl-9 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 transition-all placeholder-slate-500" />

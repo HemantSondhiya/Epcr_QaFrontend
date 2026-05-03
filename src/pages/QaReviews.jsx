@@ -23,6 +23,8 @@ const StatusBadge = ({ status }) => (
 
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
 
+const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
+
 const QaReviews = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
@@ -92,16 +94,25 @@ const QaReviews = () => {
   const fetchDeps = async () => {
     try {
       const canFetchEpcr = ['ADMIN', 'PARAMEDIC', 'PHYSICIAN', 'QA_REVIEWER'].includes(user?.role);
+      const formRequest = user?.organizationId
+        ? client.get(`/api/qa/forms/organization/${user.organizationId}`, { hideToast: true }).catch(() => ({ data: [] }))
+        : client.get('/api/organizations', { hideToast: true })
+          .then(orgRes => Promise.all(
+            (orgRes.data || []).map(org =>
+              client.get(`/api/qa/forms/organization/${org.id}`, { hideToast: true }).then(res => res.data || []).catch(() => [])
+            )
+          ))
+          .then(formLists => ({ data: formLists.flat() }))
+          .catch(() => ({ data: [] }));
+
       const [recRes, formRes] = await Promise.all([
         canFetchEpcr
           ? client.get('/api/epcr/records', { hideToast: true }).catch(() => ({ data: [] }))
           : Promise.resolve({ data: [] }),
-        user?.organizationId
-          ? client.get(`/api/qa/forms/organization/${user.organizationId}`, { hideToast: true }).catch(() => ({ data: [] }))
-          : client.get('/api/qa/forms', { hideToast: true }).catch(() => ({ data: [] }))
+        formRequest
       ]);
-      setRecords(recRes.data || []);
-      setForms(formRes.data || []);
+      setRecords(asList(recRes.data));
+      setForms(asList(formRes.data));
     } catch { /* silent */ }
   };
 
@@ -161,6 +172,7 @@ const QaReviews = () => {
         score: parseFloat(completeForm.score) || 0,
         passed: completeForm.passed,
         feedback: completeForm.feedback,
+        comments: completeForm.feedback,
         status: 'COMPLETED'
       });
       setIsCompleteOpen(false);
@@ -187,9 +199,11 @@ const QaReviews = () => {
 
   // ── Filter ─────────────────────────────────────────────────────────
   const filtered = reviews.filter(r => {
-    const rId = r.recordId || r.patientCareRecordId || '';
+    const rId = r.recordDisplay || r.recordId || r.patientCareRecordId || '';
+    const rReviewer = r.reviewerName || r.reviewerId || '';
     const matchSearch = r.id?.toLowerCase().includes(searchTerm.toLowerCase())
       || rId.toLowerCase().includes(searchTerm.toLowerCase())
+      || rReviewer.toLowerCase().includes(searchTerm.toLowerCase())
       || r.status?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchSearch;
   });
@@ -271,17 +285,20 @@ const QaReviews = () => {
                     <span className="text-sm font-mono text-teal-400 truncate max-w-[120px] block">{review.id?.substring(0, 12)}...</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-300">{(review.recordId || review.patientCareRecordId || '—')?.substring(0, 12)}{review.recordId ? '...' : ''}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                    {review.reviewerId?.substring(0, 10) || '—'}...
+                    <span className="text-sm text-slate-300">{review.recordDisplay || ((review.recordId || review.patientCareRecordId || '—')?.substring(0, 12) + (review.recordId ? '...' : ''))}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {review.score != null ? (
+                    <div className="flex flex-col">
+                      <span className="text-sm text-slate-200">{review.reviewerName || review.reviewerId?.substring(0, 10) || '—'}</span>
+                      {review.reviewerEmail && <span className="text-xs text-slate-500">{review.reviewerEmail}</span>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {(review.scoreDisplay && review.scoreDisplay !== '—') || review.score != null ? (
                       <div className="flex items-center gap-1.5">
                         <Star size={14} className={review.score >= 80 ? 'text-teal-400' : review.score >= 50 ? 'text-amber-400' : 'text-rose-400'} />
                         <span className={`text-sm font-semibold ${review.score >= 80 ? 'text-teal-400' : review.score >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
-                          {review.score}%
+                          {review.scoreDisplay && review.scoreDisplay !== '—' ? review.scoreDisplay : `${review.score}%`}
                         </span>
                       </div>
                     ) : <span className="text-slate-500">—</span>}

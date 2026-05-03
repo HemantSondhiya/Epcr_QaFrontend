@@ -17,6 +17,7 @@ import CreateRecord  from './pages/CreateRecord';
 import QaReviews     from './pages/QaReviews';
 import QaForms       from './pages/QaForms';
 import Workflows     from './pages/Workflows';
+import Deployments   from './pages/Deployments';
 import Organizations from './pages/Organizations';
 import Users         from './pages/Users';
 import Reports       from './pages/Reports';
@@ -53,7 +54,7 @@ const AppRoutes = () => {
         <Route path="qa/reviews" element={<GuardedRoute menuItem="QA Reviews"><QaReviews /></GuardedRoute>} />
 
         <Route path="workflows"              element={<GuardedRoute menuItem="Workflows"><Workflows /></GuardedRoute>} />
-        <Route path="workflows/deployments"  element={<GuardedRoute menuItem="Deployments" roles={['ADMIN']}><Workflows deployments /></GuardedRoute>} />
+        <Route path="deployments"            element={<GuardedRoute menuItem="Deployments" roles={['ADMIN']}><Deployments /></GuardedRoute>} />
 
         <Route path="organizations" element={<GuardedRoute menuItem="Organizations"><Organizations /></GuardedRoute>} />
         <Route path="users"         element={<GuardedRoute menuItem="Users"><Users /></GuardedRoute>} />

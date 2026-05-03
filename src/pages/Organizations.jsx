@@ -1,12 +1,91 @@
 import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { Building2, Plus, Search, RefreshCw, X, Eye, Trash2, Edit2, Check } from 'lucide-react';
-import client from '../api/client';
+import { Building2, Plus, Search, RefreshCw, X, Eye, Trash2, Edit2, Check, AlertCircle } from 'lucide-react';
+import client, { extractErrorMessage } from '../api/client';
 import { addToast } from '../store/slices/uiSlice';
 
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
 
 const emptyOrg = { name:'', code:'', description:'', address:'', city:'', state:'', zipCode:'', phone:'', email:'', contactPerson:'', licenseNumber:'' };
+
+/* ── OrgForm is defined OUTSIDE the component to prevent remount on every keystroke ── */
+const OrgForm = ({ form, onChange, onSubmit, onCancel, title, isSubmitting, formError, fieldErrors }) => {
+  const handleField = (field, value) => {
+    onChange({ ...form, [field]: value });
+  };
+
+  const fieldErr = (field) => fieldErrors?.[field];
+  const errBorder = (field) => fieldErr(field) ? 'border-rose-500/50 focus:border-rose-500/50 focus:ring-rose-500/50' : '';
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
+          <h2 className="text-xl font-bold text-white">{title}</h2>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
+        </div>
+        <div className="p-6 overflow-y-auto">
+          {formError && (
+            <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2">
+              <AlertCircle size={16} className="text-rose-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-rose-400">{formError}</p>
+            </div>
+          )}
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Name *</label>
+                <input value={form.name} onChange={e => handleField('name', e.target.value)} required className={`${inputCls} ${errBorder('name')}`} placeholder="City EMS" />
+                {fieldErr('name') && <p className="text-[11px] text-rose-400">{fieldErr('name')}</p>}</div>
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Code *</label>
+                <input value={form.code} onChange={e => handleField('code', e.target.value)} required className={`${inputCls} font-mono ${errBorder('code')}`} placeholder="CITY_EMS" />
+                {fieldErr('code') && <p className="text-[11px] text-rose-400">{fieldErr('code')}</p>}</div>
+            </div>
+            <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Description</label>
+              <textarea value={form.description} onChange={e => handleField('description', e.target.value)} rows="2" className={`${inputCls} resize-none ${errBorder('description')}`} />
+              {fieldErr('description') && <p className="text-[11px] text-rose-400">{fieldErr('description')}</p>}</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Address</label>
+                <input value={form.address} onChange={e => handleField('address', e.target.value)} className={`${inputCls} ${errBorder('address')}`} />
+                {fieldErr('address') && <p className="text-[11px] text-rose-400">{fieldErr('address')}</p>}</div>
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">City</label>
+                <input value={form.city} onChange={e => handleField('city', e.target.value)} className={`${inputCls} ${errBorder('city')}`} />
+                {fieldErr('city') && <p className="text-[11px] text-rose-400">{fieldErr('city')}</p>}</div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">State</label>
+                <input value={form.state} onChange={e => handleField('state', e.target.value)} className={`${inputCls} ${errBorder('state')}`} />
+                {fieldErr('state') && <p className="text-[11px] text-rose-400">{fieldErr('state')}</p>}</div>
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Zip</label>
+                <input value={form.zipCode} onChange={e => handleField('zipCode', e.target.value)} className={`${inputCls} ${errBorder('zipCode')}`} />
+                {fieldErr('zipCode') && <p className="text-[11px] text-rose-400">{fieldErr('zipCode')}</p>}</div>
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">License #</label>
+                <input value={form.licenseNumber} onChange={e => handleField('licenseNumber', e.target.value)} className={`${inputCls} ${errBorder('licenseNumber')}`} />
+                {fieldErr('licenseNumber') && <p className="text-[11px] text-rose-400">{fieldErr('licenseNumber')}</p>}</div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Phone</label>
+                <input value={form.phone} onChange={e => handleField('phone', e.target.value)} className={`${inputCls} ${errBorder('phone')}`} />
+                {fieldErr('phone') && <p className="text-[11px] text-rose-400">{fieldErr('phone')}</p>}</div>
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Email</label>
+                <input type="email" value={form.email} onChange={e => handleField('email', e.target.value)} className={`${inputCls} ${errBorder('email')}`} />
+                {fieldErr('email') && <p className="text-[11px] text-rose-400">{fieldErr('email')}</p>}</div>
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Contact Person</label>
+                <input value={form.contactPerson} onChange={e => handleField('contactPerson', e.target.value)} className={`${inputCls} ${errBorder('contactPerson')}`} />
+                {fieldErr('contactPerson') && <p className="text-[11px] text-rose-400">{fieldErr('contactPerson')}</p>}</div>
+            </div>
+            <div className="pt-4 flex justify-end gap-3">
+              <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
+              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
+                {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
+                {isSubmitting ? 'Saving...' : title}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Organizations = () => {
   const dispatch = useDispatch();
@@ -21,13 +100,16 @@ const Organizations = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addForm, setAddForm]         = useState(emptyOrg);
   const [editForm, setEditForm]       = useState(emptyOrg);
+  const [formError, setFormError]     = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const fetchOrgs = async () => {
     setLoading(true);
     try {
       const endpoint = filterActive === 'active' ? '/api/organizations/active' : '/api/organizations';
       const res = await client.get(endpoint);
-      setOrgs(res.data || []);
+      const data = res.data;
+      setOrgs(Array.isArray(data) ? data : (data?.content || []));
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to fetch organizations.' }));
     } finally { setLoading(false); }
@@ -35,15 +117,56 @@ const Organizations = () => {
 
   useEffect(() => { fetchOrgs(); }, [filterActive]);
 
+  const parseValidationErrors = (err) => {
+    const data = err.response?.data;
+    const fields = {};
+    // Spring Boot: { errors: { field: "msg" } }
+    if (data?.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+      Object.assign(fields, data.errors);
+    }
+    // Spring Boot: { fieldErrors: { field: "msg" } }
+    if (data?.fieldErrors && typeof data.fieldErrors === 'object') {
+      Object.assign(fields, data.fieldErrors);
+    }
+    // Spring Boot validation: { errors: [ { field, defaultMessage } ] }
+    if (Array.isArray(data?.errors)) {
+      data.errors.forEach(e => { if (e.field) fields[e.field] = e.defaultMessage || e.message; });
+    }
+    // Spring Boot: { subErrors: [ { field, message } ] }
+    if (Array.isArray(data?.subErrors)) {
+      data.subErrors.forEach(e => { if (e.field) fields[e.field] = e.message || e.rejectedValue; });
+    }
+    setFieldErrors(fields);
+    setFormError(extractErrorMessage(err));
+  };
+
+  // Client-side validation before API call
+  const validateForm = (form) => {
+    const errors = {};
+    if (!form.name || form.name.trim().length < 2) errors.name = 'Name is required (min 2 characters)';
+    if (!form.code || form.code.trim().length < 2) errors.code = 'Code is required (min 2 characters)';
+    if (form.code && form.code.length > 20) errors.code = 'Code must be 20 characters or less';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Invalid email format';
+    if (form.phone && form.phone.replace(/\D/g, '').length < 10) errors.phone = 'Phone must be at least 10 digits';
+    return errors;
+  };
+
   const handleCreate = async (e) => {
-    e.preventDefault(); setIsSubmitting(true);
+    e.preventDefault(); setFormError(''); setFieldErrors({});
+    const clientErrors = validateForm(addForm);
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      setFormError('Please fix the highlighted fields below.');
+      return;
+    }
+    setIsSubmitting(true);
     try {
       await client.post('/api/organizations', addForm);
-      setIsAddOpen(false); setAddForm(emptyOrg);
+      setIsAddOpen(false); setAddForm(emptyOrg); setFormError(''); setFieldErrors({});
       dispatch(addToast({ type: 'success', message: 'Organization created successfully' }));
       fetchOrgs();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to create organization.' }));
+      parseValidationErrors(err);
     } finally { setIsSubmitting(false); }
   };
 
@@ -56,14 +179,21 @@ const Organizations = () => {
   };
 
   const handleEdit = async (e) => {
-    e.preventDefault(); setIsSubmitting(true);
+    e.preventDefault(); setFormError(''); setFieldErrors({});
+    const clientErrors = validateForm(editForm);
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      setFormError('Please fix the highlighted fields below.');
+      return;
+    }
+    setIsSubmitting(true);
     try {
       await client.put(`/api/organizations/${selectedOrg.id}`, editForm);
-      setIsEditOpen(false); setSelectedOrg(null);
+      setIsEditOpen(false); setSelectedOrg(null); setFormError(''); setFieldErrors({});
       dispatch(addToast({ type: 'success', message: 'Organization updated successfully' }));
       fetchOrgs();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to update organization.' }));
+      parseValidationErrors(err);
     } finally { setIsSubmitting(false); }
   };
 
@@ -88,62 +218,10 @@ const Organizations = () => {
     }
   };
 
-  const filtered = organizations.filter(o =>
+  const filtered = (Array.isArray(organizations) ? organizations : []).filter(o =>
     o.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const OrgForm = ({ form, setForm, onSubmit, onCancel, title }) => (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-        </div>
-        <div className="p-6 overflow-y-auto">
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Name *</label>
-                <input value={form.name} onChange={e => setForm({...form,name:e.target.value})} required className={inputCls} placeholder="City EMS" /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Code *</label>
-                <input value={form.code} onChange={e => setForm({...form,code:e.target.value})} required className={inputCls + ' font-mono'} placeholder="CITY_EMS" /></div>
-            </div>
-            <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Description</label>
-              <textarea value={form.description} onChange={e => setForm({...form,description:e.target.value})} rows="2" className={inputCls+' resize-none'} /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Address</label>
-                <input value={form.address} onChange={e => setForm({...form,address:e.target.value})} className={inputCls} /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">City</label>
-                <input value={form.city} onChange={e => setForm({...form,city:e.target.value})} className={inputCls} /></div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">State</label>
-                <input value={form.state} onChange={e => setForm({...form,state:e.target.value})} className={inputCls} /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Zip</label>
-                <input value={form.zipCode} onChange={e => setForm({...form,zipCode:e.target.value})} className={inputCls} /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">License #</label>
-                <input value={form.licenseNumber} onChange={e => setForm({...form,licenseNumber:e.target.value})} className={inputCls} /></div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Phone</label>
-                <input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} className={inputCls} /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Email</label>
-                <input type="email" value={form.email} onChange={e => setForm({...form,email:e.target.value})} className={inputCls} /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Contact Person</label>
-                <input value={form.contactPerson} onChange={e => setForm({...form,contactPerson:e.target.value})} className={inputCls} /></div>
-            </div>
-            <div className="pt-4 flex justify-end gap-3">
-              <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
-              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-                {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
-                {isSubmitting ? 'Saving...' : title}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
   );
 
   return (
@@ -230,8 +308,8 @@ const Organizations = () => {
         </div>
       </div>
 
-      {isAddOpen && <OrgForm form={addForm} setForm={setAddForm} onSubmit={handleCreate} onCancel={() => setIsAddOpen(false)} title="Add Organization" />}
-      {isEditOpen && <OrgForm form={editForm} setForm={setEditForm} onSubmit={handleEdit} onCancel={() => setIsEditOpen(false)} title="Save Changes" />}
+      {isAddOpen && <OrgForm form={addForm} onChange={setAddForm} onSubmit={handleCreate} onCancel={() => { setIsAddOpen(false); setFormError(''); setFieldErrors({}); }} title="Add Organization" isSubmitting={isSubmitting} formError={formError} fieldErrors={fieldErrors} />}
+      {isEditOpen && <OrgForm form={editForm} onChange={setEditForm} onSubmit={handleEdit} onCancel={() => { setIsEditOpen(false); setFormError(''); setFieldErrors({}); }} title="Save Changes" isSubmitting={isSubmitting} formError={formError} fieldErrors={fieldErrors} />}
 
       {/* VIEW MODAL */}
       {isViewOpen && selectedOrg && (

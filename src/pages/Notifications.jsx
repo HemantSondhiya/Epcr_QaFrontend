@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { BellOff, Check, CheckCheck, Trash2, RefreshCw, X, Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { BellOff, Check, CheckCheck, Trash2, RefreshCw, X, Info, AlertTriangle, CheckCircle, XCircle, ChevronDown } from 'lucide-react';
 import client from '../api/client';
-import { selectUser } from '../store/slices/authSlice';
 import {
   fetchNotifications, markNotificationRead, markAllRead,
-  selectNotifications, selectUnreadCount, selectNotifLoading
+  selectNotifications, selectUnreadCount, selectNotifLoading, selectNotifError, selectNotifPagination
 } from '../store/slices/notificationSlice';
 
 const TYPE_CONFIG = {
@@ -18,35 +17,38 @@ const getTypeConfig = (type) => TYPE_CONFIG[type?.toUpperCase()] || TYPE_CONFIG.
 
 const Notifications = () => {
   const dispatch = useDispatch();
-  const user = useSelector(selectUser);
   const notifications = useSelector(selectNotifications);
   const unreadCount = useSelector(selectUnreadCount);
   const loading = useSelector(selectNotifLoading);
-  
+  const loadError = useSelector(selectNotifError);
+  const pagination = useSelector(selectNotifPagination);
+
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(0);
 
-  const recipientId = user?.userId || user?.id;
-
-  const loadNotifications = () => {
-    if (recipientId) dispatch(fetchNotifications(recipientId));
+  const loadNotifications = (page = 0) => {
+    setCurrentPage(page);
+    dispatch(fetchNotifications(page));
   };
 
-  useEffect(() => { loadNotifications(); }, [recipientId, dispatch]);
+  useEffect(() => { loadNotifications(0); }, [dispatch]);
 
   const handleMarkAsRead = (id) => dispatch(markNotificationRead(id));
-  const handleMarkAllAsRead = () => dispatch(markAllRead(recipientId));
+  const handleMarkAllAsRead = () => dispatch(markAllRead());
 
   const deleteNotification = async (id) => {
-    try { 
-      await client.delete(`/api/notifications/${id}`); 
-      loadNotifications(); 
+    try {
+      await client.delete(`/api/notifications/${id}`);
+      loadNotifications(0);
     } catch { setError('Failed to delete.'); }
   };
 
-  const filtered = filter === 'read' ? notifications.filter(n => n.read) 
-                 : filter === 'unread' ? notifications.filter(n => !n.read) 
-                 : notifications;
+  const filtered = filter === 'read' ? notifications.filter(n => n.read)
+    : filter === 'unread' ? notifications.filter(n => !n.read)
+      : notifications;
+
+  const hasNextPage = currentPage < pagination.totalPages - 1;
 
   return (
     <div className="space-y-6">
@@ -59,7 +61,7 @@ const Notifications = () => {
           <p className="text-slate-400 text-sm mt-1">System alerts and activity updates.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={loadNotifications} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
+          <button onClick={() => loadNotifications(0)} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
           {unreadCount > 0 && (
@@ -76,9 +78,15 @@ const Notifications = () => {
         </div>
       )}
 
+      {loadError && (
+        <div className="p-4 bg-amber-500/10 text-amber-400 text-sm border border-amber-500/20 rounded-lg">
+          {loadError}
+        </div>
+      )}
+
       <div className="flex gap-2">
         {['all', 'unread', 'read'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
+          <button key={f} onClick={() => { setFilter(f); setCurrentPage(0); }}
             className={`px-4 py-2 text-sm rounded-lg border capitalize transition-colors ${filter === f ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/50'}`}>
             {f}{f === 'unread' && unreadCount > 0 && <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white rounded-full">{unreadCount}</span>}
           </button>
@@ -96,39 +104,61 @@ const Notifications = () => {
             <h2 className="text-lg font-semibold text-slate-300">All caught up!</h2>
             <p className="text-slate-500 mt-2 text-sm">No {filter !== 'all' ? filter + ' ' : ''}notifications.</p>
           </div>
-        ) : filtered.map(notif => {
-          const cfg = getTypeConfig(notif.type);
-          return (
-            <div key={notif.id} className={`glass-card rounded-xl p-5 border transition-all ${notif.read ? 'opacity-60' : 'hover-glow'}`}>
-              <div className="flex items-start gap-4">
-                <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.color}`}>{cfg.icon}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className={`text-sm font-semibold ${notif.read ? 'text-slate-300' : 'text-white'}`}>{notif.title || 'Notification'}</p>
-                        {!notif.read && <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />}
-                        {notif.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${cfg.bg} ${cfg.color} font-medium uppercase`}>{notif.type}</span>}
+        ) : (
+          <>
+            {filtered.map(notif => {
+              const cfg = getTypeConfig(notif.type);
+              return (
+                <div key={notif.id} className={`glass-card rounded-xl p-5 border transition-all ${notif.read ? 'opacity-60' : 'hover-glow'}`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.color}`}>{cfg.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-sm font-semibold ${notif.read ? 'text-slate-300' : 'text-white'}`}>{notif.title || 'Notification'}</p>
+                            {!notif.read && <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />}
+                            {notif.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${cfg.bg} ${cfg.color} font-medium uppercase`}>{notif.type}</span>}
+                          </div>
+                          <p className="text-sm text-slate-400 mt-1">{notif.message}</p>
+                          <p className="text-xs text-slate-600 mt-1.5">{notif.createdAt ? new Date(notif.createdAt).toLocaleString() : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {!notif.read && (
+                            <button onClick={() => handleMarkAsRead(notif.id)} className="p-1.5 text-slate-500 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Mark read">
+                              <Check size={15} />
+                            </button>
+                          )}
+                          <button onClick={() => deleteNotification(notif.id)} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-sm text-slate-400 mt-1">{notif.message}</p>
-                      <p className="text-xs text-slate-600 mt-1.5">{notif.createdAt ? new Date(notif.createdAt).toLocaleString() : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {!notif.read && (
-                        <button onClick={() => handleMarkAsRead(notif.id)} className="p-1.5 text-slate-500 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Mark read">
-                          <Check size={15} />
-                        </button>
-                      )}
-                      <button onClick={() => deleteNotification(notif.id)} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete">
-                        <Trash2 size={15} />
-                      </button>
                     </div>
                   </div>
                 </div>
+              );
+            })}
+
+            {hasNextPage && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={() => loadNotifications(currentPage + 1)}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-6 py-3 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                  <ChevronDown size={16} />
+                  Load More
+                </button>
               </div>
-            </div>
-          );
-        })}
+            )}
+
+            {pagination.totalElements > 0 && (
+              <div className="text-center text-xs text-slate-500 pt-2">
+                Showing {(currentPage * pagination.pageSize) + 1} to {Math.min((currentPage + 1) * pagination.pageSize, pagination.totalElements)} of {pagination.totalElements}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

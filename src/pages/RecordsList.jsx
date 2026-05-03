@@ -70,25 +70,10 @@ const RecordsList = () => {
 
       if (isParamedic && (user?.userId || user?.id)) {
         const pid = user.userId || user.id;
-        endpoint = `/api/epcr/records/paramedic/${pid}?page=${pageNum}&size=${size}`;
+        endpoint = `/api/epcr/records/paramedic/${pid}`;
       }
 
-      let res;
-      try {
-        res = await client.get(endpoint, { hideToast: true });
-      } catch (err) {
-        // Fallback for paramedic if specific endpoint fails
-        if (isParamedic) {
-          res = await client.get(`/api/epcr/records?page=${pageNum}&size=${size}`, { hideToast: true });
-          // Note: client-side filtering on paginated results isn't ideal, but serves as fallback
-          if (res.data?.content) {
-            const pid = user?.userId || user?.id;
-            res.data.content = res.data.content.filter(r => r.paramedicsId === pid || r.submittedBy === pid || r.organizationId === user.organizationId);
-          }
-        } else {
-          throw err;
-        }
-      }
+      const res = await client.get(endpoint, { hideToast: true });
 
       const isPaginated = res.data && res.data.content !== undefined;
       const newRecords = isPaginated ? res.data.content : (res.data || []);
@@ -221,7 +206,7 @@ const RecordsList = () => {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">EPCR Records</h1>
           <p className="text-slate-400 text-sm mt-1">
-            {isParamedic ? 'Your patient care reports — create, update, and submit.' : 'View and manage patient care reports.'}
+            {isParamedic ? 'Your patient care reports returned by backend visibility.' : 'View and manage patient care reports.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -248,7 +233,7 @@ const RecordsList = () => {
         <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input type="text" placeholder="Search records by name or ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+            <input type="text" placeholder={isParamedic ? 'Search your records by name or ID...' : 'Search records by name or ID...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all" />
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors">
@@ -272,7 +257,7 @@ const RecordsList = () => {
               {loading ? (
                 <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400"><RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" />Loading records...</td></tr>
               ) : filteredRecords.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No records found.</td></tr>
+                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">{isParamedic ? 'No records assigned to you yet.' : 'No records found.'}</td></tr>
               ) : (
                 filteredRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-800/30 transition-colors group">
@@ -315,7 +300,7 @@ const RecordsList = () => {
         </div>
 
         <div className="p-4 border-t border-[var(--border-color)] flex items-center justify-between text-sm text-slate-400">
-          <span>Showing {filteredRecords.length} records</span>
+          <span>{isParamedic ? `Showing ${filteredRecords.length} of your records` : `Showing ${filteredRecords.length} records`}</span>
           {hasMore && (
             <button 
               onClick={() => fetchRecords(page + 1, true)}
