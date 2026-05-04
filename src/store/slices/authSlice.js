@@ -30,9 +30,9 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    loginSuccess(state, { payload: { user } }) {
-      state.user            = user;
-      state.isAuthenticated = true;
+    loginSuccess(state, action) {
+      state.user            = action.payload?.user || null;
+      state.isAuthenticated = !!action.payload?.user;
     },
     logout(state) {
       state.user            = null;
@@ -44,9 +44,9 @@ const authSlice = createSlice({
       .addCase(checkAuth.pending, (state) => {
         state.isInitializing = true;
       })
-      .addCase(checkAuth.fulfilled, (state, { payload }) => {
-        state.user = payload;
-        state.isAuthenticated = true;
+      .addCase(checkAuth.fulfilled, (state, action) => {
+        state.user = action.payload || null;
+        state.isAuthenticated = !!action.payload;
         state.isInitializing = false;
       })
       .addCase(checkAuth.rejected, (state) => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { logout, selectUser, selectRole } from '../../store/slices/authSlice';
+import { logoutUser, selectUser, selectRole } from '../../store/slices/authSlice';
 import { fetchUnreadNotifications, selectUnreadCount } from '../../store/slices/notificationSlice';
 import { ROLE_MENU } from '../../constants/permissions';
 import { Bell, Search, LogOut, User, ChevronDown, Menu } from 'lucide-react';
