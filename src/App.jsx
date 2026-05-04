@@ -10,7 +10,6 @@ import RoleGate from './components/common/RoleGate';
 
 // Pages
 import Login         from './pages/Login';
-import Register      from './pages/Register';
 import Dashboard     from './pages/Dashboard';
 import RecordsList   from './pages/RecordsList';
 import CreateRecord  from './pages/CreateRecord';
@@ -40,7 +39,6 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login"    element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/register" element={<Register />} />
 
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />

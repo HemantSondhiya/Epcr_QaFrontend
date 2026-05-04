@@ -94,9 +94,6 @@ const Login = () => {
             </button>
           </form>
 
-          <p className="text-center text-xs text-slate-500 mt-4">
-            Don't have an account? <Link to="/register" className="text-teal-400 hover:text-teal-300">Register</Link>
-          </p>
         </div>
 
         {/* Demo Credentials Quick-Fill */}

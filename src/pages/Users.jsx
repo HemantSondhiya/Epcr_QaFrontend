@@ -4,6 +4,7 @@ import { Plus, Search, Trash2, RefreshCw, X, Edit2, User as UserIcon, Mail, Phon
 import { fetchUsers, createUser, updateUser, deleteUser } from '../store/slices/userSlice';
 import { fetchOrganizations } from '../store/slices/orgSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { selectRole } from '../store/slices/authSlice';
 
 const ROLES = ['ADMIN','MANAGER','PARAMEDIC','PHYSICIAN','QA_REVIEWER','VIEWER'];
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
@@ -19,8 +20,11 @@ const ROLE_COLORS = {
 
 const Users = () => {
   const dispatch = useDispatch();
+  const currentUserRole = useSelector(selectRole);
   const { users, loading } = useSelector(state => state.users);
   const { organizations } = useSelector(state => state.org);
+  
+  const availableRoles = currentUserRole === 'ADMIN' ? ROLES : ROLES.filter(r => r !== 'ADMIN');
   
   const [searchTerm, setSearchTerm]   = useState('');
   const [isAddOpen, setIsAddOpen]     = useState(false);
@@ -207,7 +211,7 @@ const Users = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <FieldRow icon={<Phone size={16} />} label="Phone" name="phone" form={addForm} setForm={setAddForm} />
                   <FieldRow icon={<Shield size={16} />} label="Role" name="role" form={addForm} setForm={setAddForm}
-                    opts={ROLES.map(r => ({ value: r, label: r.replace('_',' ') }))} />
+                    opts={availableRoles.map(r => ({ value: r, label: r.replace('_',' ') }))} />
                 </div>
                 <FieldRow icon={<Building size={16} />} label="Organization" name="organizationId" form={addForm} setForm={setAddForm}
                   opts={[{ value:'', label:'Select Organization' }, ...organizations.map(o => ({ value: o.id, label: o.name }))]} />
@@ -244,7 +248,7 @@ const Users = () => {
                 </div>
                 <FieldRow icon={<Phone size={16} />} label="Phone" name="phone" form={editForm} setForm={setEditForm} />
                 <FieldRow icon={<Shield size={16} />} label="Role" name="role" form={editForm} setForm={setEditForm}
-                  opts={ROLES.map(r => ({ value: r, label: r.replace('_',' ') }))} />
+                  opts={availableRoles.map(r => ({ value: r, label: r.replace('_',' ') }))} />
                 <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
                   <input type="checkbox" checked={editForm.active} onChange={e => setEditForm({ ...editForm, active: e.target.checked })}
                     className="rounded border-slate-700 bg-slate-900 text-teal-500" />
