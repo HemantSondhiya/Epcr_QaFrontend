@@ -69,7 +69,7 @@ client.interceptors.response.use(
       // If already trying to login or refresh, don't retry, just logout
       if (originalRequest.url.includes('/api/auth/login') || originalRequest.url.includes('/api/auth/refresh')) {
         _store?.dispatch(logout());
-        if (!originalRequest.url.includes('/api/auth/login')) {
+        if (!originalRequest.url.includes('/api/auth/login') && window.location.pathname !== '/login') {
           window.location.replace('/login');
         }
         return Promise.reject(err);
@@ -97,7 +97,9 @@ client.interceptors.response.use(
             isRefreshing = false;
             refreshSubscribers = [];
             _store?.dispatch(logout());
-            window.location.replace('/login');
+            if (window.location.pathname !== '/login') {
+              window.location.replace('/login');
+            }
             reject(refreshErr);
           });
       });
