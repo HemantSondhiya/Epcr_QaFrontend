@@ -9,16 +9,12 @@ export const injectStore = (store) => { _store = store; };
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://epcr-qabackend.onrender.com',
   timeout: 15000,
+  withCredentials: true,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
-// ── Request: attach Bearer token ────────────────────────────────────
-client.interceptors.request.use((config) => {
-  const token =
-    _store?.getState()?.auth?.token ||
-    localStorage.getItem('med_epcr_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+
 
 /**
  * Extract a human-readable error message from various Spring Boot error formats:
@@ -49,25 +45,69 @@ export const extractErrorMessage = (err) => {
   return 'Validation failed. Please check your input.';
 };
 
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeTokenRefresh = (cb) => {
+  refreshSubscribers.push(cb);
+};
+
+const onRefreshed = () => {
+  refreshSubscribers.map((cb) => cb());
+  refreshSubscribers = [];
+};
+
 // ── Response: centralised error handling ────────────────────────────
 client.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err.response?.status;
     const message = extractErrorMessage(err);
+    const originalRequest = err.config;
+
+    if (status === 401 && !originalRequest._retry) {
+      // If already trying to login or refresh, don't retry, just logout
+      if (originalRequest.url.includes('/api/auth/login') || originalRequest.url.includes('/api/auth/refresh')) {
+        _store?.dispatch(logout());
+        if (!originalRequest.url.includes('/api/auth/login')) {
+          window.location.replace('/login');
+        }
+        return Promise.reject(err);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh(() => {
+            resolve(client(originalRequest));
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      return new Promise((resolve, reject) => {
+        client.post('/api/auth/refresh')
+          .then(() => {
+            isRefreshing = false;
+            onRefreshed();
+            resolve(client(originalRequest));
+          })
+          .catch((refreshErr) => {
+            isRefreshing = false;
+            refreshSubscribers = [];
+            _store?.dispatch(logout());
+            window.location.replace('/login');
+            reject(refreshErr);
+          });
+      });
+    }
 
     if (err.config?.hideToast) {
-      if (status === 401) {
-        _store?.dispatch(logout());
-        window.location.replace('/login');
-      }
       return Promise.reject(err);
     }
 
-    if (status === 401) {
-      _store?.dispatch(logout());
-      window.location.replace('/login');
-    } else if (status === 403) {
+    if (status === 403) {
       _store?.dispatch(addToast({ type: 'error', message: 'Access Denied — you don\'t have permission.' }));
     } else if (status === 400) {
       _store?.dispatch(addToast({ type: 'error', message: `Validation Error: ${message}` }));

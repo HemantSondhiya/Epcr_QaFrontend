@@ -50,7 +50,7 @@ const Header = ({ setIsMobileMenuOpen }) => {
 
   const pageTitle = PAGE_TITLES[location.pathname] || 'MedEPCR';
 
-  const handleLogout = () => { dispatch(logout()); navigate('/login'); };
+  const handleLogout = () => { dispatch(logoutUser()); navigate('/login'); };
 
   return (
     <header className="h-16 flex items-center justify-between px-4 md:px-6 glass-panel border-b border-y-0 border-x-0 border-[var(--border-color)] sticky top-0 z-30 shrink-0">

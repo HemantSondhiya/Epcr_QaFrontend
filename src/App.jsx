@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectIsAuthenticated, selectRole } from './store/slices/authSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { selectIsAuthenticated, selectIsInitializing, checkAuth } from './store/slices/authSlice';
 import { hasMenuAccess } from './constants/permissions';
+import { RefreshCw } from 'lucide-react';
 
 // Layout
 import Layout from './components/layout/Layout';
@@ -35,7 +37,22 @@ const GuardedRoute = ({ menuItem, roles, children }) => (
 );
 
 const AppRoutes = () => {
+  const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const isInitializing = useSelector(selectIsInitializing);
+
+  useEffect(() => {
+    dispatch(checkAuth());
+  }, [dispatch]);
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-main)]">
+        <RefreshCw className="animate-spin text-teal-500 w-8 h-8" />
+      </div>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/login"    element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />

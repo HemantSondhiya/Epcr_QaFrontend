@@ -5,6 +5,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { applyRecordFilters, buildFilterQueryString } from '../utils/recordFilters';
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -60,6 +61,15 @@ const RecordsList = () => {
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  const [filters, setFilters] = useState({
+    status: '',
+    startDate: '',
+    endDate: '',
+    sortBy: 'incidentDateTime',
+    direction: 'DESC'
+  });
 
   const fetchRecords = async (pageNum = 0, isAppend = false) => {
     if (!isAppend) setLoading(true);
@@ -67,10 +77,25 @@ const RecordsList = () => {
     try {
       const size = 20;
       let endpoint = `/api/epcr/records?page=${pageNum}&size=${size}`;
+      
+      // Add filters to query string
+      const filterParams = new URLSearchParams();
+      if (filters.status) filterParams.append('status', filters.status);
+      if (filters.startDate) filterParams.append('startDate', filters.startDate);
+      if (filters.endDate) filterParams.append('endDate', filters.endDate);
+      if (filters.sortBy) filterParams.append('sortBy', filters.sortBy);
+      if (filters.direction) filterParams.append('direction', filters.direction);
+      if (searchTerm) filterParams.append('search', searchTerm);
+
+      const qs = filterParams.toString();
+      if (qs) {
+        endpoint = endpoint.includes('?') ? `${endpoint}&${qs}` : `${endpoint}?${qs}`;
+      }
 
       if (isParamedic && (user?.userId || user?.id)) {
         const pid = user.userId || user.id;
         endpoint = `/api/epcr/records/paramedic/${pid}`;
+        // Note: Backend might not support complex filtering on this specific endpoint yet
       }
 
       const res = await client.get(endpoint, { hideToast: true });
@@ -236,10 +261,72 @@ const RecordsList = () => {
             <input type="text" placeholder={isParamedic ? 'Search your records by name or ID...' : 'Search records by name or ID...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all" />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors">
-            <Filter size={18} /><span>Filter</span>
+          <button 
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isFilterOpen ? 'bg-teal-500/10 text-teal-400 border border-teal-500/50' : 'bg-slate-800/50 border border-slate-700/50 text-slate-300 hover:bg-slate-700/50'}`}
+          >
+            <Filter size={18} />
+            <span>{isFilterOpen ? 'Hide Filters' : 'Show Filters'}</span>
           </button>
         </div>
+
+        {/* Filter Section */}
+        {isFilterOpen && (
+          <div className="p-4 bg-slate-900/30 border-b border-slate-700/50 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top duration-300">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400">Status</label>
+              <select 
+                value={filters.status} 
+                onChange={e => setFilters({...filters, status: e.target.value})}
+                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-teal-500/50"
+              >
+                <option value="">All Statuses</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SUBMITTED">Submitted</option>
+                <option value="APPROVED">Approved</option>
+                <option value="QA_PENDING">QA Pending</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400">From Date</label>
+              <input 
+                type="date" 
+                value={filters.startDate}
+                onChange={e => setFilters({...filters, startDate: e.target.value})}
+                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-teal-500/50"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400">To Date</label>
+              <input 
+                type="date" 
+                value={filters.endDate}
+                onChange={e => setFilters({...filters, endDate: e.target.value})}
+                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-teal-500/50"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button 
+                onClick={() => fetchRecords(0, false)}
+                className="flex-1 bg-teal-500/10 text-teal-400 border border-teal-500/20 hover:bg-teal-500/20 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Apply
+              </button>
+              <button 
+                onClick={() => {
+                  setFilters({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' });
+                  setSearchTerm('');
+                  fetchRecords(0, false);
+                }}
+                className="px-3 bg-slate-800 text-slate-400 hover:text-slate-200 py-2 rounded-lg text-sm transition-colors"
+                title="Reset"
+              >
+                <RefreshCw size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="overflow-x-auto min-h-[300px]">
           <table className="w-full text-left border-collapse">

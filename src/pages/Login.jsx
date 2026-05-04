@@ -21,9 +21,8 @@ const Login = () => {
     setLoading(true); setError('');
     try {
       const res = await client.post('/api/auth/login', { email, password });
-      const { token, userId, role, organizationId } = res.data;
+      const { userId, role, organizationId } = res.data;
       dispatch(loginSuccess({
-        token,
         user: { id: userId, userId, email, role, organizationId },
       }));
       dispatch(addToast({ type: 'success', message: `Logged in as ${role}` }));

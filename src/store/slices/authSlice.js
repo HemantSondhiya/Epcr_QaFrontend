@@ -1,36 +1,59 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import client from '../../api/client';
 
-const TOKEN_KEY = 'med_epcr_token';
-const USER_KEY  = 'med_epcr_user';
-
-const loadAuth = () => {
+export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const user  = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
-    return { token, user, isAuthenticated: !!token };
-  } catch {
-    return { token: null, user: null, isAuthenticated: false };
+    const response = await client.get('/api/auth/me', { hideToast: true });
+    return response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data);
   }
+});
+
+export const logoutUser = createAsyncThunk('auth/logout', async (_, { dispatch }) => {
+  try {
+    await client.post('/api/auth/logout');
+  } catch (e) {
+    console.error('Logout request failed', e);
+  } finally {
+    dispatch(logout());
+  }
+});
+
+const initialState = {
+  user: null,
+  isAuthenticated: false,
+  isInitializing: true,
 };
 
 const authSlice = createSlice({
   name: 'auth',
-  initialState: loadAuth(),
+  initialState,
   reducers: {
-    loginSuccess(state, { payload: { token, user } }) {
-      state.token           = token;
+    loginSuccess(state, { payload: { user } }) {
       state.user            = user;
       state.isAuthenticated = true;
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(USER_KEY, JSON.stringify(user));
     },
     logout(state) {
-      state.token           = null;
       state.user            = null;
       state.isAuthenticated = false;
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(checkAuth.pending, (state) => {
+        state.isInitializing = true;
+      })
+      .addCase(checkAuth.fulfilled, (state, { payload }) => {
+        state.user = payload;
+        state.isAuthenticated = true;
+        state.isInitializing = false;
+      })
+      .addCase(checkAuth.rejected, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
+        state.isInitializing = false;
+      });
   },
 });
 
@@ -38,7 +61,7 @@ export const { loginSuccess, logout } = authSlice.actions;
 export const selectAuth  = (s) => s.auth;
 export const selectUser  = (s) => s.auth.user;
 export const selectRole  = (s) => s.auth.user?.role;
-export const selectToken = (s) => s.auth.token;
 export const selectIsAuthenticated = (s) => s.auth.isAuthenticated;
+export const selectIsInitializing = (s) => s.auth.isInitializing;
 
 export default authSlice.reducer;
