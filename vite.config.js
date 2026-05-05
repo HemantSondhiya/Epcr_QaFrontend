@@ -22,8 +22,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://epcr-qabackend.onrender.com',
+        target: 'http://localhost:9091',
         changeOrigin: true,
+        secure: false,
+        // Rewrite Set-Cookie domain so browser stores cookies under localhost:5173
+        cookieDomainRewrite: { '*': '' },
       },
     },
   },

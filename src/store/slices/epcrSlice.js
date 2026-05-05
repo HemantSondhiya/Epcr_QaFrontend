@@ -1,32 +1,32 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import client from '../../api/client';
+import client, { extractErrorMessage } from '../../api/client';
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
 // ── Async Thunks ────────────────────────────────────────────────────
 export const fetchRecords = createAsyncThunk('epcr/fetchAll', async (_, { rejectWithValue }) => {
   try { return (await client.get('/api/epcr/records', { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load records'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const createRecord = createAsyncThunk('epcr/create', async (payload, { rejectWithValue }) => {
   try { return (await client.post('/api/epcr/records', payload)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create record'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const updateRecord = createAsyncThunk('epcr/update', async ({ id, data }, { rejectWithValue }) => {
   try { return (await client.put(`/api/epcr/records/${id}`, data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update record'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const submitRecord = createAsyncThunk('epcr/submit', async (id, { rejectWithValue }) => {
   try { return (await client.post(`/api/epcr/records/${id}/submit`)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to submit record'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const deleteRecord = createAsyncThunk('epcr/delete', async (id, { rejectWithValue }) => {
   try { await client.delete(`/api/epcr/records/${id}`); return id; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete record'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 // ── Slice ───────────────────────────────────────────────────────────

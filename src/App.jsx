@@ -17,6 +17,8 @@ import RecordsList   from './pages/RecordsList';
 import CreateRecord  from './pages/CreateRecord';
 import QaReviews     from './pages/QaReviews';
 import QaForms       from './pages/QaForms';
+import QaRules       from './pages/QaRules';
+import FormTemplates from './pages/FormTemplates';
 import Workflows     from './pages/Workflows';
 import Deployments   from './pages/Deployments';
 import Organizations from './pages/Organizations';
@@ -26,6 +28,12 @@ import Notifications from './pages/Notifications';
 import FeedbackThreads from './pages/FeedbackThreads';
 import AuditLogs     from './pages/AuditLogs';
 import Settings      from './pages/Settings';
+import HipaaConsent  from './pages/HipaaConsent';
+import HipaaDisclosure from './pages/HipaaDisclosure';
+import PatientPortal from './pages/PatientPortal';
+import BreakGlass    from './pages/BreakGlass';
+import BusinessAssociate from './pages/BusinessAssociate';
+import DeIdentification from './pages/DeIdentification';
 
 // Route guard: wraps ProtectedRoute + RoleGate
 const GuardedRoute = ({ menuItem, roles, children }) => (
@@ -40,6 +48,7 @@ const AppRoutes = () => {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const isInitializing = useSelector(selectIsInitializing);
+  const role = useSelector(state => state.auth.user?.role);
 
   useEffect(() => {
     dispatch(checkAuth());
@@ -55,18 +64,21 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/login"    element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/login"    element={isAuthenticated ? <Navigate to={role === 'PATIENT' ? '/patient-portal' : '/dashboard'} replace /> : <Login />} />
 
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Navigate to={role === 'PATIENT' ? '/patient-portal' : '/dashboard'} replace />} />
 
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="dashboard" element={role === 'PATIENT' ? <Navigate to="/patient-portal" replace /> : <Dashboard />} />
 
         <Route path="epcr"       element={<GuardedRoute menuItem="EPCR"><RecordsList /></GuardedRoute>} />
         <Route path="epcr/new"   element={<GuardedRoute menuItem="EPCR"><CreateRecord /></GuardedRoute>} />
 
         <Route path="qa/forms"   element={<GuardedRoute menuItem="QA Forms"><QaForms /></GuardedRoute>} />
         <Route path="qa/reviews" element={<GuardedRoute menuItem="QA Reviews"><QaReviews /></GuardedRoute>} />
+        <Route path="qa/rules"   element={<GuardedRoute menuItem="QA Rules"><QaRules /></GuardedRoute>} />
+
+        <Route path="form-templates" element={<GuardedRoute menuItem="Form Templates"><FormTemplates /></GuardedRoute>} />
 
         <Route path="workflows"              element={<GuardedRoute menuItem="Workflows"><Workflows /></GuardedRoute>} />
         <Route path="deployments"            element={<GuardedRoute menuItem="Deployments" roles={['ADMIN']}><Deployments /></GuardedRoute>} />
@@ -79,11 +91,19 @@ const AppRoutes = () => {
         <Route path="audit-logs"    element={<GuardedRoute roles={['ADMIN']}><AuditLogs /></GuardedRoute>} />
         <Route path="settings"      element={<GuardedRoute roles={['ADMIN']}><Settings /></GuardedRoute>} />
 
+        {/* HIPAA & Patient Routes */}
+        <Route path="hipaa/consent"   element={<GuardedRoute menuItem="HIPAA Consent"><HipaaConsent /></GuardedRoute>} />
+        <Route path="hipaa/disclosure" element={<GuardedRoute menuItem="HIPAA Disclosure"><HipaaDisclosure /></GuardedRoute>} />
+        <Route path="hipaa/baa"       element={<GuardedRoute menuItem="Business Associates"><BusinessAssociate /></GuardedRoute>} />
+        <Route path="hipaa/deid"      element={<GuardedRoute menuItem="De-Identification"><DeIdentification /></GuardedRoute>} />
+        <Route path="patient-portal"  element={<GuardedRoute menuItem="Patient Portal"><PatientPortal /></GuardedRoute>} />
+        <Route path="break-glass"     element={<GuardedRoute menuItem="Break-Glass"><BreakGlass /></GuardedRoute>} />
+
         {/* Legacy redirect */}
         <Route path="records"     element={<Navigate to="/epcr" replace />} />
         <Route path="records/new" element={<Navigate to="/epcr/new" replace />} />
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to={role === 'PATIENT' ? '/patient-portal' : '/dashboard'} replace />} />
       </Route>
     </Routes>
   );

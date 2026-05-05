@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { Building2, Plus, Search, RefreshCw, X, Eye, Trash2, Edit2, Check, AlertCircle } from 'lucide-react';
 import client, { extractErrorMessage } from '../api/client';
 import { addToast } from '../store/slices/uiSlice';
+import { selectUser } from '../store/slices/authSlice';
+import {
+  fetchOrganizations,
+  fetchActiveOrganizations,
+  fetchOrganizationById,
+  createOrganization,
+  updateOrganization,
+  deleteOrganization
+} from '../store/slices/orgSlice';
 
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
 
@@ -53,10 +62,10 @@ const OrgForm = ({ form, onChange, onSubmit, onCancel, title, isSubmitting, form
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">State</label>
-                <input value={form.state} onChange={e => handleField('state', e.target.value)} className={`${inputCls} ${errBorder('state')}`} />
+                <input value={form.state} onChange={e => handleField('state', e.target.value)} className={`${inputCls} ${errBorder('state')}`} placeholder="Karnataka" />
                 {fieldErr('state') && <p className="text-[11px] text-rose-400">{fieldErr('state')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Zip</label>
-                <input value={form.zipCode} onChange={e => handleField('zipCode', e.target.value)} className={`${inputCls} ${errBorder('zipCode')}`} />
+              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">PIN Code</label>
+                <input value={form.zipCode} onChange={e => handleField('zipCode', e.target.value)} className={`${inputCls} ${errBorder('zipCode')}`} placeholder="560001" />
                 {fieldErr('zipCode') && <p className="text-[11px] text-rose-400">{fieldErr('zipCode')}</p>}</div>
               <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">License #</label>
                 <input value={form.licenseNumber} onChange={e => handleField('licenseNumber', e.target.value)} className={`${inputCls} ${errBorder('licenseNumber')}`} />
@@ -64,7 +73,7 @@ const OrgForm = ({ form, onChange, onSubmit, onCancel, title, isSubmitting, form
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Phone</label>
-                <input value={form.phone} onChange={e => handleField('phone', e.target.value)} className={`${inputCls} ${errBorder('phone')}`} />
+                <input value={form.phone} onChange={e => handleField('phone', e.target.value)} className={`${inputCls} ${errBorder('phone')}`} placeholder="+91 98765 43210" />
                 {fieldErr('phone') && <p className="text-[11px] text-rose-400">{fieldErr('phone')}</p>}</div>
               <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Email</label>
                 <input type="email" value={form.email} onChange={e => handleField('email', e.target.value)} className={`${inputCls} ${errBorder('email')}`} />
@@ -89,9 +98,11 @@ const OrgForm = ({ form, onChange, onSubmit, onCancel, title, isSubmitting, form
 
 const Organizations = () => {
   const dispatch = useDispatch();
-  const [organizations, setOrgs]      = useState([]);
+  const user = useSelector(selectUser);
+  
+  const { organizations, loading } = useSelector(state => state.org);
+
   const [searchTerm, setSearchTerm]   = useState('');
-  const [loading, setLoading]         = useState(true);
   const [filterActive, setFilter]     = useState('all');
   const [isAddOpen, setIsAddOpen]     = useState(false);
   const [isEditOpen, setIsEditOpen]   = useState(false);
@@ -103,41 +114,48 @@ const Organizations = () => {
   const [formError, setFormError]     = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const fetchOrgs = async () => {
-    setLoading(true);
-    try {
-      const endpoint = filterActive === 'active' ? '/api/organizations/active' : '/api/organizations';
-      const res = await client.get(endpoint);
-      const data = res.data;
-      setOrgs(Array.isArray(data) ? data : (data?.content || []));
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to fetch organizations.' }));
-    } finally { setLoading(false); }
+  const fetchOrgs = () => {
+    if (filterActive === 'active') {
+      dispatch(fetchActiveOrganizations());
+    } else {
+      dispatch(fetchOrganizations());
+    }
   };
 
-  useEffect(() => { fetchOrgs(); }, [filterActive]);
+  useEffect(() => { fetchOrgs(); }, [filterActive, dispatch]);
 
   const parseValidationErrors = (err) => {
     const data = err.response?.data;
     const fields = {};
-    // Spring Boot: { errors: { field: "msg" } }
+    
+    // 1. Extract Field Specific Errors
     if (data?.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
       Object.assign(fields, data.errors);
     }
-    // Spring Boot: { fieldErrors: { field: "msg" } }
     if (data?.fieldErrors && typeof data.fieldErrors === 'object') {
       Object.assign(fields, data.fieldErrors);
     }
-    // Spring Boot validation: { errors: [ { field, defaultMessage } ] }
+    // Handle { data: { field: "error" }, message: "Validation failed" }
+    if (data?.message === 'Validation failed' && data?.data && typeof data.data === 'object') {
+      Object.assign(fields, data.data);
+    }
     if (Array.isArray(data?.errors)) {
       data.errors.forEach(e => { if (e.field) fields[e.field] = e.defaultMessage || e.message; });
     }
-    // Spring Boot: { subErrors: [ { field, message } ] }
     if (Array.isArray(data?.subErrors)) {
       data.subErrors.forEach(e => { if (e.field) fields[e.field] = e.message || e.rejectedValue; });
     }
+
     setFieldErrors(fields);
-    setFormError(extractErrorMessage(err));
+
+    // 2. Extract Global Message
+    const mainMsg = extractErrorMessage(err);
+    // If we have specific field errors but the main message is generic, make it more helpful
+    if (Object.keys(fields).length > 0 && (mainMsg === 'Validation failed' || mainMsg === 'Bad Request')) {
+      setFormError('Please correct the specific errors highlighted below.');
+    } else {
+      setFormError(mainMsg);
+    }
   };
 
   // Client-side validation before API call
@@ -148,6 +166,7 @@ const Organizations = () => {
     if (form.code && form.code.length > 20) errors.code = 'Code must be 20 characters or less';
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Invalid email format';
     if (form.phone && form.phone.replace(/\D/g, '').length < 10) errors.phone = 'Phone must be at least 10 digits';
+    if (form.zipCode && !/^[1-9][0-9]{5}$/.test(form.zipCode)) errors.zipCode = 'Invalid PIN code (must be 6 digits)';
     return errors;
   };
 
@@ -161,10 +180,9 @@ const Organizations = () => {
     }
     setIsSubmitting(true);
     try {
-      await client.post('/api/organizations', addForm);
+      await dispatch(createOrganization(addForm)).unwrap();
       setIsAddOpen(false); setAddForm(emptyOrg); setFormError(''); setFieldErrors({});
       dispatch(addToast({ type: 'success', message: 'Organization created successfully' }));
-      fetchOrgs();
     } catch (err) {
       parseValidationErrors(err);
     } finally { setIsSubmitting(false); }
@@ -188,10 +206,9 @@ const Organizations = () => {
     }
     setIsSubmitting(true);
     try {
-      await client.put(`/api/organizations/${selectedOrg.id}`, editForm);
+      await dispatch(updateOrganization({ id: selectedOrg.id, data: editForm })).unwrap();
       setIsEditOpen(false); setSelectedOrg(null); setFormError(''); setFieldErrors({});
       dispatch(addToast({ type: 'success', message: 'Organization updated successfully' }));
-      fetchOrgs();
     } catch (err) {
       parseValidationErrors(err);
     } finally { setIsSubmitting(false); }
@@ -200,18 +217,21 @@ const Organizations = () => {
   const handleDelete = async (orgId) => {
     if (!window.confirm('Delete this organization? This cannot be undone.')) return;
     try {
-      await client.delete(`/api/organizations/${orgId}`);
+      await dispatch(deleteOrganization(orgId)).unwrap();
       dispatch(addToast({ type: 'success', message: 'Organization deleted.' }));
-      fetchOrgs();
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to delete organization.' }));
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err || 'Failed to delete organization.' }));
     }
   };
 
   const viewOrg = async (orgId) => {
     try {
-      const res = await client.get(`/api/organizations/${orgId}`);
-      setSelectedOrg(res.data);
+      await dispatch(fetchOrganizationById(orgId)).unwrap();
+      // Since selectedOrg is in Redux now, but local state selectedOrg was also used for View/Edit
+      // I'll update the component to use the Redux selectedOrg if possible, 
+      // or just keep using the result to open modal.
+      const res = await dispatch(fetchOrganizationById(orgId)).unwrap();
+      setSelectedOrg(res);
       setIsViewOpen(true);
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to load details.' }));
@@ -235,9 +255,11 @@ const Organizations = () => {
           <button onClick={fetchOrgs} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-            <Plus size={18} /><span>Add Organization</span>
-          </button>
+          {user?.role === 'ADMIN' && (
+            <button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
+              <Plus size={18} /><span>Add Organization</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,8 +319,16 @@ const Organizations = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => viewOrg(org.id)} className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors" title="View"><Eye size={15} /></button>
-                      <button onClick={() => openEdit(org)} className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Edit"><Edit2 size={15} /></button>
-                      <button onClick={() => handleDelete(org.id)} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete"><Trash2 size={15} /></button>
+                      
+                      {/* ADMIN can edit all; MANAGER only their own */}
+                      {(user?.role === 'ADMIN' || (user?.role === 'MANAGER' && user?.organizationId === org.id)) && (
+                        <button onClick={() => openEdit(org)} className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Edit"><Edit2 size={15} /></button>
+                      )}
+                      
+                      {/* ADMIN can delete all */}
+                      {user?.role === 'ADMIN' && (
+                        <button onClick={() => handleDelete(org.id)} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>

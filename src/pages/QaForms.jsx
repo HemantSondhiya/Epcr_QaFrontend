@@ -4,6 +4,12 @@ import { useSelector, useDispatch } from 'react-redux';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import {
+  fetchQaForms,
+  createQaForm,
+  selectForms,
+  selectFormsLoading
+} from '../store/slices/qaSlice';
 
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
 
@@ -19,8 +25,10 @@ const QUESTION_TYPES = ['YES_NO', 'TEXT', 'NUMERIC', 'MULTIPLE_CHOICE', 'RATING'
 const QaForms = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const [forms, setForms]             = useState([]);
-  const [loading, setLoading]         = useState(true);
+
+  const forms   = useSelector(selectForms);
+  const loading = useSelector(selectFormsLoading);
+
   const [error, setError]             = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isViewOpen, setIsViewOpen]   = useState(false);
@@ -28,30 +36,11 @@ const QaForms = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData]       = useState(emptyForm());
 
-  const fetchForms = async () => {
-    setLoading(true); setError('');
-    try {
-      const orgId = user?.organizationId;
-      if (orgId) {
-        const res = await client.get(`/api/qa/forms/organization/${orgId}`);
-        const data = res.data;
-        setForms(Array.isArray(data) ? data : (data?.content || []));
-      } else {
-        const orgRes = await client.get('/api/organizations');
-        const formLists = await Promise.all(
-          (orgRes.data || []).map(org =>
-            client.get(`/api/qa/forms/organization/${org.id}`).then(res => res.data || []).catch(() => [])
-          )
-        );
-        setForms(formLists.flat());
-      }
-    } catch { 
-      dispatch(addToast({ type: 'error', message: 'Failed to load QA forms.' }));
-    }
-    finally { setLoading(false); }
+  const fetchForms_ = () => {
+    dispatch(fetchQaForms(user?.organizationId));
   };
 
-  useEffect(() => { fetchForms(); }, [user]);
+  useEffect(() => { fetchForms_(); }, [user, dispatch]);
 
   // Questions helpers
   const addQuestion = () => setFormData(prev => ({
@@ -84,13 +73,12 @@ const QaForms = () => {
         })),
         auditCriteria: []
       };
-      await client.post('/api/qa/forms', payload);
+      await dispatch(createQaForm(payload)).unwrap();
       setIsCreateOpen(false);
       setFormData(emptyForm());
       dispatch(addToast({ type: 'success', message: 'QA form created successfully' }));
-      fetchForms();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to create QA form.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to create QA form.' }));
     } finally { setIsSubmitting(false); }
   };
 
@@ -112,7 +100,7 @@ const QaForms = () => {
           <p className="text-slate-400 text-sm mt-1">Build and manage quality assurance evaluation forms.</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={fetchForms} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
+          <button onClick={fetchForms_} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
           <button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">

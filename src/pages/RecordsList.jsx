@@ -5,6 +5,16 @@ import { useSelector, useDispatch } from 'react-redux';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import {
+  fetchRecords as fetchEpcrRecords,
+  updateRecord,
+  deleteRecord,
+  submitRecord,
+  selectRecords,
+  selectEpcrLoading,
+  selectEpcrError
+} from '../store/slices/epcrSlice';
+import { extractErrorMessage } from '../api/client';
 import { applyRecordFilters, buildFilterQueryString } from '../utils/recordFilters';
 
 const StatusBadge = ({ status }) => {
@@ -37,10 +47,12 @@ const RecordsList = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const [records, setRecords] = useState([]);
+
+  const records = useSelector(selectRecords);
+  const loading = useSelector(selectEpcrLoading);
+  const error   = useSelector(selectEpcrError);
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   // View modal
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -71,51 +83,19 @@ const RecordsList = () => {
     direction: 'DESC'
   });
 
-  const fetchRecords = async (pageNum = 0, isAppend = false) => {
-    if (!isAppend) setLoading(true);
-    setError('');
-    try {
-      const size = 20;
-      let endpoint = `/api/epcr/records?page=${pageNum}&size=${size}`;
-      
-      // Add filters to query string
-      const filterParams = new URLSearchParams();
-      if (filters.status) filterParams.append('status', filters.status);
-      if (filters.startDate) filterParams.append('startDate', filters.startDate);
-      if (filters.endDate) filterParams.append('endDate', filters.endDate);
-      if (filters.sortBy) filterParams.append('sortBy', filters.sortBy);
-      if (filters.direction) filterParams.append('direction', filters.direction);
-      if (searchTerm) filterParams.append('search', searchTerm);
-
-      const qs = filterParams.toString();
-      if (qs) {
-        endpoint = endpoint.includes('?') ? `${endpoint}&${qs}` : `${endpoint}?${qs}`;
-      }
-
-      if (isParamedic && (user?.userId || user?.id)) {
-        const pid = user.userId || user.id;
-        endpoint = `/api/epcr/records/paramedic/${pid}`;
-        // Note: Backend might not support complex filtering on this specific endpoint yet
-      }
-
-      const res = await client.get(endpoint, { hideToast: true });
-
-      const isPaginated = res.data && res.data.content !== undefined;
-      const newRecords = isPaginated ? res.data.content : (res.data || []);
-      
-      setRecords(prev => isAppend ? [...prev, ...newRecords] : newRecords);
-      setHasMore(isPaginated ? !res.data.last : false);
-      setPage(pageNum);
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: 'Failed to fetch records.' }));
-    } finally {
-      setLoading(false);
-    }
+  const fetchRecords = (pageNum = 0, isAppend = false) => {
+    dispatch(fetchEpcrRecords({
+      page: pageNum,
+      size: 20,
+      isAppend,
+      filters: { ...filters, search: searchTerm },
+      paramedicId: isParamedic ? (user?.userId || user?.id) : null
+    }));
   };
 
   useEffect(() => {
     fetchRecords(0, false);
-  }, []);
+  }, [dispatch]);
 
   // ── VIEW ── use local data directly (no extra API call needed)
   const handleView = (recordId) => {
@@ -153,7 +133,6 @@ const RecordsList = () => {
 
   const handleSaveEdit = async () => {
     setEditSaving(true);
-    setError('');
     try {
       const payload = {};
       const stringFields = ['patientName', 'patientDateOfBirth', 'patientGender', 'patientPhone', 'patientAddress',
@@ -174,12 +153,11 @@ const RecordsList = () => {
       payload.complaints = editData.complaints ? editData.complaints.split(',').map(c => c.trim()).filter(Boolean) : [];
       payload.vitals = editData.vitals ? editData.vitals.split(',').map(v => v.trim()).filter(Boolean) : [];
 
-      await client.put(`/api/epcr/records/${editData.id}`, payload);
+      await dispatch(updateRecord({ id: editData.id, data: payload })).unwrap();
       setIsEditOpen(false);
       dispatch(addToast({ type: 'success', message: 'Record updated' }));
-      fetchRecords();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || err.response?.data?.error || 'Failed to update record.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to update' }));
     } finally {
       setEditSaving(false);
     }
@@ -204,16 +182,15 @@ const RecordsList = () => {
     setConfirmAction(null);
     try {
       if (type === 'delete') {
-        await client.delete(`/api/epcr/records/${recordId}`);
+        await dispatch(deleteRecord(recordId)).unwrap();
         dispatch(addToast({ type: 'success', message: 'Record deleted' }));
       } else if (type === 'submit') {
-        await client.post(`/api/epcr/records/${recordId}/submit`);
+        await dispatch(submitRecord(recordId)).unwrap();
         dispatch(addToast({ type: 'success', message: 'Record submitted' }));
         setIsViewOpen(false);
       }
-      fetchRecords();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || `Failed to ${type} record.` }));
+      dispatch(addToast({ type: 'error', message: err || `Failed to ${type} record.` }));
     }
   };
 
@@ -332,8 +309,7 @@ const RecordsList = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <th className="px-6 py-4 font-medium">Record ID</th>
-                <th className="px-6 py-4 font-medium">Patient</th>
+                <th className="px-6 py-4 font-medium">Patient / Record</th>
                 <th className="px-6 py-4 font-medium">Incident Date/Time</th>
                 <th className="px-6 py-4 font-medium">Location</th>
                 <th className="px-6 py-4 font-medium">Status</th>
@@ -348,8 +324,10 @@ const RecordsList = () => {
               ) : (
                 filteredRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-800/30 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-medium text-teal-400">{record.id}</span></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-slate-200">{record.patientName}</div></td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-slate-200">{record.patientName || 'Unknown Patient'}</div>
+                      <div className="text-[10px] font-mono text-slate-500 mt-0.5">ID: {record.id?.substring(0,16)}...</div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{record.incidentDateTime ? new Date(record.incidentDateTime).toLocaleString() : '—'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{record.incidentLocation}</td>
                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={record.status} /></td>
@@ -406,7 +384,7 @@ const RecordsList = () => {
           <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
               <div>
-                <h2 className="text-xl font-bold text-white">Record Details</h2>
+                <h2 className="text-xl font-bold text-white">{viewRecord.patientName || `Record ${viewRecord.id?.substring(0,8)}`}</h2>
                 <p className="text-xs text-slate-500 mt-0.5">{viewRecord.id}</p>
               </div>
               <div className="flex items-center gap-2">

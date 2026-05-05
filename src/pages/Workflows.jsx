@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
 import { GitBranch, Plus, RefreshCw, X, Trash2, Edit2, Eye, Rocket, Check, ChevronRight } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import client from '../api/client';
+import client, { extractErrorMessage } from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import {
+  fetchWorkflows,
+  createWorkflow,
+  updateWorkflow,
+  deleteWorkflow,
+  createDeployment,
+  selectWorkflows,
+  selectWorkflowLoading
+} from '../store/slices/workflowSlice';
+import { fetchOrganizations } from '../store/slices/orgSlice';
 import FormBuilder from '../components/forms/FormBuilder';
 
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
@@ -14,9 +24,11 @@ const ROLES = ['ADMIN','MANAGER','PARAMEDIC','PHYSICIAN','QA_REVIEWER','VIEWER']
 const Workflows = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const [workflows, setWorkflows]   = useState([]);
-  const [orgs, setOrgs]             = useState([]);
-  const [loading, setLoading]       = useState(true);
+
+  const workflows = useSelector(selectWorkflows);
+  const loading   = useSelector(selectWorkflowLoading);
+  const { organizations: orgs } = useSelector(state => state.org);
+
   const [error, setError]           = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -28,27 +40,12 @@ const Workflows = () => {
   const emptyForm = () => ({ name:'', description:'', organizationId: user?.organizationId||'', domain:'', category:'', active:true, steps:[emptyStep()], formSchema: { fields: [] } });
   const [wfForm, setWfForm] = useState(emptyForm());
 
-  const fetchData = async () => {
-    setLoading(true); setError('');
-    try {
-      const endpoint = user?.role === 'MANAGER' && user?.organizationId
-        ? `/api/workflows/organization/${user.organizationId}`
-        : '/api/workflows';
-      const [wfRes, orgRes] = await Promise.all([
-        client.get(endpoint),
-        client.get('/api/organizations').catch(() => ({ data: [] }))
-      ]);
-      const wfData = wfRes.data;
-      const orgData = orgRes.data;
-      setWorkflows(Array.isArray(wfData) ? wfData : (wfData?.content || []));
-      setOrgs(Array.isArray(orgData) ? orgData : (orgData?.content || []));
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to load workflows.' }));
-    }
-    finally { setLoading(false); }
+  const fetchData = () => {
+    dispatch(fetchWorkflows(user?.organizationId));
+    dispatch(fetchOrganizations());
   };
 
-  useEffect(() => { fetchData(); }, [user]);
+  useEffect(() => { fetchData(); }, [user, dispatch]);
 
   // Steps helpers
   const addStep = (form, setForm) => setForm(prev => ({
@@ -64,12 +61,11 @@ const Workflows = () => {
   const handleCreate = async (e) => {
     e.preventDefault(); setIsSubmitting(true); setError('');
     try {
-      await client.post('/api/workflows', { ...wfForm, rules: [], formSchema: {} });
+      await dispatch(createWorkflow({ ...wfForm, rules: [], formSchema: {} })).unwrap();
       setIsCreateOpen(false); setWfForm(emptyForm());
       dispatch(addToast({ type: 'success', message: 'Workflow created successfully' }));
-      fetchData();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to create workflow.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to create workflow.' }));
     }
     finally { setIsSubmitting(false); }
   };
@@ -79,12 +75,11 @@ const Workflows = () => {
   const handleEdit = async (e) => {
     e.preventDefault(); setIsSubmitting(true); setError('');
     try {
-      await client.put(`/api/workflows/${selectedWf.id}`, wfForm);
+      await dispatch(updateWorkflow({ id: selectedWf.id, data: wfForm })).unwrap();
       setIsEditOpen(false); setSelectedWf(null);
       dispatch(addToast({ type: 'success', message: 'Workflow updated successfully' }));
-      fetchData();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to update workflow.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to update workflow.' }));
     }
     finally { setIsSubmitting(false); }
   };
@@ -92,11 +87,10 @@ const Workflows = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this workflow?')) return;
     try {
-      await client.delete(`/api/workflows/${id}`);
+      await dispatch(deleteWorkflow(id)).unwrap();
       dispatch(addToast({ type: 'success', message: 'Workflow deleted' }));
-      fetchData();
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to delete workflow.' }));
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err || 'Failed to delete workflow.' }));
     }
   };
 
@@ -106,16 +100,16 @@ const Workflows = () => {
     e.preventDefault(); if (!deployTargets.length) return;
     setIsSubmitting(true); setError('');
     try {
-      await client.post('/api/workflows/deployments', {
+      await dispatch(createDeployment({
         targetOrganizationIds: deployTargets,
         configType: 'WORKFLOW',
         configId: selectedWf.id,
         configVersion: 1
-      });
+      })).unwrap();
       setIsDeployOpen(false);
       dispatch(addToast({ type: 'success', message: 'Deployment initiated successfully!' }));
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Deployment failed.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to deploy.' }));
     }
     finally { setIsSubmitting(false); }
   };

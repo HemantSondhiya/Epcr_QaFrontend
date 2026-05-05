@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import client from '../../api/client';
+import client, { extractErrorMessage } from '../../api/client';
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
@@ -8,12 +8,12 @@ export const fetchQARules = createAsyncThunk('qaRules/fetch', async (orgId, { re
   try { 
     return (await client.get(`/api/qa/rules?organizationId=${orgId}`, { hideToast: true })).data;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load QA rules'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const createQARule = createAsyncThunk('qaRules/create', async (data, { rejectWithValue }) => {
   try { return (await client.post('/api/qa/rules', data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create rule'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const updateQARule = createAsyncThunk('qaRules/update', async ({ id, data }, { rejectWithValue }) => {
@@ -21,7 +21,7 @@ export const updateQARule = createAsyncThunk('qaRules/update', async ({ id, data
     // Assuming PUT endpoint exists, or POST with ID for update
     return (await client.post(`/api/qa/rules/${id}`, data)).data;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update rule'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const deleteQARule = createAsyncThunk('qaRules/delete', async (ruleId, { rejectWithValue }) => {
@@ -30,7 +30,7 @@ export const deleteQARule = createAsyncThunk('qaRules/delete', async (ruleId, { 
     await client.delete(`/api/qa/rules/${ruleId}`);
     return ruleId;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete rule'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 // ── Slice ────────────────────────────────────────────────────────────

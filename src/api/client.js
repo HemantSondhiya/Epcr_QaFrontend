@@ -7,14 +7,51 @@ let _store;
 export const injectStore = (store) => { _store = store; };
 
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://epcr-qabackend.onrender.com',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',
   timeout: 15000,
   withCredentials: true,
   xsrfCookieName: 'XSRF-TOKEN',
   xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
+// Request interceptor for CSRF and other outgoing logic
+client.interceptors.request.use(
+  (config) => {
+    config.headers = config.headers || {};
+    
+    // Add Bearer token if available (from in-memory Redux store)
+    const token = _store?.getState()?.auth?.user?.accessToken;
+    if (token && token !== "undefined" && token !== "null") {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
 
+    // Ensure X-XSRF-TOKEN is set for non-GET requests if the cookie exists
+    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+      const names = ['XSRF-TOKEN', 'CSRF-TOKEN', '_csrf'];
+      let token = null;
+      for (const name of names) {
+        const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+        if (match) {
+          token = decodeURIComponent(match[2]);
+          break;
+        }
+      }
+      if (token) {
+        config.headers['X-XSRF-TOKEN'] = token;
+        config.headers['X-CSRF-TOKEN'] = token;
+      }
+      // Often required by Spring Security to distinguish AJAX requests
+      config.headers['X-Requested-With'] = 'XMLHttpRequest';
+
+      // Ensure Content-Type is set for state-changing requests
+      if (!config.headers['Content-Type']) {
+        config.headers['Content-Type'] = 'application/json';
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 /**
  * Extract a human-readable error message from various Spring Boot error formats:
@@ -28,21 +65,31 @@ const client = axios.create({
 export const extractErrorMessage = (err) => {
   const data = err.response?.data;
   if (!data) return err.message || 'An error occurred';
+
   if (typeof data === 'string') return data;
-  if (data.message) return data.message;
-  if (data.error && typeof data.error === 'string') return data.error;
-  // Spring Boot validation: array of field errors
+
+  // Prioritize specific field errors/sub-errors over a generic "Validation failed" message
+
+  // 1. Array of errors (Spring standard)
   if (Array.isArray(data.errors)) {
     return data.errors.map(e => e.defaultMessage || e.message || e.field).join(', ');
   }
-  // Map of field -> error string
-  if (data.errors && typeof data.errors === 'object') {
-    return Object.entries(data.errors).map(([k, v]) => `${k}: ${v}`).join(', ');
+
+  // 2. Map of field -> error (in 'errors', 'fieldErrors', or 'data' property)
+  const fieldErrors = data.errors || data.fieldErrors || (data.message === 'Validation failed' ? data.data : null);
+  if (fieldErrors && typeof fieldErrors === 'object' && !Array.isArray(fieldErrors)) {
+    const messages = Object.entries(fieldErrors).map(([k, v]) => `${k}: ${v}`);
+    if (messages.length > 0) return messages.join(', ');
   }
-  if (data.fieldErrors && typeof data.fieldErrors === 'object') {
-    return Object.entries(data.fieldErrors).map(([k, v]) => `${k}: ${v}`).join(', ');
-  }
-  return 'Validation failed. Please check your input.';
+
+  // 3. Fallback to message or error property
+  if (data.message && data.message !== 'Validation failed') return data.message;
+  if (data.error && typeof data.error === 'string' && data.error !== 'Bad Request') return data.error;
+
+  // 4. Handle generic 400
+  if (err.response?.status === 400) return 'Invalid request parameters or malformed data.';
+
+  return data.message || data.error || 'Validation failed. Please check your input.';
 };
 
 let isRefreshing = false;
@@ -65,29 +112,37 @@ client.interceptors.response.use(
     const message = extractErrorMessage(err);
     const originalRequest = err.config;
 
-    if (status === 401 && !originalRequest._retry) {
-      // If already trying to login or refresh, don't retry, just logout
-      if (originalRequest.url.includes('/api/auth/login') || originalRequest.url.includes('/api/auth/refresh')) {
-        _store?.dispatch(logout());
-        if (!originalRequest.url.includes('/api/auth/login') && window.location.pathname !== '/login') {
-          window.location.replace('/login');
-        }
-        return Promise.reject(err);
-      }
+    // skip refresh on these specific endpoints to avoid infinite loops
+    const isAuthRequest = originalRequest.url.includes('/api/auth/login') || 
+                         originalRequest.url.includes('/api/auth/refresh') ||
+                         originalRequest.url.includes('/api/auth/logout') ||
+                         originalRequest.url.includes('/api/patient/auth/');
+                         
+    // Only skip refresh for /api/auth/me if we don't have an access token yet
+    const hasToken = !!_store?.getState()?.auth?.user?.accessToken;
+    const isInitialSessionCheck = originalRequest.url.includes('/api/auth/me') && !hasToken;
 
+    if (status === 401 && !originalRequest._retry && !isAuthRequest && !isInitialSessionCheck) {
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh(() => {
+            originalRequest._retry = true;
             resolve(client(originalRequest));
           });
         });
+      }
+
+      const isLoginPage = window.location.pathname === '/login';
+
+      if (isLoginPage) {
+        return Promise.reject(err);
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       return new Promise((resolve, reject) => {
-        client.post('/api/auth/refresh')
+        client.post('/api/auth/refresh', {}, { hideToast: true })
           .then(() => {
             isRefreshing = false;
             onRefreshed();
@@ -98,11 +153,18 @@ client.interceptors.response.use(
             refreshSubscribers = [];
             _store?.dispatch(logout());
             if (window.location.pathname !== '/login') {
-              window.location.replace('/login');
+              window.location.href = '/login';
             }
             reject(refreshErr);
           });
       });
+    }
+
+    if (status === 401 && originalRequest.url.includes('/api/auth/refresh')) {
+      _store?.dispatch(logout());
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
 
     if (err.config?.hideToast) {
@@ -110,7 +172,7 @@ client.interceptors.response.use(
     }
 
     if (status === 403) {
-      _store?.dispatch(addToast({ type: 'error', message: 'Access Denied — you don\'t have permission.' }));
+      _store?.dispatch(addToast({ type: 'error', message: message || 'Access Denied — you don\'t have permission.' }));
     } else if (status === 400) {
       _store?.dispatch(addToast({ type: 'error', message: `Validation Error: ${message}` }));
     } else if (status >= 500) {

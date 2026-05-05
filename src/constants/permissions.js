@@ -1,27 +1,36 @@
 // Role → Menu map — aligned with verified backend permission matrix
 export const ROLE_MENU = {
-  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications'],
-  MANAGER:     ['Dashboard','Organizations','Users','QA Forms','QA Reviews','Workflows','Reports','Feedback','Notifications'],
+  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','QA Rules','Form Templates','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Break-Glass','Business Associates','De-Identification'],
+  MANAGER:     ['Dashboard','Organizations','Users','QA Forms','QA Reviews','QA Rules','Form Templates','Workflows','Reports','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Business Associates'],
   PARAMEDIC:   ['Dashboard','EPCR','Feedback','Notifications'],
   PHYSICIAN:   ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications'],
-  QA_REVIEWER: ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications'],
+  QA_REVIEWER: ['Dashboard','EPCR','QA Reviews','QA Rules','Reports','Feedback','Notifications'],
   VIEWER:      ['Dashboard','Feedback','Notifications'],
+  PATIENT:     ['Patient Portal']
 };
 
 // Menu item → route path
 export const ROUTE_MAP = {
-  Dashboard:      '/dashboard',
-  Organizations:  '/organizations',
-  Users:          '/users',
-  EPCR:           '/epcr',
-  'QA Forms':     '/qa/forms',
-  'QA Reviews':   '/qa/reviews',
-  Workflows:      '/workflows',
-  Deployments:    '/deployments',
-  Reports:        '/reports',
-  'Audit Logs':   '/audit-logs',
-  Feedback:       '/feedback',
-  Notifications:  '/notifications',
+  Dashboard:           '/dashboard',
+  Organizations:       '/organizations',
+  Users:               '/users',
+  EPCR:                '/epcr',
+  'QA Forms':          '/qa/forms',
+  'QA Reviews':        '/qa/reviews',
+  'QA Rules':          '/qa/rules',
+  'Form Templates':    '/form-templates',
+  Workflows:           '/workflows',
+  Deployments:         '/deployments',
+  Reports:             '/reports',
+  'Audit Logs':        '/audit-logs',
+  Feedback:            '/feedback',
+  Notifications:       '/notifications',
+  'HIPAA Consent':     '/hipaa/consent',
+  'HIPAA Disclosure':  '/hipaa/disclosure',
+  'Patient Portal':    '/patient-portal',
+  'Break-Glass':       '/break-glass',
+  'Business Associates': '/hipaa/baa',
+  'De-Identification': '/hipaa/deid',
 };
 
 export const hasMenuAccess = (role, menuItem) =>
@@ -37,6 +46,7 @@ export const ROLES = {
   PHYSICIAN:   'PHYSICIAN',
   QA_REVIEWER: 'QA_REVIEWER',
   VIEWER:      'VIEWER',
+  PATIENT:     'PATIENT',
 };
 
 export const DEMO_CREDENTIALS = [

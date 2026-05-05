@@ -6,22 +6,31 @@ import { ROLE_MENU, ROUTE_MAP } from '../../constants/permissions';
 import {
   LayoutDashboard, FileText, CheckSquare, ClipboardList, GitBranch, Rocket,
   Building2, Users, PieChart, Server, Settings, Bell, MessageSquare, LogOut,
+  Shield, ShieldCheck, BookOpen, Zap, Handshake, EyeOff, UserSquare, Code2,
 } from 'lucide-react';
 
 const MENU_ICONS = {
-  Dashboard:      LayoutDashboard,
-  Organizations:  Building2,
-  Users:          Users,
-  EPCR:           FileText,
-  'QA Forms':     ClipboardList,
-  'QA Reviews':   CheckSquare,
-  Workflows:      GitBranch,
-  Deployments:    Rocket,
-  Reports:        PieChart,
-  Feedback:       MessageSquare,
-  Notifications:  Bell,
-  'Audit Logs':   Server,
-  'System Settings': Settings,
+  Dashboard:             LayoutDashboard,
+  Organizations:         Building2,
+  Users:                 Users,
+  EPCR:                  FileText,
+  'QA Forms':            ClipboardList,
+  'QA Reviews':          CheckSquare,
+  'QA Rules':            Shield,
+  'Form Templates':      Code2,
+  Workflows:             GitBranch,
+  Deployments:           Rocket,
+  Reports:               PieChart,
+  Feedback:              MessageSquare,
+  Notifications:         Bell,
+  'Audit Logs':          Server,
+  'System Settings':     Settings,
+  'HIPAA Consent':       ShieldCheck,
+  'HIPAA Disclosure':    BookOpen,
+  'Patient Portal':      UserSquare,
+  'Break-Glass':         Zap,
+  'Business Associates': Handshake,
+  'De-Identification':   EyeOff,
 };
 
 const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
@@ -72,10 +81,14 @@ const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-          {menuItems.map(item => {
-            const Icon  = MENU_ICONS[item] || FileText;
-            const path  = ROUTE_MAP[item];
+        {/* Section groups for visual organization */}
+        {(() => {
+          const HIPAA_ITEMS = ['HIPAA Consent','HIPAA Disclosure','Patient Portal','Break-Glass','Business Associates','De-Identification'];
+          const coreItems   = menuItems.filter(i => !HIPAA_ITEMS.includes(i));
+          const hipaaItems  = menuItems.filter(i => HIPAA_ITEMS.includes(i));
+          const renderLink  = item => {
+            const Icon = MENU_ICONS[item] || FileText;
+            const path = ROUTE_MAP[item];
             if (!path) return null;
             return (
               <NavLink key={item} to={path}
@@ -96,8 +109,21 @@ const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                 )}
               </NavLink>
             );
-          })}
-        </nav>
+          };
+          return (
+            <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+              {coreItems.map(renderLink)}
+              {hipaaItems.length > 0 && (
+                <>
+                  <div className="pt-3 pb-1">
+                    <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">HIPAA Compliance</p>
+                  </div>
+                  {hipaaItems.map(renderLink)}
+                </>
+              )}
+            </nav>
+          );
+        })()}
 
         {/* Footer */}
         <div className="shrink-0 p-3 border-t border-[var(--border-color)] space-y-2">

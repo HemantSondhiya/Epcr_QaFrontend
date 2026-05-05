@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import client from '../../api/client';
+import client, { extractErrorMessage } from '../../api/client';
 
 const extractContent = (data) => {
   if (Array.isArray(data)) return data;
@@ -21,9 +21,7 @@ export const fetchNotifications = createAsyncThunk(
       });
       return res.data;
     }
-    catch (e) { 
-      return rejectWithValue(e.response?.data?.message || 'Failed to load notifications'); 
-    }
+    catch (e) { return rejectWithValue(extractErrorMessage(e)); }
   }
 );
 
@@ -37,7 +35,7 @@ export const fetchUnreadNotifications = createAsyncThunk(
       });
       return res.data;
     }
-    catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load unread notifications'); }
+    catch (e) { return rejectWithValue(extractErrorMessage(e)); }
   }
 );
 
@@ -45,7 +43,7 @@ export const markNotificationRead = createAsyncThunk(
   'notifications/markRead',
   async (id, { rejectWithValue }) => {
     try { return (await client.put(`/api/notifications/${id}/mark-as-read`)).data; }
-    catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed'); }
+    catch (e) { return rejectWithValue(extractErrorMessage(e)); }
   }
 );
 
@@ -53,7 +51,7 @@ export const markAllRead = createAsyncThunk(
   'notifications/markAllRead',
   async (_, { rejectWithValue }) => {
     try { await client.put('/api/notifications/me/mark-all-as-read'); return true; }
-    catch (e) { return rejectWithValue('Failed'); }
+    catch (e) { return rejectWithValue(extractErrorMessage(e)); }
   }
 );
 

@@ -1,16 +1,34 @@
 import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Server, Search, RefreshCw, FileText } from 'lucide-react';
 import client from '../api/client';
+import { fetchUsers, selectUsers } from '../store/slices/userSlice';
+import {
+  fetchAuditLogs,
+  selectAuditLogs,
+  selectAuditLoading,
+  selectAuditHasMore,
+  selectAuditPage
+} from '../store/slices/auditSlice';
 
 const AuditLogs = () => {
-  const [logs, setLogs] = useState([]);
-  const [usersById, setUsersById] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const dispatch = useDispatch();
+  
+  const logs      = useSelector(selectAuditLogs);
+  const loading   = useSelector(selectAuditLoading);
+  const hasMore   = useSelector(selectAuditHasMore);
+  const page      = useSelector(selectAuditPage);
+  const allUsers  = useSelector(selectUsers);
+
+  const [searchTerm, setSearchTerm]     = useState('');
   const [filterAction, setFilterAction] = useState('ALL');
+
+  // Build a users map for easy lookup
+  const usersById = {};
+  allUsers.forEach(u => {
+    if (u.id) usersById[u.id] = u;
+    if (u.userId) usersById[u.userId] = u;
+  });
 
   const displayUser = (log) => {
     const userId = log.userId || log.actorId || log.performedBy || log.createdBy;
@@ -19,47 +37,14 @@ const AuditLogs = () => {
     return log.username || log.userName || log.user || userId || '—';
   };
 
-  const fetchUsers = async () => {
-    try {
-      const res = await client.get('/api/users', { hideToast: true });
-      const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
-      const map = {};
-      list.forEach(user => {
-        if (user.id) map[user.id] = user;
-        if (user.userId) map[user.userId] = user;
-      });
-      setUsersById(map);
-    } catch {
-      setUsersById({});
-    }
-  };
-  
-  const fetchLogs = async (pageNum = 0, isAppend = false) => {
-    if (!isAppend) setLoading(true);
-    setError('');
-    try {
-      const size = 20;
-      const res = await client.get(`/api/audit/logs?page=${pageNum}&size=${size}`);
-      
-      const data = res.data;
-      const isPaginated = data && data.content !== undefined;
-      const newLogs = isPaginated ? data.content : (Array.isArray(data) ? data : []);
-      
-      setLogs(prev => isAppend ? [...prev, ...newLogs] : newLogs);
-      setHasMore(isPaginated ? !data.last : false);
-      setPage(pageNum);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load audit logs. Endpoint may not be ready yet.');
-    } finally {
-      setLoading(false);
-    }
+  const fetchLogs = (pageNum = 0, isAppend = false) => {
+    dispatch(fetchAuditLogs({ page: pageNum, size: 20, isAppend }));
   };
 
   useEffect(() => {
-    fetchUsers();
+    dispatch(fetchUsers());
     fetchLogs(0, false);
-  }, []);
+  }, [dispatch]);
 
   // Get unique action types for filter dropdown
   const actionTypes = [...new Set((Array.isArray(logs) ? logs : []).map(l => l.action).filter(Boolean))];

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Plus, Search, Trash2, RefreshCw, X, Edit2, User as UserIcon, Mail, Phone, Building, Lock, Shield, Check } from 'lucide-react';
-import { fetchUsers, createUser, updateUser, deleteUser } from '../store/slices/userSlice';
+import { fetchUsers, createUser, updateUser, deleteUser, selectUsers, selectUserLoading } from '../store/slices/userSlice';
 import { fetchOrganizations } from '../store/slices/orgSlice';
 import { addToast } from '../store/slices/uiSlice';
-import { selectRole } from '../store/slices/authSlice';
+import { selectRole, selectUser } from '../store/slices/authSlice';
 
 const ROLES = ['ADMIN','MANAGER','PARAMEDIC','PHYSICIAN','QA_REVIEWER','VIEWER'];
 const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
@@ -18,10 +18,30 @@ const ROLE_COLORS = {
   VIEWER:      'bg-slate-500/10 text-slate-400 border-slate-500/20',
 };
 
+const FieldRow = ({ icon, label, name, type='text', form, setForm, opts }) => (
+  <div className="space-y-1.5">
+    <label className="text-xs font-medium text-slate-300">{label}</label>
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icon}</span>
+      {opts ? (
+        <select name={name} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
+          className={inputCls + ' pl-9 appearance-none'}>
+          {opts.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
+        </select>
+      ) : (
+        <input type={type} name={name} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
+          className={inputCls + ' pl-9'} />
+      )}
+    </div>
+  </div>
+);
+
 const Users = () => {
   const dispatch = useDispatch();
+  const user = useSelector(selectUser);
   const currentUserRole = useSelector(selectRole);
-  const { users, loading } = useSelector(state => state.users);
+  const users   = useSelector(selectUsers);
+  const loading = useSelector(selectUserLoading);
   const { organizations } = useSelector(state => state.org);
   
   const availableRoles = currentUserRole === 'ADMIN' ? ROLES : ROLES.filter(r => r !== 'ADMIN');
@@ -31,9 +51,10 @@ const Users = () => {
   const [isEditOpen, setIsEditOpen]   = useState(false);
   const [editUser, setEditUser]       = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   const [addForm, setAddForm] = useState({ firstName:'', lastName:'', email:'', phone:'', organizationId:'', role:'PARAMEDIC', password:'' });
-  const [editForm, setEditForm] = useState({ firstName:'', lastName:'', phone:'', role:'PARAMEDIC', active: true });
+  const [editForm, setEditForm] = useState({ firstName:'', lastName:'', phone:'', role:'PARAMEDIC', organizationId:'', active: true });
 
   useEffect(() => { 
     dispatch(fetchUsers());
@@ -44,18 +65,26 @@ const Users = () => {
     e.preventDefault(); 
     setIsSubmitting(true);
     try {
+      setLocalError('');
       await dispatch(createUser(addForm)).unwrap();
       setIsAddOpen(false);
       setAddForm({ firstName:'', lastName:'', email:'', phone:'', organizationId:'', role:'PARAMEDIC', password:'' });
       dispatch(addToast({ type: 'success', message: 'User created successfully' }));
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to create user.' }));
+      setLocalError(err);
     } finally { setIsSubmitting(false); }
   };
 
   const openEdit = (user) => {
     setEditUser(user);
-    setEditForm({ firstName: user.firstName||'', lastName: user.lastName||'', phone: user.phone||'', role: user.role||'PARAMEDIC', active: user.active ?? true });
+    setEditForm({ 
+      firstName: user.firstName||'', 
+      lastName: user.lastName||'', 
+      phone: user.phone||'', 
+      role: user.role||'PARAMEDIC', 
+      organizationId: user.organizationId||'',
+      active: user.active ?? true 
+    });
     setIsEditOpen(true);
   };
 
@@ -63,12 +92,15 @@ const Users = () => {
     e.preventDefault(); 
     setIsSubmitting(true);
     try {
-      await dispatch(updateUser({ id: editUser.id, data: editForm })).unwrap();
+      setLocalError('');
+      // UpdateUserRequest only accepts: firstName, lastName, phone, role, active
+      const { organizationId: _omit, ...updatePayload } = editForm;
+      await dispatch(updateUser({ id: editUser.id, data: updatePayload })).unwrap();
       setIsEditOpen(false); 
       setEditUser(null);
       dispatch(addToast({ type: 'success', message: 'User updated successfully' }));
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to update user.' }));
+      setLocalError(err);
     } finally { setIsSubmitting(false); }
   };
 
@@ -89,28 +121,14 @@ const Users = () => {
   ) : [];
 
   const orgName = (id) => {
-    // Try to find in organizations from workflow slice first
+    if (!id) return '—';
     const org = Array.isArray(organizations) ? organizations.find(o => o.id === id) : null;
-    return org?.name || (id ? id.substring(0,12) + '...' : '—');
+    if (org) return org.name;
+    // If not found, check if the current user belongs to this org
+    if (user?.organizationId === id && user?.organizationName) return user.organizationName;
+    
+    return 'Loading...';
   };
-
-  const FieldRow = ({ icon, label, name, type='text', form, setForm, opts }) => (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-slate-300">{label}</label>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icon}</span>
-        {opts ? (
-          <select name={name} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
-            className={inputCls + ' pl-9 appearance-none'}>
-            {opts.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
-          </select>
-        ) : (
-          <input type={type} name={name} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
-            className={inputCls + ' pl-9'} />
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-6 relative">
@@ -202,6 +220,15 @@ const Users = () => {
               <button onClick={() => setIsAddOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
             </div>
             <div className="p-6">
+              {localError && (
+                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-2 font-semibold mb-1">
+                    <X size={14} />
+                    <span>Submission Failed</span>
+                  </div>
+                  {localError}
+                </div>
+              )}
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FieldRow icon={<UserIcon size={16} />} label="First Name" name="firstName" form={addForm} setForm={setAddForm} />
@@ -241,15 +268,30 @@ const Users = () => {
               <button onClick={() => setIsEditOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
             </div>
             <div className="p-6">
+              {localError && (
+                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                   <div className="flex items-center gap-2 font-semibold mb-1">
+                    <X size={14} />
+                    <span>Update Failed</span>
+                  </div>
+                  {localError}
+                </div>
+              )}
               <form onSubmit={handleEdit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FieldRow icon={<UserIcon size={16} />} label="First Name" name="firstName" form={editForm} setForm={setEditForm} />
                   <FieldRow icon={<UserIcon size={16} />} label="Last Name" name="lastName" form={editForm} setForm={setEditForm} />
                 </div>
-                <FieldRow icon={<Phone size={16} />} label="Phone" name="phone" form={editForm} setForm={setEditForm} />
-                <FieldRow icon={<Shield size={16} />} label="Role" name="role" form={editForm} setForm={setEditForm}
-                  opts={availableRoles.map(r => ({ value: r, label: r.replace('_',' ') }))} />
-                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                <div className="grid grid-cols-2 gap-4">
+                  <FieldRow icon={<Phone size={16} />} label="Phone" name="phone" form={editForm} setForm={setEditForm} />
+                  <FieldRow icon={<Shield size={16} />} label="Role" name="role" form={editForm} setForm={setEditForm}
+                    opts={availableRoles.map(r => ({ value: r, label: r.replace('_',' ') }))} />
+                </div>
+                {currentUserRole === 'ADMIN' && (
+                  <FieldRow icon={<Building size={16} />} label="Organization" name="organizationId" form={editForm} setForm={setEditForm}
+                    opts={[{ value:'', label:'Select Organization' }, ...organizations.map(o => ({ value: o.id, label: o.name }))]} />
+                )}
+                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer pt-2">
                   <input type="checkbox" checked={editForm.active} onChange={e => setEditForm({ ...editForm, active: e.target.checked })}
                     className="rounded border-slate-700 bg-slate-900 text-teal-500" />
                   Active Account

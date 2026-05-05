@@ -55,5 +55,5 @@ const workflowSlice = createSlice({
 export const { clearWorkflowError } = workflowSlice.actions;
 export const selectWorkflows    = (s) => s.workflows.items;
 export const selectDeployments  = (s) => s.workflows.deployments;
-export const selectWfLoading    = (s) => s.workflows.loading;
+export const selectWorkflowLoading = (s) => s.workflows.loading;
 export default workflowSlice.reducer;

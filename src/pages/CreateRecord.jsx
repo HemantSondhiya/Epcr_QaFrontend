@@ -5,6 +5,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { createRecord } from '../store/slices/epcrSlice';
+import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
 import DynamicFormRenderer from '../components/forms/DynamicFormRenderer';
 
 const CreateRecord = () => {
@@ -16,30 +18,20 @@ const CreateRecord = () => {
   const [error, setError] = useState('');
 
   // Workflow/form engine state
-  const [workflows, setWorkflows] = useState([]);
+  const workflows = useSelector(selectWorkflows);
   const [selectedWorkflow, setSelectedWorkflow] = useState(null);
   const [dynamicFormResponses, setDynamicFormResponses] = useState({});
 
   const [formData, setFormData] = useState({
-    patientName: '', patientDateOfBirth: '', patientGender: '', patientPhone: '', patientAddress: '',
+    patientId: '', patientName: '', patientDateOfBirth: '', patientGender: '', patientPhone: '', patientAddress: '',
     incidentDateTime: '', incidentLocation: '', incidentDescription: '',
     complaints: '', vitals: '', diagnosis: '', treatmentProvided: '', transportDestination: ''
   });
 
   // Fetch active workflows for the org
   useEffect(() => {
-    const fetchWorkflows = async () => {
-      try {
-        const endpoint = user?.organizationId
-          ? `/api/workflows/organization/${user.organizationId}`
-          : '/api/workflows/active';
-        const res = await client.get(endpoint, { hideToast: true });
-        const active = (res.data || []).filter(w => w.active && w.formSchema?.fields?.length > 0);
-        setWorkflows(active);
-      } catch { /* silent */ }
-    };
-    fetchWorkflows();
-  }, [user]);
+    dispatch(fetchWorkflows(user?.organizationId));
+  }, [dispatch, user]);
 
   // Dynamic step — only show Step 4 if selected workflow has form fields
   const hasDynamicStep = selectedWorkflow?.formSchema?.fields?.length > 0;
@@ -64,7 +56,7 @@ const CreateRecord = () => {
     try {
       const payload = {};
 
-      const stringFields = ['patientName', 'patientDateOfBirth', 'patientGender', 'patientPhone', 'patientAddress',
+      const stringFields = ['patientId', 'patientName', 'patientDateOfBirth', 'patientGender', 'patientPhone', 'patientAddress',
         'incidentLocation', 'incidentDescription', 'diagnosis', 'treatmentProvided', 'transportDestination'];
       stringFields.forEach(field => {
         if (formData[field]?.trim()) payload[field] = formData[field].trim();
@@ -94,13 +86,12 @@ const CreateRecord = () => {
         };
       }
 
-      await client.post('/api/epcr/records', payload);
+      await dispatch(createRecord(payload)).unwrap();
       dispatch(addToast({ type: 'success', message: 'Record created successfully' }));
       navigate('/records');
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to save the record.';
-      setError(msg);
-      dispatch(addToast({ type: 'error', message: msg }));
+      setError(err || 'Failed to save the record.');
+      dispatch(addToast({ type: 'error', message: err || 'Failed to save the record.' }));
     } finally {
       setIsSubmitting(false);
     }
@@ -184,6 +175,10 @@ const CreateRecord = () => {
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
             <h2 className="text-lg font-semibold text-white border-b border-slate-800 pb-2">Patient Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Patient ID (Required for Patient Portal)</label>
+                <input name="patientId" value={formData.patientId} onChange={handleChange} className="w-full bg-slate-900/50 border border-teal-500/30 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500" placeholder="e.g. PAT-1001" />
+              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-300">Full Name</label>
                 <input name="patientName" value={formData.patientName} onChange={handleChange} className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50" placeholder="John Doe" />

@@ -165,8 +165,8 @@ const PendingQueue = ({ pending, loading }) => (
       : pending.map(r => (
         <div key={r.id} className="px-5 py-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
           <div>
-            <p className="text-sm font-medium text-slate-200">Review {r.id?.substring(0,12)}...</p>
-            <p className="text-xs text-slate-500 mt-0.5">Record: {(r.recordId||r.patientCareRecordId||'—')?.substring(0,16)}...</p>
+            <p className="text-sm font-medium text-slate-200">{r.patientName || `Review ${r.id?.substring(0,8)}`}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{r.workflowName || 'Standard QA Review'}</p>
           </div>
           <Badge status={r.status || 'PENDING'} />
         </div>
@@ -260,7 +260,7 @@ const Dashboard = () => {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight">
-          Welcome back, <span className="text-teal-400">{user?.email?.split('@')[0] || 'User'}</span>
+          Welcome back, <span className="text-teal-400">{user?.firstName || user?.email?.split('@')[0] || 'User'}</span>
         </h1>
         <p className="text-slate-400 text-sm mt-1">{subtitle} — {new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' })}</p>
       </div>

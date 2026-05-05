@@ -4,6 +4,16 @@ import { MessageSquare, Plus, RefreshCw, X, Send, Trash2, ChevronDown, ChevronUp
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
+import {
+  fetchFeedbackThreads,
+  createFeedbackThread,
+  addFeedbackMessage,
+  updateFeedbackStatus,
+  deleteFeedbackThread,
+  selectFeedbackThreads,
+  selectFeedbackLoading
+} from '../store/slices/feedbackSlice';
 
 const STATUS_STYLES = {
   OPEN:     'bg-sky-500/10 text-sky-400 border-sky-500/20',
@@ -18,9 +28,11 @@ const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 const FeedbackThreads = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const [threads, setThreads]           = useState([]);
-  const [records, setRecords]           = useState([]);
-  const [loading, setLoading]           = useState(true);
+
+  const threads = useSelector(selectFeedbackThreads);
+  const loading = useSelector(selectFeedbackLoading);
+  const records = useSelector(selectRecords);
+
   const [filter, setFilter]             = useState('all');
   const [expandedId, setExpandedId]     = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -31,47 +43,31 @@ const FeedbackThreads = () => {
     patientCareRecordId: '', subject: '', organizationId: ''
   });
 
-  const fetchThreads = async () => {
-    setLoading(true);
-    try {
-      const endpoint = filter === 'open' ? '/api/feedback/threads/open'
-        : filter === 'mine' && (user?.userId || user?.id)
-          ? `/api/feedback/threads/user/${user?.userId || user?.id}`
-          : '/api/feedback/threads';
-      const res = await client.get(endpoint);
-      const data = res.data;
-      setThreads(Array.isArray(data) ? data : (data?.content || []));
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to load feedback threads.' }));
-    } finally { setLoading(false); }
+  const fetchThreads_ = () => {
+    dispatch(fetchFeedbackThreads());
   };
 
-  useEffect(() => { fetchThreads(); }, [filter, user]);
-
   useEffect(() => {
-    const canFetchEpcr = ['ADMIN', 'PARAMEDIC', 'PHYSICIAN', 'QA_REVIEWER'].includes(user?.role);
-    if (canFetchEpcr) {
-      client.get('/api/epcr/records', { hideToast: true }).then(r => setRecords(asList(r.data))).catch(() => {});
-    }
-  }, [user]);
+    fetchThreads_();
+    dispatch(fetchRecords());
+  }, [dispatch]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await client.post('/api/feedback/threads', {
+      await dispatch(createFeedbackThread({
         patientCareRecordId: createForm.patientCareRecordId || undefined,
         userId: user?.userId || user?.id,
         subject: createForm.subject,
         messages: [],
         status: 'OPEN'
-      });
+      })).unwrap();
       dispatch(addToast({ type: 'success', message: 'Thread created successfully' }));
       setIsCreateOpen(false);
       setCreateForm({ patientCareRecordId: '', subject: '', organizationId: '' });
-      fetchThreads();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to create thread.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to create thread.' }));
     } finally { setIsSubmitting(false); }
   };
 
@@ -79,11 +75,7 @@ const FeedbackThreads = () => {
     const msg = msgInputs[threadId]?.trim();
     if (!msg) return;
     try {
-      const updated = await client.post(`/api/feedback/threads/${threadId}/messages`, {
-        senderId: user?.userId || user?.id,
-        message: msg
-      });
-      setThreads(prev => prev.map(t => t.id === threadId ? updated.data : t));
+      await dispatch(addFeedbackMessage({ threadId, message: msg })).unwrap();
       setMsgInputs(prev => ({ ...prev, [threadId]: '' }));
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to send message.' }));
@@ -92,8 +84,7 @@ const FeedbackThreads = () => {
 
   const updateStatus = async (threadId, status) => {
     try {
-      const updated = await client.put(`/api/feedback/threads/${threadId}/status?status=${status}`);
-      setThreads(prev => prev.map(t => t.id === threadId ? updated.data : t));
+      await dispatch(updateFeedbackStatus({ threadId, status })).unwrap();
       dispatch(addToast({ type: 'success', message: `Status updated to ${status}` }));
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to update status.' }));
@@ -103,8 +94,7 @@ const FeedbackThreads = () => {
   const deleteThread = async (threadId) => {
     if (!window.confirm('Delete this feedback thread?')) return;
     try {
-      await client.delete(`/api/feedback/threads/${threadId}`);
-      setThreads(prev => prev.filter(t => t.id !== threadId));
+      await dispatch(deleteFeedbackThread(threadId)).unwrap();
       if (expandedId === threadId) setExpandedId(null);
       dispatch(addToast({ type: 'success', message: 'Thread deleted.' }));
     } catch {
@@ -120,7 +110,7 @@ const FeedbackThreads = () => {
           <p className="text-slate-400 text-sm mt-1">Threaded discussions linked to EPCR records.</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={fetchThreads} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
+          <button onClick={fetchThreads_} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
           <button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">

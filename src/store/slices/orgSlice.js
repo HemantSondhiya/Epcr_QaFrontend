@@ -1,47 +1,57 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import client from '../../api/client';
+import client, { extractErrorMessage } from '../../api/client';
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
 // ── Organization Operations ─────────────────────────────────────────
-export const fetchOrganizations = createAsyncThunk('org/fetch', async (
-  { page = 0, size = 20, sortBy = 'createdAt', direction = 'DESC' } = {},
-  { rejectWithValue }
-) => {
+export const fetchOrganizations = createAsyncThunk('org/fetch', async (params = {}, { rejectWithValue }) => {
   try {
-    return (await client.get(`/api/organizations?page=${page}&size=${size}&sortBy=${sortBy}&direction=${direction}`, { hideToast: true })).data;
+    const { page, size, sortBy, direction, paginate = false } = params;
+    let url = '/api/organizations';
+    if (paginate) {
+      const query = new URLSearchParams({
+        page: page ?? 0,
+        size: size ?? 20,
+        sortBy: sortBy ?? 'createdAt',
+        direction: direction ?? 'DESC'
+      }).toString();
+      url += `?${query}`;
+    }
+    return (await client.get(url, { hideToast: true })).data;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load organizations'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
-export const fetchActiveOrganizations = createAsyncThunk('org/fetchActive', async (
-  { page = 0, size = 20 } = {},
-  { rejectWithValue }
-) => {
+export const fetchActiveOrganizations = createAsyncThunk('org/fetchActive', async (params = {}, { rejectWithValue }) => {
   try {
-    return (await client.get(`/api/organizations/active?page=${page}&size=${size}`, { hideToast: true })).data;
+    const { page, size, paginate = false } = params;
+    let url = '/api/organizations/active';
+    if (paginate) {
+      url += `?page=${page ?? 0}&size=${size ?? 20}`;
+    }
+    return (await client.get(url, { hideToast: true })).data;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load active organizations'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const fetchOrganizationById = createAsyncThunk('org/fetchById', async (orgId, { rejectWithValue }) => {
   try { return (await client.get(`/api/organizations/${orgId}`, { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load organization'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const fetchOrganizationByCode = createAsyncThunk('org/fetchByCode', async (code, { rejectWithValue }) => {
   try { return (await client.get(`/api/organizations/code/${code}`, { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Organization not found'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const createOrganization = createAsyncThunk('org/create', async (data, { rejectWithValue }) => {
   try { return (await client.post('/api/organizations', data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create organization'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const updateOrganization = createAsyncThunk('org/update', async ({ id, data }, { rejectWithValue }) => {
   try { return (await client.put(`/api/organizations/${id}`, data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update organization'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const deleteOrganization = createAsyncThunk('org/delete', async (orgId, { rejectWithValue }) => {
@@ -49,7 +59,7 @@ export const deleteOrganization = createAsyncThunk('org/delete', async (orgId, {
     await client.delete(`/api/organizations/${orgId}`);
     return orgId;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete organization'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 // ── Slice ────────────────────────────────────────────────────────────

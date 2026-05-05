@@ -4,40 +4,33 @@ import { useSelector, useDispatch } from 'react-redux';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import {
+  fetchDeployments as fetchWorkflowDeployments,
+  selectDeployments,
+  selectWorkflowLoading
+} from '../store/slices/workflowSlice';
 import DataTable from '../components/common/DataTable';
 
 const Deployments = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const [deployments, setDeployments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  const deployments = useSelector(selectDeployments);
+  const loading     = useSelector(selectWorkflowLoading);
+
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [selectedDeploy, setSelectedDeploy] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  const fetchDeployments = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const endpoint = user?.role === 'MANAGER' && user?.organizationId
-        ? `/api/workflows/deployments?organizationId=${user.organizationId}`
-        : '/api/workflows/deployments';
-      const res = await client.get(endpoint);
-      const data = res.data;
-      setDeployments(Array.isArray(data) ? data : (data?.content || []));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: 'Failed to load deployments.' }));
-      setError('Failed to load deployments');
-    } finally {
-      setLoading(false);
-    }
+  const fetchDeployments_ = () => {
+    dispatch(fetchWorkflowDeployments());
   };
 
   useEffect(() => {
-    fetchDeployments();
-  }, [user]);
+    fetchDeployments_();
+  }, [user, dispatch]);
 
   const getStatusColor = (status) => {
     const colors = {
@@ -205,7 +198,7 @@ const Deployments = () => {
           <p className="text-slate-400 text-sm mt-1">View and monitor workflow and configuration deployments.</p>
         </div>
         <button
-          onClick={fetchDeployments}
+          onClick={fetchDeployments_}
           disabled={loading}
           className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors"
         >

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import client from '../../api/client';
+import client, { extractErrorMessage } from '../../api/client';
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || data?.data || []);
 
@@ -11,7 +11,7 @@ export const fetchUsers = createAsyncThunk('user/fetchUsers', async (
   try { 
     return (await client.get(`/api/users?page=${page}&size=${size}&sortBy=${sortBy}&direction=${direction}`, { hideToast: true })).data;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load users'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const fetchUsersByOrganization = createAsyncThunk('user/fetchByOrg', async (
@@ -21,27 +21,27 @@ export const fetchUsersByOrganization = createAsyncThunk('user/fetchByOrg', asyn
   try { 
     return (await client.get(`/api/users/organization/${orgId}?page=${page}&size=${size}`, { hideToast: true })).data;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load org users'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const fetchUserById = createAsyncThunk('user/fetchById', async (userId, { rejectWithValue }) => {
   try { return (await client.get(`/api/users/${userId}`, { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load user'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const fetchUserByEmail = createAsyncThunk('user/fetchByEmail', async (email, { rejectWithValue }) => {
   try { return (await client.get(`/api/users/email/${email}`, { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'User not found'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const createUser = createAsyncThunk('user/create', async (data, { rejectWithValue }) => {
   try { return (await client.post('/api/users', data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create user'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const updateUser = createAsyncThunk('user/update', async ({ id, data }, { rejectWithValue }) => {
   try { return (await client.put(`/api/users/${id}`, data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update user'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const deleteUser = createAsyncThunk('user/delete', async (userId, { rejectWithValue }) => {
@@ -49,7 +49,7 @@ export const deleteUser = createAsyncThunk('user/delete', async (userId, { rejec
     await client.delete(`/api/users/${userId}`);
     return userId;
   }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete user'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 // ── Slice ────────────────────────────────────────────────────────────
@@ -141,4 +141,11 @@ const userSlice = createSlice({
 });
 
 export const { clearError, clearUsers } = userSlice.actions;
+
+export const selectUsers        = (state) => state.users.users;
+export const selectSelectedUser = (state) => state.users.selectedUser;
+export const selectUserLoading  = (state) => state.users.loading;
+export const selectUserError    = (state) => state.users.error;
+export const selectUserTotal    = (state) => state.users.total;
+
 export default userSlice.reducer;

@@ -4,6 +4,18 @@ import { useSelector, useDispatch } from 'react-redux';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import {
+  fetchQaReviews,
+  fetchPendingReviews,
+  createQaReview,
+  completeQaReview,
+  fetchQaForms,
+  selectReviews,
+  selectPendingReviews,
+  selectForms,
+  selectReviewsLoading
+} from '../store/slices/qaSlice';
+import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
 
 const STATUS_STYLES = {
   PENDING:      'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -28,13 +40,16 @@ const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 const QaReviews = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const [reviews, setReviews]         = useState([]);
-  const [records, setRecords]         = useState([]);
-  const [forms, setForms]             = useState([]);
-  const [searchTerm, setSearchTerm]   = useState('');
+
+  const reviews        = useSelector(selectReviews);
+  const pendingReviews = useSelector(selectPendingReviews);
+  const loading        = useSelector(selectReviewsLoading);
+  const records        = useSelector(selectRecords);
+  const forms          = useSelector(selectForms);
+
+  const [searchTerm, setSearchTerm]     = useState('');
   const [filterStatus, setFilterStatus] = useState(['ADMIN', 'MANAGER'].includes(user?.role) ? 'all' : 'mine');
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState('');
+  const [error, setError]               = useState('');
 
   // Modals
   const [isCreateOpen, setIsCreateOpen]   = useState(false);
@@ -53,71 +68,19 @@ const QaReviews = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
-  const fetchReviews = async (pageNum = 0, isAppend = false) => {
-    if (!isAppend) setLoading(true);
-    setError('');
-    try {
-      const size = 20;
-      let endpoint = `/api/qa/reviews?page=${pageNum}&size=${size}`;
-      if (filterStatus === 'pending') {
-        endpoint = `/api/qa/reviews/pending?page=${pageNum}&size=${size}`;
-      } else if (filterStatus === 'mine' && (user?.userId || user?.id)) {
-        endpoint = `/api/qa/reviews/reviewer/${user.userId || user.id}?page=${pageNum}&size=${size}`;
-      }
-      let res;
-      try {
-        res = await client.get(endpoint);
-      } catch (err) {
-        if (err.response?.status === 403 && filterStatus === 'all') {
-          // If non-system user is forbidden from fetching 'all', fallback to their own
-          res = await client.get(`/api/qa/reviews/reviewer/${user?.userId || user?.id}?page=${pageNum}&size=${size}`);
-          setFilterStatus('mine');
-        } else {
-          throw err;
-        }
-      }
-      
-      const isPaginated = res.data && res.data.content !== undefined;
-      const newReviews = isPaginated ? res.data.content : (res.data || []);
-      
-      setReviews(prev => isAppend ? [...prev, ...newReviews] : newReviews);
-      setHasMore(isPaginated ? !res.data.last : false);
-      setPage(pageNum);
-    } catch (err) {
-      console.error("Fetch reviews error:", err);
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to fetch QA reviews. You may lack permissions.' }));
-    } finally {
-      setLoading(false);
+  const fetchReviews_ = () => {
+    if (filterStatus === 'pending') {
+      dispatch(fetchPendingReviews());
+    } else {
+      dispatch(fetchQaReviews());
     }
   };
 
-  const fetchDeps = async () => {
-    try {
-      const canFetchEpcr = ['ADMIN', 'PARAMEDIC', 'PHYSICIAN', 'QA_REVIEWER'].includes(user?.role);
-      const formRequest = user?.organizationId
-        ? client.get(`/api/qa/forms/organization/${user.organizationId}`, { hideToast: true }).catch(() => ({ data: [] }))
-        : client.get('/api/organizations', { hideToast: true })
-          .then(orgRes => Promise.all(
-            (orgRes.data || []).map(org =>
-              client.get(`/api/qa/forms/organization/${org.id}`, { hideToast: true }).then(res => res.data || []).catch(() => [])
-            )
-          ))
-          .then(formLists => ({ data: formLists.flat() }))
-          .catch(() => ({ data: [] }));
-
-      const [recRes, formRes] = await Promise.all([
-        canFetchEpcr
-          ? client.get('/api/epcr/records', { hideToast: true }).catch(() => ({ data: [] }))
-          : Promise.resolve({ data: [] }),
-        formRequest
-      ]);
-      setRecords(asList(recRes.data));
-      setForms(asList(formRes.data));
-    } catch { /* silent */ }
-  };
-
-  useEffect(() => { fetchReviews(0, false); }, [filterStatus, user]);
-  useEffect(() => { fetchDeps(); }, [user]);
+  useEffect(() => {
+    fetchReviews_();
+    dispatch(fetchRecords());
+    dispatch(fetchQaForms(user?.organizationId));
+  }, [filterStatus, user, dispatch]);
 
   // ── Create Review ──────────────────────────────────────────────────
   const handleCreate = async (e) => {
@@ -125,19 +88,18 @@ const QaReviews = () => {
     setIsSubmitting(true);
     setError('');
     try {
-      await client.post('/api/qa/reviews', {
+      await dispatch(createQaReview({
         patientCareRecordId: createForm.patientCareRecordId,
         qaFormId: createForm.qaFormId || undefined,
         reviewerId: user?.userId || user?.id,
         feedback: createForm.feedback,
         responses: []
-      });
+      })).unwrap();
       setIsCreateOpen(false);
       setCreateForm({ patientCareRecordId: '', qaFormId: '', feedback: '' });
       dispatch(addToast({ type: 'success', message: 'QA review created successfully' }));
-      fetchReviews();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to create review.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to create review.' }));
     } finally {
       setIsSubmitting(false);
     }
@@ -166,20 +128,22 @@ const QaReviews = () => {
     setIsSubmitting(true);
     setError('');
     try {
-      await client.put(`/api/qa/reviews/${selectedReview.id}/complete`, {
-        ...selectedReview,
-        reviewerId: user?.userId || user?.id,
-        score: parseFloat(completeForm.score) || 0,
-        passed: completeForm.passed,
-        feedback: completeForm.feedback,
-        comments: completeForm.feedback,
-        status: 'COMPLETED'
-      });
+      await dispatch(completeQaReview({
+        id: selectedReview.id,
+        data: {
+          ...selectedReview,
+          reviewerId: user?.userId || user?.id,
+          score: parseFloat(completeForm.score) || 0,
+          passed: completeForm.passed,
+          feedback: completeForm.feedback,
+          comments: completeForm.feedback,
+          status: 'COMPLETED'
+        }
+      })).unwrap();
       setIsCompleteOpen(false);
       dispatch(addToast({ type: 'success', message: 'QA review completed successfully' }));
-      fetchReviews();
     } catch (err) {
-      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Failed to complete review.' }));
+      dispatch(addToast({ type: 'error', message: err || 'Failed to complete review.' }));
     } finally {
       setIsSubmitting(false);
     }
@@ -189,14 +153,23 @@ const QaReviews = () => {
   const handleDelete = async (reviewId) => {
     if (!window.confirm('Delete this QA review? This cannot be undone.')) return;
     try {
+      // Note: We need a delete thunk in qaSlice if we want to follow the pattern fully.
+      // For now I'll just use client directly OR add it to qaSlice.
+      // I'll add it to qaSlice in a moment if needed, but let's assume it exists or use client.
       await client.delete(`/api/qa/reviews/${reviewId}`);
       dispatch(addToast({ type: 'success', message: 'QA review deleted.' }));
-      fetchReviews();
+      fetchReviews_();
     } catch {
       dispatch(addToast({ type: 'error', message: 'Failed to delete review.' }));
     }
   };
 
+  const getRecordLabel = (id) => {
+    if (!id) return '—';
+    const rec = records.find(r => r.id === id);
+    return rec?.patientName || id.substring(0, 8) + '...';
+  };
+  
   // ── Filter ─────────────────────────────────────────────────────────
   const filtered = reviews.filter(r => {
     const rId = r.recordDisplay || r.recordId || r.patientCareRecordId || '';
@@ -219,7 +192,7 @@ const QaReviews = () => {
           <p className="text-slate-400 text-sm mt-1">Quality assurance checks on EPCR records.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => fetchReviews(0, false)} disabled={loading}
+          <button onClick={() => fetchReviews_()} disabled={loading}
             className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg transition-colors border border-slate-700/50">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -260,8 +233,8 @@ const QaReviews = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <th className="px-6 py-4 font-medium">Review ID</th>
-                <th className="px-6 py-4 font-medium">Record ID</th>
+                <th className="px-6 py-4 font-medium">Review</th>
+                <th className="px-6 py-4 font-medium">Patient / Record</th>
                 <th className="px-6 py-4 font-medium">Reviewer</th>
                 <th className="px-6 py-4 font-medium">Score</th>
                 <th className="px-6 py-4 font-medium">Status</th>
@@ -282,10 +255,11 @@ const QaReviews = () => {
               ) : filtered.map(review => (
                 <tr key={review.id} className="hover:bg-slate-800/30 transition-colors group">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-mono text-teal-400 truncate max-w-[120px] block">{review.id?.substring(0, 12)}...</span>
+                    <span className="text-sm font-medium text-slate-200">Review {review.id?.substring(0, 8)}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-300">{review.recordDisplay || ((review.recordId || review.patientCareRecordId || '—')?.substring(0, 12) + (review.recordId ? '...' : ''))}</span>
+                    <div className="text-sm text-slate-300 font-medium">{review.patientName || getRecordLabel(review.recordId || review.patientCareRecordId)}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">{(review.recordId || review.patientCareRecordId || '—')?.substring(0, 16)}...</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col">
@@ -405,7 +379,7 @@ const QaReviews = () => {
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
               <div>
                 <h2 className="text-xl font-bold text-white">Complete Review</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Record: {(selectedReview.recordId || selectedReview.patientCareRecordId || '').substring(0, 20)}...</p>
+                <p className="text-xs text-slate-500 mt-0.5">Patient: {selectedReview.patientName || getRecordLabel(selectedReview.recordId || selectedReview.patientCareRecordId)}</p>
               </div>
               <button onClick={() => setIsCompleteOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
             </div>

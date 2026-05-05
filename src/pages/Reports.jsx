@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { PieChart, BarChart2, TrendingUp, FileText, RefreshCw, Calendar, Download, X, Activity } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart as RPieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from 'recharts';
 import client from '../api/client';
+import {
+  fetchAllReports,
+  fetchCustomReport,
+  selectReportStats,
+  selectReportQaPerf,
+  selectReportByStatus,
+  selectCustomReport,
+  selectReportLoading,
+  selectCustomReportLoading
+} from '../store/slices/reportSlice';
 
 const COLORS = ['#2dd4bf', '#38bdf8', '#a78bfa', '#fb923c', '#f472b6', '#34d399', '#f87171'];
 
@@ -20,43 +31,28 @@ const StatCard = ({ icon, label, value, sub, color = 'teal' }) => {
 };
 
 const Reports = () => {
-  const [stats, setStats]         = useState(null);
-  const [qaPerf, setQaPerf]       = useState(null);
-  const [byStatus, setByStatus]   = useState(null);
-  const [custom, setCustom]       = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [customLoading, setCustomLoading] = useState(false);
+  const dispatch = useDispatch();
+  
+  const stats         = useSelector(selectReportStats);
+  const qaPerf        = useSelector(selectReportQaPerf);
+  const byStatus      = useSelector(selectReportByStatus);
+  const custom        = useSelector(selectCustomReport);
+  const loading       = useSelector(selectReportLoading);
+  const customLoading = useSelector(selectCustomReportLoading);
+
   const [error, setError]         = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate]     = useState('');
 
-  const fetchAll = async () => {
-    setLoading(true); setError('');
-    try {
-      const [sRes, qRes, bRes] = await Promise.allSettled([
-        client.get('/api/reports/statistics'),
-        client.get('/api/reports/qa-performance'),
-        client.get('/api/reports/records-by-status'),
-      ]);
-      if (sRes.status === 'fulfilled') setStats(sRes.value.data);
-      if (qRes.status === 'fulfilled') setQaPerf(qRes.value.data);
-      if (bRes.status === 'fulfilled') setByStatus(bRes.value.data);
-    } catch { setError('Failed to load some report data.'); }
-    finally { setLoading(false); }
+  const fetchAll = () => {
+    dispatch(fetchAllReports());
   };
 
   useEffect(() => { fetchAll(); }, []);
 
-  const fetchCustom = async (e) => {
-    e.preventDefault(); setCustomLoading(true); setError('');
-    try {
-      const params = {};
-      if (startDate) params.startDate = new Date(startDate).toISOString();
-      if (endDate) params.endDate = new Date(endDate).toISOString();
-      const res = await client.get('/api/reports/custom', { params });
-      setCustom(res.data);
-    } catch { setError('Failed to generate custom report.'); }
-    finally { setCustomLoading(false); }
+  const fetchCustom = (e) => {
+    e.preventDefault();
+    dispatch(fetchCustomReport({ startDate, endDate }));
   };
 
   // Transform byStatus map to chart data

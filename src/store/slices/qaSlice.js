@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import client from '../../api/client';
+import client, { extractErrorMessage } from '../../api/client';
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
@@ -15,33 +15,33 @@ export const fetchQaForms = createAsyncThunk('qa/fetchForms', async (orgId, { re
       orgs.map(org => client.get(`/api/qa/forms/organization/${org.id}`, { hideToast: true }).then(res => res.data || []).catch(() => []))
     );
     return forms.flat();
-  } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load QA forms'); }
+  } catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const createQaForm = createAsyncThunk('qa/createForm', async (data, { rejectWithValue }) => {
   try { return (await client.post('/api/qa/forms', data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create QA form'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 // ── QA Reviews ──────────────────────────────────────────────────────
 export const fetchQaReviews = createAsyncThunk('qa/fetchReviews', async (_, { rejectWithValue }) => {
   try { return (await client.get('/api/qa/reviews', { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load reviews'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const fetchPendingReviews = createAsyncThunk('qa/fetchPending', async (_, { rejectWithValue }) => {
   try { return (await client.get('/api/qa/reviews/pending', { hideToast: true })).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to load pending'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const createQaReview = createAsyncThunk('qa/createReview', async (data, { rejectWithValue }) => {
   try { return (await client.post('/api/qa/reviews', data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create review'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 export const completeQaReview = createAsyncThunk('qa/complete', async ({ id, data }, { rejectWithValue }) => {
   try { return (await client.put(`/api/qa/reviews/${id}/complete`, data)).data; }
-  catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to complete review'); }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
 // ── Slice ───────────────────────────────────────────────────────────
