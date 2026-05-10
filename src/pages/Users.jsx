@@ -1,37 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Plus, Search, Trash2, RefreshCw, X, Edit2, User as UserIcon, Mail, Phone, Building, Lock, Shield, Check } from 'lucide-react';
+import {
+  Plus, Search, Trash2, RefreshCw, X, Edit2,
+  User as UserIcon, Mail, Phone, Building, Lock,
+  Shield, Check, ShieldAlert, Key, UserCheck, Activity, Fingerprint
+} from 'lucide-react';
 import { fetchUsers, createUser, updateUser, deleteUser, selectUsers, selectUserLoading } from '../store/slices/userSlice';
 import { fetchOrganizations } from '../store/slices/orgSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { selectRole, selectUser } from '../store/slices/authSlice';
 
-const ROLES = ['ADMIN','MANAGER','PARAMEDIC','PHYSICIAN','QA_REVIEWER','VIEWER'];
-const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
+const ROLES = ['ADMIN', 'MANAGER', 'PARAMEDIC', 'PHYSICIAN', 'QA_REVIEWER', 'VIEWER'];
 
-const ROLE_COLORS = {
-  ADMIN:       'bg-rose-500/10 text-rose-400 border-rose-500/20',
-  MANAGER:     'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  PARAMEDIC:   'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  PHYSICIAN:   'bg-sky-500/10 text-sky-400 border-sky-500/20',
-  QA_REVIEWER: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  VIEWER:      'bg-slate-500/10 text-slate-400 border-slate-500/20',
+const ROLE_BADGE = {
+  ADMIN: 'badge badge-red',
+  MANAGER: 'badge badge-blue',
+  PARAMEDIC: 'badge badge-blue',
+  PHYSICIAN: 'badge badge-green',
+  QA_REVIEWER: 'badge badge-orange',
+  VIEWER: 'badge badge-gray',
 };
 
-const FieldRow = ({ icon, label, name, type='text', form, setForm, opts }) => (
+/* ── Modal Field ── */
+const Field = ({ label, icon: Icon, children }) => (
   <div className="space-y-1.5">
-    <label className="text-xs font-medium text-slate-300">{label}</label>
+    <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">{label}</label>
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icon}</span>
-      {opts ? (
-        <select name={name} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
-          className={inputCls + ' pl-9 appearance-none'}>
-          {opts.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
-        </select>
-      ) : (
-        <input type={type} name={name} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
-          className={inputCls + ' pl-9'} />
-      )}
+      {Icon && <Icon size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />}
+      {children}
     </div>
   </div>
 );
@@ -40,166 +36,178 @@ const Users = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
   const currentUserRole = useSelector(selectRole);
-  const users   = useSelector(selectUsers);
+  const users = useSelector(selectUsers);
   const loading = useSelector(selectUserLoading);
   const { organizations } = useSelector(state => state.org);
-  
+
   const availableRoles = currentUserRole === 'ADMIN' ? ROLES : ROLES.filter(r => r !== 'ADMIN');
-  
-  const [searchTerm, setSearchTerm]   = useState('');
-  const [isAddOpen, setIsAddOpen]     = useState(false);
-  const [isEditOpen, setIsEditOpen]   = useState(false);
-  const [editUser, setEditUser]       = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editUser, setEditUser] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  const [addForm, setAddForm] = useState({ firstName:'', lastName:'', email:'', phone:'', organizationId:'', role:'PARAMEDIC', password:'' });
-  const [editForm, setEditForm] = useState({ firstName:'', lastName:'', phone:'', role:'PARAMEDIC', organizationId:'', active: true });
+  const blank = { firstName: '', lastName: '', email: '', phone: '', organizationId: '', role: 'PARAMEDIC', password: '' };
+  const [addForm, setAddForm] = useState(blank);
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', role: 'PARAMEDIC', organizationId: '', active: true });
 
-  useEffect(() => { 
+  useEffect(() => {
     dispatch(fetchUsers());
     dispatch(fetchOrganizations());
   }, [dispatch]);
 
   const handleCreate = async (e) => {
-    e.preventDefault(); 
-    setIsSubmitting(true);
+    e.preventDefault(); setIsSubmitting(true); setLocalError('');
     try {
-      setLocalError('');
       await dispatch(createUser(addForm)).unwrap();
-      setIsAddOpen(false);
-      setAddForm({ firstName:'', lastName:'', email:'', phone:'', organizationId:'', role:'PARAMEDIC', password:'' });
+      setIsAddOpen(false); setAddForm(blank);
       dispatch(addToast({ type: 'success', message: 'User created successfully' }));
-    } catch (err) {
-      setLocalError(err);
-    } finally { setIsSubmitting(false); }
+    } catch (err) { setLocalError(err); }
+    finally { setIsSubmitting(false); }
   };
 
-  const openEdit = (user) => {
-    setEditUser(user);
-    setEditForm({ 
-      firstName: user.firstName||'', 
-      lastName: user.lastName||'', 
-      phone: user.phone||'', 
-      role: user.role||'PARAMEDIC', 
-      organizationId: user.organizationId||'',
-      active: user.active ?? true 
-    });
-    setIsEditOpen(true);
+  const openEdit = (u) => {
+    setEditUser(u);
+    setEditForm({ firstName: u.firstName || '', lastName: u.lastName || '', phone: u.phone || '', role: u.role || 'PARAMEDIC', organizationId: u.organizationId || '', active: u.active ?? true });
+    setIsAddOpen(false); setIsEditOpen(true); setLocalError('');
   };
 
   const handleEdit = async (e) => {
-    e.preventDefault(); 
-    setIsSubmitting(true);
+    e.preventDefault(); setIsSubmitting(true); setLocalError('');
     try {
-      setLocalError('');
-      // UpdateUserRequest only accepts: firstName, lastName, phone, role, active
-      const { organizationId: _omit, ...updatePayload } = editForm;
-      await dispatch(updateUser({ id: editUser.id, data: updatePayload })).unwrap();
-      setIsEditOpen(false); 
-      setEditUser(null);
+      const { organizationId: _omit, ...payload } = editForm;
+      await dispatch(updateUser({ id: editUser.id, data: payload })).unwrap();
+      setIsEditOpen(false); setEditUser(null);
       dispatch(addToast({ type: 'success', message: 'User updated successfully' }));
-    } catch (err) {
-      setLocalError(err);
-    } finally { setIsSubmitting(false); }
+    } catch (err) { setLocalError(err); }
+    finally { setIsSubmitting(false); }
   };
 
-  const handleDelete = async (userId) => {
-    if (!window.confirm('Delete this user?')) return;
+  const handleDelete = async (id) => {
+    if (!window.confirm('Deactivate this user?')) return;
     try {
-      await dispatch(deleteUser(userId)).unwrap();
-      dispatch(addToast({ type: 'success', message: 'User deleted.' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: 'Failed to delete user.' }));
-    }
+      await dispatch(deleteUser(id)).unwrap();
+      dispatch(addToast({ type: 'success', message: 'User deactivated' }));
+    } catch (err) { dispatch(addToast({ type: 'error', message: err || 'Failed' })); }
   };
 
-  const filtered = Array.isArray(users) ? users.filter(u =>
-    u.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
+  const filtered = (users || []).filter(u =>
+    `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.role?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const orgName = (id) => {
-    if (!id) return '—';
-    const org = Array.isArray(organizations) ? organizations.find(o => o.id === id) : null;
-    if (org) return org.name;
-    // If not found, check if the current user belongs to this org
-    if (user?.organizationId === id && user?.organizationName) return user.organizationName;
-    
-    return 'Loading...';
-  };
+  const inputCls = 'input' + ' pl-10';
 
   return (
-    <div className="space-y-6 relative">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-10 animate-fade-in">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Users</h1>
-          <p className="text-slate-400 text-sm mt-1">Manage system personnel, roles, and access.</p>
+          <p className="section-label mb-1">Administration</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">User <span className="text-brand-blue">Management</span></h1>
+          <p className="text-sm text-[#8A97B0] mt-0.5">Manage platform users and role assignments</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => dispatch(fetchUsers())} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex gap-3">
+          <button onClick={() => dispatch(fetchUsers())} disabled={loading}
+            className="btn-ghost border border-[#DDE3F0] px-3 py-2.5 rounded-xl">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-            <Plus size={18} /><span>Add User</span>
+          <button onClick={() => { setLocalError(''); setIsAddOpen(true); }} className="btn-primary text-sm px-4 py-2.5">
+            <Plus size={16} /> Add User
           </button>
         </div>
       </div>
 
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input type="text" placeholder="Search users..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 transition-all" />
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Users', value: users?.length || 0, icon: UserIcon, blue: true },
+          { label: 'Active', value: users?.filter(u => u.active).length || 0, icon: UserCheck, blue: true },
+          { label: 'Paramedics', value: users?.filter(u => u.role === 'PARAMEDIC').length || 0, icon: Activity, blue: true },
+          { label: 'QA Reviewers', value: users?.filter(u => u.role === 'QA_REVIEWER').length || 0, icon: Shield, blue: false },
+        ].map(({ label, value, icon: Icon, blue }) => (
+          <div key={label} className="stat-card">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${blue ? 'bg-[#EEF2FF] text-brand-blue' : 'bg-red-50 text-brand-red'}`}>
+              <Icon size={18} />
+            </div>
+            <p className={`text-3xl font-black ${blue ? 'text-brand-blue' : 'text-brand-red'}`}>{value}</p>
+            <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-1">{label}</p>
           </div>
-          <span className="text-xs text-slate-500">{filtered.length} users</span>
+        ))}
+      </div>
+
+      {/* Table Card */}
+      <div className="card overflow-hidden">
+        {/* Search bar */}
+        <div className="flex items-center gap-3 p-5 border-b border-[#F0F4FC]">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search users…" className="input pl-10 py-2.5 text-sm" />
+          </div>
+          <span className="text-xs text-[#A0AECB] font-semibold ml-auto">{filtered.length} users</span>
         </div>
 
-        <div className="overflow-x-auto min-h-[300px]">
-          <table className="w-full text-left border-collapse">
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="data-table">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <th className="px-6 py-4 font-medium">Name</th>
-                <th className="px-6 py-4 font-medium">Email</th>
-                <th className="px-6 py-4 font-medium">Role</th>
-                <th className="px-6 py-4 font-medium">Organization</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 text-right font-medium">Actions</th>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Organization</th>
+                <th>Contact</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
-              {loading ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400"><RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" />Loading users...</td></tr>
+            <tbody>
+              {loading && !filtered.length ? (
+                [...Array(4)].map((_, i) => (
+                  <tr key={i}><td colSpan="5" className="py-4 px-5">
+                    <div className="h-10 bg-[#F0F4FC] rounded-xl animate-pulse" />
+                  </td></tr>
+                ))
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No users found.</td></tr>
-              ) : filtered.map(user => (
-                <tr key={user.id} className="hover:bg-slate-800/30 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <tr><td colSpan="5" className="py-16 text-center">
+                  <UserIcon size={36} className="text-[#DDE3F0] mx-auto mb-3" />
+                  <p className="text-sm text-[#A0AECB] font-medium">No users found</p>
+                </td></tr>
+              ) : filtered.map(u => (
+                <tr key={u.id}>
+                  <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-teal-500/30 to-sky-500/30 border border-teal-500/20 flex items-center justify-center text-teal-400 text-xs font-bold">
-                        {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                      <div className="w-9 h-9 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue font-black text-sm shrink-0">
+                        {(u.firstName?.charAt(0) || '?').toUpperCase()}
                       </div>
-                      <div className="text-sm font-medium text-slate-200">{user.firstName} {user.lastName}</div>
+                      <div>
+                        <p className="font-semibold text-[#0F1A3A]">{u.firstName} {u.lastName}</p>
+                        <p className="text-xs text-[#A0AECB]">ID: {u.id?.substring(0, 8)}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{user.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${ROLE_COLORS[user.role] || ROLE_COLORS.VIEWER}`}>{user.role}</span>
+                  <td><span className={ROLE_BADGE[u.role] || 'badge badge-gray'}>{u.role?.replace('_', ' ')}</span></td>
+                  <td>
+                    <div className="flex items-center gap-2 text-sm text-[#4B5A7A]">
+                      <Building size={14} className="text-[#A0AECB]" /> {u.organizationName || '—'}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{orgName(user.organizationId)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-0.5 text-xs rounded-full border ${user.active !== false ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
-                      {user.active !== false ? 'Active' : 'Inactive'}
-                    </span>
+                  <td>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs text-[#8A97B0]"><Mail size={12} /> {u.email}</div>
+                      {u.phone && <div className="flex items-center gap-1.5 text-xs text-[#8A97B0]"><Phone size={12} /> {u.phone}</div>}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(user)} className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Edit">
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => openEdit(u)}
+                        className="p-2 rounded-lg bg-[#F0F4FC] text-brand-blue hover:bg-brand-blue hover:text-white transition-all">
                         <Edit2 size={15} />
                       </button>
-                      <button onClick={() => handleDelete(user.id)} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete">
+                      <button onClick={() => handleDelete(u.id)}
+                        className="p-2 rounded-lg bg-[#FFF0F3] text-brand-red hover:bg-brand-red hover:text-white transition-all">
                         <Trash2 size={15} />
                       </button>
                     </div>
@@ -211,100 +219,90 @@ const Users = () => {
         </div>
       </div>
 
-      {/* ADD USER MODAL */}
-      {isAddOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h2 className="text-xl font-bold text-white">Add New User</h2>
-              <button onClick={() => setIsAddOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-            </div>
-            <div className="p-6">
-              {localError && (
-                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center gap-2 font-semibold mb-1">
-                    <X size={14} />
-                    <span>Submission Failed</span>
-                  </div>
-                  {localError}
+      {/* Modal */}
+      {(isAddOpen || isEditOpen) && (
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-[#DDE3F0] my-4">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
+                  <UserIcon size={20} />
                 </div>
-              )}
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FieldRow icon={<UserIcon size={16} />} label="First Name" name="firstName" form={addForm} setForm={setAddForm} />
-                  <FieldRow icon={<UserIcon size={16} />} label="Last Name" name="lastName" form={addForm} setForm={setAddForm} />
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-lg">{isAddOpen ? 'Add New User' : 'Edit User'}</h2>
+                  <p className="text-xs text-[#8A97B0]">Fill in the details below</p>
                 </div>
-                <FieldRow icon={<Mail size={16} />} label="Email" name="email" type="email" form={addForm} setForm={setAddForm} />
-                <div className="grid grid-cols-2 gap-4">
-                  <FieldRow icon={<Phone size={16} />} label="Phone" name="phone" form={addForm} setForm={setAddForm} />
-                  <FieldRow icon={<Shield size={16} />} label="Role" name="role" form={addForm} setForm={setAddForm}
-                    opts={availableRoles.map(r => ({ value: r, label: r.replace('_',' ') }))} />
-                </div>
-                <FieldRow icon={<Building size={16} />} label="Organization" name="organizationId" form={addForm} setForm={setAddForm}
-                  opts={[{ value:'', label:'Select Organization' }, ...organizations.map(o => ({ value: o.id, label: o.name }))]} />
-                <FieldRow icon={<Lock size={16} />} label="Password" name="password" type="password" form={addForm} setForm={setAddForm} />
-                <div className="pt-4 flex justify-end gap-3">
-                  <button type="button" onClick={() => setIsAddOpen(false)} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-                    {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Plus size={16} />}
-                    {isSubmitting ? 'Creating...' : 'Create User'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT USER MODAL */}
-      {isEditOpen && editUser && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <div>
-                <h2 className="text-xl font-bold text-white">Edit User</h2>
-                <p className="text-xs text-slate-500 mt-0.5">{editUser.email}</p>
               </div>
-              <button onClick={() => setIsEditOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
+              <button onClick={() => isAddOpen ? setIsAddOpen(false) : setIsEditOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-6">
+
+            <form onSubmit={isAddOpen ? handleCreate : handleEdit} className="p-6 space-y-4">
               {localError && (
-                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                   <div className="flex items-center gap-2 font-semibold mb-1">
-                    <X size={14} />
-                    <span>Update Failed</span>
-                  </div>
-                  {localError}
+                <div className="flex items-center gap-3 p-3.5 bg-red-50 border border-red-100 rounded-xl text-brand-red text-sm font-semibold">
+                  <ShieldAlert size={16} className="shrink-0" /> {localError}
                 </div>
               )}
-              <form onSubmit={handleEdit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FieldRow icon={<UserIcon size={16} />} label="First Name" name="firstName" form={editForm} setForm={setEditForm} />
-                  <FieldRow icon={<UserIcon size={16} />} label="Last Name" name="lastName" form={editForm} setForm={setEditForm} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FieldRow icon={<Phone size={16} />} label="Phone" name="phone" form={editForm} setForm={setEditForm} />
-                  <FieldRow icon={<Shield size={16} />} label="Role" name="role" form={editForm} setForm={setEditForm}
-                    opts={availableRoles.map(r => ({ value: r, label: r.replace('_',' ') }))} />
-                </div>
-                {currentUserRole === 'ADMIN' && (
-                  <FieldRow icon={<Building size={16} />} label="Organization" name="organizationId" form={editForm} setForm={setEditForm}
-                    opts={[{ value:'', label:'Select Organization' }, ...organizations.map(o => ({ value: o.id, label: o.name }))]} />
-                )}
-                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer pt-2">
-                  <input type="checkbox" checked={editForm.active} onChange={e => setEditForm({ ...editForm, active: e.target.checked })}
-                    className="rounded border-slate-700 bg-slate-900 text-teal-500" />
-                  Active Account
-                </label>
-                <div className="pt-4 flex justify-end gap-3">
-                  <button type="button" onClick={() => setIsEditOpen(false)} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-                    {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
-                    {isSubmitting ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="First Name" icon={UserIcon}>
+                  <input className={inputCls} placeholder="John" value={isAddOpen ? addForm.firstName : editForm.firstName}
+                    onChange={e => (isAddOpen ? setAddForm : setEditForm)(f => ({ ...f, firstName: e.target.value }))} />
+                </Field>
+                <Field label="Last Name" icon={UserIcon}>
+                  <input className={inputCls} placeholder="Doe" value={isAddOpen ? addForm.lastName : editForm.lastName}
+                    onChange={e => (isAddOpen ? setAddForm : setEditForm)(f => ({ ...f, lastName: e.target.value }))} />
+                </Field>
+              </div>
+
+              {isAddOpen && (
+                <Field label="Email" icon={Mail}>
+                  <input type="email" className={inputCls} placeholder="user@hospital.com" value={addForm.email}
+                    onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} required />
+                </Field>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Phone" icon={Phone}>
+                  <input className={inputCls} placeholder="+91 9876543210" value={isAddOpen ? addForm.phone : editForm.phone}
+                    onChange={e => (isAddOpen ? setAddForm : setEditForm)(f => ({ ...f, phone: e.target.value }))} />
+                </Field>
+                <Field label="Role" icon={Shield}>
+                  <select className={inputCls} value={isAddOpen ? addForm.role : editForm.role}
+                    onChange={e => (isAddOpen ? setAddForm : setEditForm)(f => ({ ...f, role: e.target.value }))}>
+                    {availableRoles.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                  </select>
+                </Field>
+              </div>
+
+              {isAddOpen && (
+                <Field label="Password" icon={Key}>
+                  <input type="password" className={inputCls} placeholder="••••••••" value={addForm.password}
+                    onChange={e => setAddForm(f => ({ ...f, password: e.target.value }))} required />
+                </Field>
+              )}
+
+              <Field label="Organization" icon={Building}>
+                <select className={inputCls} value={isAddOpen ? addForm.organizationId : editForm.organizationId}
+                  onChange={e => (isAddOpen ? setAddForm : setEditForm)(f => ({ ...f, organizationId: e.target.value }))}
+                  disabled={currentUserRole !== 'ADMIN'}>
+                  <option value="">{currentUserRole === 'ADMIN' ? 'Select Organization' : (user?.organizationName || 'Default')}</option>
+                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </Field>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => isAddOpen ? setIsAddOpen(false) : setIsEditOpen(false)}
+                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="btn-primary flex-1 justify-center py-2.5">
+                  {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                  {isSubmitting ? 'Saving…' : (isAddOpen ? 'Create User' : 'Save Changes')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

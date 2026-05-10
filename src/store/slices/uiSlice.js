@@ -4,7 +4,11 @@ let _id = 0;
 
 const uiSlice = createSlice({
   name: 'ui',
-  initialState: { toasts: [], globalLoading: false },
+  initialState: { 
+    toasts: [], 
+    globalLoading: false, 
+    theme: localStorage.getItem('theme') || 'dark' 
+  },
   reducers: {
     addToast(state, { payload }) {
       state.toasts.push({ id: ++_id, duration: 4000, type: 'info', ...payload });
@@ -15,10 +19,18 @@ const uiSlice = createSlice({
     setGlobalLoading(state, { payload }) {
       state.globalLoading = payload;
     },
+    toggleTheme(state) {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', state.theme);
+    },
+    setTheme(state, { payload }) {
+      state.theme = payload;
+      localStorage.setItem('theme', payload);
+    }
   },
 });
 
-export const { addToast, removeToast, setGlobalLoading } = uiSlice.actions;
+export const { addToast, removeToast, setGlobalLoading, toggleTheme, setTheme } = uiSlice.actions;
 
 // Convenience helpers
 export const toastSuccess = (message) => addToast({ type: 'success', message });

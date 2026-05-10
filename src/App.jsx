@@ -11,6 +11,7 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import RoleGate from './components/common/RoleGate';
 
 // Pages
+import LandingPage   from './pages/LandingPage';
 import Login         from './pages/Login';
 import Dashboard     from './pages/Dashboard';
 import RecordsList   from './pages/RecordsList';
@@ -34,6 +35,7 @@ import PatientPortal from './pages/PatientPortal';
 import BreakGlass    from './pages/BreakGlass';
 import BusinessAssociate from './pages/BusinessAssociate';
 import DeIdentification from './pages/DeIdentification';
+import PatientHistory   from './pages/PatientHistory';
 
 // Route guard: wraps ProtectedRoute + RoleGate
 const GuardedRoute = ({ menuItem, roles, children }) => (
@@ -57,19 +59,21 @@ const AppRoutes = () => {
   if (isInitializing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg-main)]">
-        <RefreshCw className="animate-spin text-teal-500 w-8 h-8" />
+        <RefreshCw className="animate-spin text-brand-blue w-8 h-8" />
       </div>
     );
   }
 
   return (
     <Routes>
-      <Route path="/login"    element={isAuthenticated ? <Navigate to={role === 'PATIENT' ? '/patient-portal' : '/dashboard'} replace /> : <Login />} />
+      {/* Public Landing Page */}
+      <Route path="/" element={<LandingPage />} />
+      
+      <Route path="/login" element={isAuthenticated ? <Navigate to={role === 'PATIENT' ? '/patient-portal' : '/dashboard'} replace /> : <Login />} />
 
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<Navigate to={role === 'PATIENT' ? '/patient-portal' : '/dashboard'} replace />} />
-
+      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="dashboard" element={role === 'PATIENT' ? <Navigate to="/patient-portal" replace /> : <Dashboard />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
 
         <Route path="epcr"       element={<GuardedRoute menuItem="EPCR"><RecordsList /></GuardedRoute>} />
         <Route path="epcr/new"   element={<GuardedRoute menuItem="EPCR"><CreateRecord /></GuardedRoute>} />
@@ -97,6 +101,8 @@ const AppRoutes = () => {
         <Route path="hipaa/baa"       element={<GuardedRoute menuItem="Business Associates"><BusinessAssociate /></GuardedRoute>} />
         <Route path="hipaa/deid"      element={<GuardedRoute menuItem="De-Identification"><DeIdentification /></GuardedRoute>} />
         <Route path="patient-portal"  element={<GuardedRoute menuItem="Patient Portal"><PatientPortal /></GuardedRoute>} />
+        <Route path="patient-history/:patientId" element={<GuardedRoute menuItem="Patient History"><PatientHistory /></GuardedRoute>} />
+        <Route path="patient-history" element={<GuardedRoute menuItem="Patient History"><PatientHistory /></GuardedRoute>} />
         <Route path="break-glass"     element={<GuardedRoute menuItem="Break-Glass"><BreakGlass /></GuardedRoute>} />
 
         {/* Legacy redirect */}

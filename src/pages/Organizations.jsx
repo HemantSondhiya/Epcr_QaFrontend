@@ -1,333 +1,229 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Building2, Plus, Search, RefreshCw, X, Eye, Trash2, Edit2, Check, AlertCircle } from 'lucide-react';
+import {
+  Building2, Plus, Search, RefreshCw, X, Eye, Trash2, Edit2,
+  Check, AlertCircle, MapPin, Globe, Phone, Mail, Shield, Activity, Landmark
+} from 'lucide-react';
 import client, { extractErrorMessage } from '../api/client';
 import { addToast } from '../store/slices/uiSlice';
 import { selectUser } from '../store/slices/authSlice';
-import {
-  fetchOrganizations,
-  fetchActiveOrganizations,
-  fetchOrganizationById,
-  createOrganization,
-  updateOrganization,
-  deleteOrganization
-} from '../store/slices/orgSlice';
+import { fetchOrganizations, createOrganization, updateOrganization, deleteOrganization } from '../store/slices/orgSlice';
 
-const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
-
-const emptyOrg = { name:'', code:'', description:'', address:'', city:'', state:'', zipCode:'', phone:'', email:'', contactPerson:'', licenseNumber:'' };
-
-/* ── OrgForm is defined OUTSIDE the component to prevent remount on every keystroke ── */
-const OrgForm = ({ form, onChange, onSubmit, onCancel, title, isSubmitting, formError, fieldErrors }) => {
-  const handleField = (field, value) => {
-    onChange({ ...form, [field]: value });
-  };
-
-  const fieldErr = (field) => fieldErrors?.[field];
-  const errBorder = (field) => fieldErr(field) ? 'border-rose-500/50 focus:border-rose-500/50 focus:ring-rose-500/50' : '';
-
-  return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-        </div>
-        <div className="p-6 overflow-y-auto">
-          {formError && (
-            <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2">
-              <AlertCircle size={16} className="text-rose-400 mt-0.5 shrink-0" />
-              <p className="text-sm text-rose-400">{formError}</p>
-            </div>
-          )}
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Name *</label>
-                <input value={form.name} onChange={e => handleField('name', e.target.value)} required className={`${inputCls} ${errBorder('name')}`} placeholder="City EMS" />
-                {fieldErr('name') && <p className="text-[11px] text-rose-400">{fieldErr('name')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Code *</label>
-                <input value={form.code} onChange={e => handleField('code', e.target.value)} required className={`${inputCls} font-mono ${errBorder('code')}`} placeholder="CITY_EMS" />
-                {fieldErr('code') && <p className="text-[11px] text-rose-400">{fieldErr('code')}</p>}</div>
-            </div>
-            <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Description</label>
-              <textarea value={form.description} onChange={e => handleField('description', e.target.value)} rows="2" className={`${inputCls} resize-none ${errBorder('description')}`} />
-              {fieldErr('description') && <p className="text-[11px] text-rose-400">{fieldErr('description')}</p>}</div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Address</label>
-                <input value={form.address} onChange={e => handleField('address', e.target.value)} className={`${inputCls} ${errBorder('address')}`} />
-                {fieldErr('address') && <p className="text-[11px] text-rose-400">{fieldErr('address')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">City</label>
-                <input value={form.city} onChange={e => handleField('city', e.target.value)} className={`${inputCls} ${errBorder('city')}`} />
-                {fieldErr('city') && <p className="text-[11px] text-rose-400">{fieldErr('city')}</p>}</div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">State</label>
-                <input value={form.state} onChange={e => handleField('state', e.target.value)} className={`${inputCls} ${errBorder('state')}`} placeholder="Karnataka" />
-                {fieldErr('state') && <p className="text-[11px] text-rose-400">{fieldErr('state')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">PIN Code</label>
-                <input value={form.zipCode} onChange={e => handleField('zipCode', e.target.value)} className={`${inputCls} ${errBorder('zipCode')}`} placeholder="560001" />
-                {fieldErr('zipCode') && <p className="text-[11px] text-rose-400">{fieldErr('zipCode')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">License #</label>
-                <input value={form.licenseNumber} onChange={e => handleField('licenseNumber', e.target.value)} className={`${inputCls} ${errBorder('licenseNumber')}`} />
-                {fieldErr('licenseNumber') && <p className="text-[11px] text-rose-400">{fieldErr('licenseNumber')}</p>}</div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Phone</label>
-                <input value={form.phone} onChange={e => handleField('phone', e.target.value)} className={`${inputCls} ${errBorder('phone')}`} placeholder="+91 98765 43210" />
-                {fieldErr('phone') && <p className="text-[11px] text-rose-400">{fieldErr('phone')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Email</label>
-                <input type="email" value={form.email} onChange={e => handleField('email', e.target.value)} className={`${inputCls} ${errBorder('email')}`} />
-                {fieldErr('email') && <p className="text-[11px] text-rose-400">{fieldErr('email')}</p>}</div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Contact Person</label>
-                <input value={form.contactPerson} onChange={e => handleField('contactPerson', e.target.value)} className={`${inputCls} ${errBorder('contactPerson')}`} />
-                {fieldErr('contactPerson') && <p className="text-[11px] text-rose-400">{fieldErr('contactPerson')}</p>}</div>
-            </div>
-            <div className="pt-4 flex justify-end gap-3">
-              <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
-              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-                {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
-                {isSubmitting ? 'Saving...' : title}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
+const OrgField = ({ label, name, type = 'text', form, setForm, errors = {}, placeholder }) => (
+  <div className="space-y-1.5">
+    <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">{label}</label>
+    <input
+      type={type}
+      value={form[name] || ''}
+      onChange={e => setForm({ ...form, [name]: e.target.value })}
+      placeholder={placeholder || label}
+      className={`input py-2.5 text-sm ${errors[name] ? 'border-brand-red focus:border-brand-red' : ''}`}
+    />
+    {errors[name] && <p className="text-xs text-brand-red font-semibold">{errors[name]}</p>}
+  </div>
+);
 
 const Organizations = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  
   const { organizations, loading } = useSelector(state => state.org);
 
-  const [searchTerm, setSearchTerm]   = useState('');
-  const [filterActive, setFilter]     = useState('all');
-  const [isAddOpen, setIsAddOpen]     = useState(false);
-  const [isEditOpen, setIsEditOpen]   = useState(false);
-  const [isViewOpen, setIsViewOpen]   = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isAddOpen, setIsAddOpen]   = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [addForm, setAddForm]         = useState(emptyOrg);
-  const [editForm, setEditForm]       = useState(emptyOrg);
-  const [formError, setFormError]     = useState('');
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [formError, setFormError]       = useState('');
+  const [fieldErrors, setFieldErrors]   = useState({});
 
-  const fetchOrgs = () => {
-    if (filterActive === 'active') {
-      dispatch(fetchActiveOrganizations());
-    } else {
-      dispatch(fetchOrganizations());
-    }
-  };
+  const blankForm = { name:'', code:'', email:'', phone:'', website:'', address:'', city:'', state:'', zipCode:'', country:'USA', active:true };
+  const [addForm, setAddForm]   = useState(blankForm);
+  const [editForm, setEditForm] = useState(blankForm);
 
-  useEffect(() => { fetchOrgs(); }, [filterActive, dispatch]);
+  useEffect(() => { dispatch(fetchOrganizations()); }, [dispatch]);
 
-  const parseValidationErrors = (err) => {
+  const handleApiError = (err) => {
     const data = err.response?.data;
     const fields = {};
-    
-    // 1. Extract Field Specific Errors
-    if (data?.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
-      Object.assign(fields, data.errors);
-    }
-    if (data?.fieldErrors && typeof data.fieldErrors === 'object') {
-      Object.assign(fields, data.fieldErrors);
-    }
-    // Handle { data: { field: "error" }, message: "Validation failed" }
-    if (data?.message === 'Validation failed' && data?.data && typeof data.data === 'object') {
-      Object.assign(fields, data.data);
-    }
-    if (Array.isArray(data?.errors)) {
-      data.errors.forEach(e => { if (e.field) fields[e.field] = e.defaultMessage || e.message; });
-    }
-    if (Array.isArray(data?.subErrors)) {
-      data.subErrors.forEach(e => { if (e.field) fields[e.field] = e.message || e.rejectedValue; });
-    }
-
+    if (data?.message === 'Validation failed' && data?.data) Object.assign(fields, data.data);
+    if (Array.isArray(data?.errors)) data.errors.forEach(e => { if (e.field) fields[e.field] = e.defaultMessage || e.message; });
     setFieldErrors(fields);
-
-    // 2. Extract Global Message
-    const mainMsg = extractErrorMessage(err);
-    // If we have specific field errors but the main message is generic, make it more helpful
-    if (Object.keys(fields).length > 0 && (mainMsg === 'Validation failed' || mainMsg === 'Bad Request')) {
-      setFormError('Please correct the specific errors highlighted below.');
-    } else {
-      setFormError(mainMsg);
-    }
+    setFormError(Object.keys(fields).length > 0 ? 'Please fix highlighted fields.' : extractErrorMessage(err));
   };
 
-  // Client-side validation before API call
-  const validateForm = (form) => {
-    const errors = {};
-    if (!form.name || form.name.trim().length < 2) errors.name = 'Name is required (min 2 characters)';
-    if (!form.code || form.code.trim().length < 2) errors.code = 'Code is required (min 2 characters)';
-    if (form.code && form.code.length > 20) errors.code = 'Code must be 20 characters or less';
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Invalid email format';
-    if (form.phone && form.phone.replace(/\D/g, '').length < 10) errors.phone = 'Phone must be at least 10 digits';
-    if (form.zipCode && !/^[1-9][0-9]{5}$/.test(form.zipCode)) errors.zipCode = 'Invalid PIN code (must be 6 digits)';
-    return errors;
+  const validate = (form) => {
+    const e = {};
+    if (!form.name?.trim() || form.name.trim().length < 2) e.name = 'Name is required (min 2 chars)';
+    if (!form.code?.trim() || form.code.trim().length < 2) e.code = 'Code is required (min 2 chars)';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email';
+    return e;
   };
 
   const handleCreate = async (e) => {
     e.preventDefault(); setFormError(''); setFieldErrors({});
-    const clientErrors = validateForm(addForm);
-    if (Object.keys(clientErrors).length > 0) {
-      setFieldErrors(clientErrors);
-      setFormError('Please fix the highlighted fields below.');
-      return;
-    }
+    const errs = validate(addForm);
+    if (Object.keys(errs).length) { setFieldErrors(errs); setFormError('Fix errors below.'); return; }
     setIsSubmitting(true);
     try {
       await dispatch(createOrganization(addForm)).unwrap();
-      setIsAddOpen(false); setAddForm(emptyOrg); setFormError(''); setFieldErrors({});
-      dispatch(addToast({ type: 'success', message: 'Organization created successfully' }));
-    } catch (err) {
-      parseValidationErrors(err);
-    } finally { setIsSubmitting(false); }
-  };
-
-  const openEdit = (org) => {
-    setSelectedOrg(org);
-    setEditForm({ name: org.name||'', code: org.code||'', description: org.description||'',
-      address: org.address||'', city: org.city||'', state: org.state||'', zipCode: org.zipCode||'',
-      phone: org.phone||'', email: org.email||'', contactPerson: org.contactPerson||'', licenseNumber: org.licenseNumber||'' });
-    setIsEditOpen(true);
+      setIsAddOpen(false); setAddForm(blankForm);
+      dispatch(addToast({ type:'success', message:'Organization created' }));
+    } catch (err) { handleApiError(err); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleEdit = async (e) => {
     e.preventDefault(); setFormError(''); setFieldErrors({});
-    const clientErrors = validateForm(editForm);
-    if (Object.keys(clientErrors).length > 0) {
-      setFieldErrors(clientErrors);
-      setFormError('Please fix the highlighted fields below.');
-      return;
-    }
+    const errs = validate(editForm);
+    if (Object.keys(errs).length) { setFieldErrors(errs); setFormError('Fix errors below.'); return; }
     setIsSubmitting(true);
     try {
-      await dispatch(updateOrganization({ id: selectedOrg.id, data: editForm })).unwrap();
-      setIsEditOpen(false); setSelectedOrg(null); setFormError(''); setFieldErrors({});
-      dispatch(addToast({ type: 'success', message: 'Organization updated successfully' }));
-    } catch (err) {
-      parseValidationErrors(err);
-    } finally { setIsSubmitting(false); }
+      await dispatch(updateOrganization({ id:selectedOrg.id, data:editForm })).unwrap();
+      setIsEditOpen(false);
+      dispatch(addToast({ type:'success', message:'Organization updated' }));
+    } catch (err) { handleApiError(err); }
+    finally { setIsSubmitting(false); }
   };
 
-  const handleDelete = async (orgId) => {
-    if (!window.confirm('Delete this organization? This cannot be undone.')) return;
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this organization?')) return;
     try {
-      await dispatch(deleteOrganization(orgId)).unwrap();
-      dispatch(addToast({ type: 'success', message: 'Organization deleted.' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to delete organization.' }));
-    }
+      await dispatch(deleteOrganization(id)).unwrap();
+      dispatch(addToast({ type:'success', message:'Organization deleted' }));
+    } catch (err) { dispatch(addToast({ type:'error', message:extractErrorMessage(err) })); }
   };
 
-  const viewOrg = async (orgId) => {
-    try {
-      await dispatch(fetchOrganizationById(orgId)).unwrap();
-      // Since selectedOrg is in Redux now, but local state selectedOrg was also used for View/Edit
-      // I'll update the component to use the Redux selectedOrg if possible, 
-      // or just keep using the result to open modal.
-      const res = await dispatch(fetchOrganizationById(orgId)).unwrap();
-      setSelectedOrg(res);
-      setIsViewOpen(true);
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to load details.' }));
-    }
-  };
+  const openEdit = (org) => { setSelectedOrg(org); setEditForm({ ...org }); setFormError(''); setFieldErrors({}); setIsEditOpen(true); };
+  const openView = (org) => { setSelectedOrg(org); setIsViewOpen(true); };
 
-  const filtered = (Array.isArray(organizations) ? organizations : []).filter(o =>
+  const filtered = organizations.filter(o =>
     o.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.city?.toLowerCase().includes(searchTerm.toLowerCase())
+    o.code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="space-y-6 relative">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-10 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Organizations</h1>
-          <p className="text-slate-400 text-sm mt-1">Manage EMS organizations and departments.</p>
+          <p className="section-label mb-1">Administration</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">Organizations</h1>
+          <p className="text-sm text-[#8A97B0] mt-0.5">Manage organization registry and settings</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={fetchOrgs} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex gap-3">
+          <button onClick={() => dispatch(fetchOrganizations())} disabled={loading}
+            className="btn-ghost border border-[#DDE3F0] px-3 py-2.5 rounded-xl">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
           {user?.role === 'ADMIN' && (
-            <button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-              <Plus size={18} /><span>Add Organization</span>
+            <button onClick={() => { setFormError(''); setFieldErrors({}); setIsAddOpen(true); }}
+              className="btn-primary text-sm px-4 py-2.5">
+              <Plus size={16} /> Add Organization
             </button>
           )}
         </div>
       </div>
 
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input type="text" placeholder="Search organizations..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 transition-all" />
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label:'Total', value:organizations.length, icon:Building2 },
+          { label:'Active', value:organizations.filter(o=>o.active).length, icon:Activity },
+          { label:'Cities', value:[...new Set(organizations.map(o=>o.city).filter(Boolean))].length, icon:MapPin },
+          { label:'Countries', value:[...new Set(organizations.map(o=>o.country).filter(Boolean))].length, icon:Globe },
+        ].map(({ label, value, icon:Icon }) => (
+          <div key={label} className="stat-card">
+            <div className="w-10 h-10 rounded-xl bg-[#EEF2FF] text-brand-blue flex items-center justify-center mb-3">
+              <Icon size={18} />
+            </div>
+            <p className="text-3xl font-black text-brand-blue">{value}</p>
+            <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-1">{label}</p>
           </div>
-          <div className="flex gap-2">
-            {['all','active'].map(f => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 text-sm rounded-lg border capitalize transition-colors ${filterActive === f ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/50'}`}>
-                {f === 'active' ? 'Active Only' : 'All'}
-              </button>
-            ))}
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-3 p-5 border-b border-[#F0F4FC]">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search organizations…" className="input pl-10 py-2.5 text-sm" />
           </div>
+          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">{filtered.length} orgs</span>
         </div>
 
-        <div className="overflow-x-auto min-h-[300px]">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto">
+          <table className="data-table">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <th className="px-6 py-4 font-medium">Organization</th>
-                <th className="px-6 py-4 font-medium">Code</th>
-                <th className="px-6 py-4 font-medium">Location</th>
-                <th className="px-6 py-4 font-medium">Contact</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 text-right font-medium">Actions</th>
+              <tr>
+                <th>Organization</th>
+                <th>Location</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
-              {loading ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center"><RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" /><p className="text-slate-400">Loading...</p></td></tr>
+            <tbody>
+              {loading && !filtered.length ? (
+                [...Array(3)].map((_, i) => (
+                  <tr key={i}><td colSpan="5" className="py-3 px-5">
+                    <div className="h-10 bg-[#F0F4FC] rounded-xl animate-pulse" />
+                  </td></tr>
+                ))
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No organizations found.</td></tr>
+                <tr><td colSpan="5" className="py-16 text-center">
+                  <Building2 size={36} className="text-[#DDE3F0] mx-auto mb-3" />
+                  <p className="text-sm text-[#A0AECB] font-medium">No organizations found</p>
+                </td></tr>
               ) : filtered.map(org => (
-                <tr key={org.id || org.code} className="hover:bg-slate-800/30 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <tr key={org.id}>
+                  <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400"><Building2 size={16} /></div>
+                      <div className="w-9 h-9 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue font-black text-sm">
+                        {org.name?.charAt(0).toUpperCase()}
+                      </div>
                       <div>
-                        <div className="text-sm font-medium text-slate-200">{org.name}</div>
-                        <div className="text-xs text-slate-500 truncate max-w-[180px]">{org.description}</div>
+                        <p className="font-semibold text-[#0F1A3A]">{org.name}</p>
+                        <p className="text-xs text-[#A0AECB] font-mono">{org.code}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 text-xs font-mono bg-slate-800 text-teal-400 rounded border border-slate-700">{org.code}</span></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{org.city}{org.state ? `, ${org.state}` : ''}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{org.contactPerson || org.email || '—'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${org.active ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+                  <td>
+                    <div className="flex items-center gap-1.5 text-sm text-[#4B5A7A]">
+                      <MapPin size={13} className="text-[#A0AECB]" />
+                      {org.city || '—'}{org.state ? `, ${org.state}` : ''}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-xs text-[#8A97B0]"><Mail size={11}/> {org.email || '—'}</div>
+                      <div className="flex items-center gap-1.5 text-xs text-[#8A97B0]"><Phone size={11}/> {org.phone || '—'}</div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={org.active ? 'badge badge-green' : 'badge badge-red'}>
                       {org.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => viewOrg(org.id)} className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors" title="View"><Eye size={15} /></button>
-                      
-                      {/* ADMIN can edit all; MANAGER only their own */}
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => openView(org)}
+                        className="p-2 rounded-lg bg-[#F0F4FC] text-brand-blue hover:bg-brand-blue hover:text-white transition-all">
+                        <Eye size={15} />
+                      </button>
                       {(user?.role === 'ADMIN' || (user?.role === 'MANAGER' && user?.organizationId === org.id)) && (
-                        <button onClick={() => openEdit(org)} className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Edit"><Edit2 size={15} /></button>
+                        <button onClick={() => openEdit(org)}
+                          className="p-2 rounded-lg bg-[#F0F4FC] text-brand-blue hover:bg-brand-blue hover:text-white transition-all">
+                          <Edit2 size={15} />
+                        </button>
                       )}
-                      
-                      {/* ADMIN can delete all */}
                       {user?.role === 'ADMIN' && (
-                        <button onClick={() => handleDelete(org.id)} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete"><Trash2 size={15} /></button>
+                        <button onClick={() => handleDelete(org.id)}
+                          className="p-2 rounded-lg bg-[#FFF0F3] text-brand-red hover:bg-brand-red hover:text-white transition-all">
+                          <Trash2 size={15} />
+                        </button>
                       )}
                     </div>
                   </td>
@@ -338,42 +234,96 @@ const Organizations = () => {
         </div>
       </div>
 
-      {isAddOpen && <OrgForm form={addForm} onChange={setAddForm} onSubmit={handleCreate} onCancel={() => { setIsAddOpen(false); setFormError(''); setFieldErrors({}); }} title="Add Organization" isSubmitting={isSubmitting} formError={formError} fieldErrors={fieldErrors} />}
-      {isEditOpen && <OrgForm form={editForm} onChange={setEditForm} onSubmit={handleEdit} onCancel={() => { setIsEditOpen(false); setFormError(''); setFieldErrors({}); }} title="Save Changes" isSubmitting={isSubmitting} formError={formError} fieldErrors={fieldErrors} />}
-
-      {/* VIEW MODAL */}
-      {isViewOpen && selectedOrg && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h2 className="text-xl font-bold text-white">Organization Details</h2>
-              <button onClick={() => setIsViewOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400"><Building2 size={24} /></div>
+      {/* Add / Edit Modal */}
+      {(isAddOpen || isEditOpen) && (
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-[#DDE3F0] my-4">
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
+                  <Building2 size={20} />
+                </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">{selectedOrg.name}</h3>
-                  <span className="px-2 py-0.5 text-xs font-mono bg-slate-800 text-teal-400 rounded border border-slate-700">{selectedOrg.code}</span>
+                  <h2 className="font-black text-[#0F1A3A] text-lg">{isAddOpen ? 'Add Organization' : 'Edit Organization'}</h2>
+                  <p className="text-xs text-[#8A97B0]">Fill in organization details</p>
                 </div>
               </div>
-              {selectedOrg.description && <p className="text-sm text-slate-400">{selectedOrg.description}</p>}
+              <button onClick={() => isAddOpen ? setIsAddOpen(false) : setIsEditOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={isAddOpen ? handleCreate : handleEdit} className="p-6 space-y-4">
+              {formError && (
+                <div className="flex items-center gap-3 p-3.5 bg-red-50 border border-red-100 rounded-xl text-brand-red text-sm font-semibold">
+                  <AlertCircle size={16} className="shrink-0" /> {formError}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
-                {[['Address', selectedOrg.address],['City/State', `${selectedOrg.city||''}${selectedOrg.state?', '+selectedOrg.state:''} ${selectedOrg.zipCode||''}`],
-                  ['Phone', selectedOrg.phone],['Email', selectedOrg.email],['Contact', selectedOrg.contactPerson],['License', selectedOrg.licenseNumber]
-                ].filter(([,v]) => v?.trim()).map(([label, val]) => (
-                  <div key={label}><p className="text-xs text-slate-500 mb-1">{label}</p><p className="text-sm text-slate-300">{val}</p></div>
-                ))}
+                <OrgField label="Name" name="name" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} placeholder="Hospital Name" />
+                <OrgField label="Code" name="code" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} placeholder="ORG001" />
               </div>
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-                <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${selectedOrg.active ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
-                  {selectedOrg.active ? 'Active' : 'Inactive'}
-                </span>
-                <button onClick={() => { setIsViewOpen(false); openEdit(selectedOrg); }}
-                  className="flex items-center gap-1.5 text-sm text-teal-400 hover:text-teal-300 transition-colors">
-                  <Edit2 size={14} />Edit
+              <div className="grid grid-cols-2 gap-4">
+                <OrgField label="Email" name="email" type="email" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} placeholder="info@org.com" />
+                <OrgField label="Phone" name="phone" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} placeholder="+1 555 000 0000" />
+              </div>
+              <OrgField label="Address" name="address" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} placeholder="123 Main St" />
+              <div className="grid grid-cols-4 gap-3">
+                <div className="col-span-2"><OrgField label="City" name="city" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} /></div>
+                <OrgField label="State" name="state" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} />
+                <OrgField label="ZIP" name="zipCode" form={isAddOpen?addForm:editForm} setForm={isAddOpen?setAddForm:setEditForm} errors={fieldErrors} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => isAddOpen ? setIsAddOpen(false) : setIsEditOpen(false)}
+                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="btn-primary flex-1 justify-center py-2.5 text-sm">
+                  {isSubmitting ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}
+                  {isSubmitting ? 'Saving…' : (isAddOpen ? 'Create' : 'Save Changes')}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {isViewOpen && selectedOrg && (
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-[#DDE3F0]">
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue font-black text-lg">
+                  {selectedOrg.name?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-lg">{selectedOrg.name}</h2>
+                  <p className="text-xs font-mono text-[#A0AECB]">{selectedOrg.code}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsViewOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              {[
+                { label:'Email', value:selectedOrg.email, icon:Mail },
+                { label:'Phone', value:selectedOrg.phone, icon:Phone },
+                { label:'Location', value:`${selectedOrg.city||'—'}, ${selectedOrg.state||'—'}`, icon:MapPin },
+                { label:'Website', value:selectedOrg.website, icon:Globe },
+                { label:'Country', value:selectedOrg.country, icon:Landmark },
+                { label:'Status', value:selectedOrg.active ? 'Active' : 'Inactive', icon:Shield },
+              ].map(({ label, value, icon:Icon }) => (
+                <div key={label} className="space-y-1 p-3 bg-[#F8FAFF] rounded-xl">
+                  <div className="flex items-center gap-2 text-xs text-[#A0AECB] font-bold uppercase tracking-wider">
+                    <Icon size={12} /> {label}
+                  </div>
+                  <p className="text-sm font-semibold text-[#0F1A3A]">{value || '—'}</p>
+                </div>
+              ))}
+            </div>
+            <div className="p-5 border-t border-[#F0F4FC] flex justify-end">
+              <button onClick={() => setIsViewOpen(false)} className="btn-primary text-sm px-6 py-2.5">Close</button>
             </div>
           </div>
         </div>

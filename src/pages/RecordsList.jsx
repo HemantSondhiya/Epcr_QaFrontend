@@ -1,45 +1,51 @@
 import { useState, useEffect } from 'react';
-import { Plus, Filter, Search, FileEdit, Trash2, Eye, RefreshCw, X, Send, ArrowLeft, Save, ChevronRight, User, Activity, FilePlus2, CheckCircle2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import client from '../api/client';
+import {
+  Plus, Filter, Search, FileEdit, Trash2, Eye, RefreshCw, X,
+  Send, AlertCircle, Clock, MapPin, FileText, Activity, User, Heart, Truck, Shield, AlertTriangle
+} from 'lucide-react';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import {
-  fetchRecords as fetchEpcrRecords,
-  updateRecord,
-  deleteRecord,
-  submitRecord,
-  selectRecords,
-  selectEpcrLoading,
-  selectEpcrError
+  fetchRecords as fetchEpcrRecords, updateRecord, deleteRecord,
+  submitRecord, selectRecords, selectEpcrLoading, selectEpcrError
 } from '../store/slices/epcrSlice';
 import { extractErrorMessage } from '../api/client';
-import { applyRecordFilters, buildFilterQueryString } from '../utils/recordFilters';
 
-const StatusBadge = ({ status }) => {
-  const styles = {
-    DRAFT:       'bg-slate-500/10 text-slate-400 border-slate-500/20',
-    IN_PROGRESS: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    COMPLETED:   'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-    SUBMITTED:   'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    APPROVED:    'bg-teal-500/10 text-teal-400 border-teal-500/20',
-    REJECTED:    'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    ARCHIVED:    'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    QA_PENDING:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    QA_APPROVED: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  };
+const STATUS_BADGE = {
+  DRAFT: 'badge badge-gray',
+  IN_PROGRESS: 'badge badge-blue',
+  COMPLETED: 'badge badge-blue',
+  SUBMITTED: 'badge badge-blue',
+  APPROVED: 'badge badge-green',
+  REJECTED: 'badge badge-red',
+  ARCHIVED: 'badge badge-gray',
+  QA_PENDING: 'badge badge-orange',
+  QA_APPROVED: 'badge badge-green',
+};
+
+const StatusBadge = ({ status }) => (
+  <span className={STATUS_BADGE[status] || 'badge badge-gray'}>
+    {(status || 'DRAFT').replace(/_/g, ' ')}
+  </span>
+);
+
+const DetailRow = ({ label, value, colSpan = 1 }) => {
+  const v = (value === null || value === undefined || value === '') ? '—' : value;
   return (
-    <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${styles[status] || styles.DRAFT}`}>
-      {(status || 'DRAFT').replace(/_/g, ' ')}
-    </span>
+    <div className={`space-y-1 ${colSpan > 1 ? `col-span-${colSpan}` : ''}`}>
+      <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">{label}</p>
+      <p className="text-sm font-semibold text-[#0F1A3A] break-words">{v}</p>
+    </div>
   );
 };
 
-const DetailRow = ({ label, value }) => (
-  <div>
-    <p className="text-xs text-slate-500 mb-1">{label}</p>
-    <p className="text-sm text-slate-200">{value || '—'}</p>
+const SectionHeader = ({ icon: Icon, title, color = "text-brand-blue" }) => (
+  <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-100 mb-4">
+    <div className={`p-2 rounded-lg bg-slate-50 ${color}`}><Icon size={18} /></div>
+    <h4 className={`text-xs font-black uppercase tracking-widest ${color}`}>{title}</h4>
   </div>
 );
 
@@ -47,593 +53,427 @@ const RecordsList = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-
   const records = useSelector(selectRecords);
   const loading = useSelector(selectEpcrLoading);
-  const error   = useSelector(selectEpcrError);
 
   const [searchTerm, setSearchTerm] = useState('');
-
-  // View modal
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState(null);
-
-  // Edit modal
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editStep, setEditStep] = useState(1);
-  const [editData, setEditData] = useState(null);
-  const [editSaving, setEditSaving] = useState(false);
-
-  // Confirm modal
-  const [confirmAction, setConfirmAction] = useState(null); // { type: 'delete'|'submit', recordId, message }
-
-  const isManager   = user?.role === 'MANAGER';
-  const isParamedic = user?.role === 'PARAMEDIC';
-  const isReadOnly  = user?.role === 'PHYSICIAN' || user?.role === 'QA_REVIEWER' || user?.role === 'VIEWER';
-
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  
-  const [filters, setFilters] = useState({
-    status: '',
-    startDate: '',
-    endDate: '',
-    sortBy: 'incidentDateTime',
-    direction: 'DESC'
-  });
+  const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' });
+
+  const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER';
+  const isParamedic = user?.role === 'PARAMEDIC';
+
+  const canEditRecord = (r) => {
+    if (isAdmin) return true;
+    if (['PARAMEDIC', 'QA_REVIEWER', 'PHYSICIAN'].includes(user?.role)) {
+      return !r.status || ['DRAFT', 'PENDING', 'ACTIVE', 'APPROVED'].includes(r.status);
+    }
+    return false;
+  };
+
+  const canDeleteRecord = (r) => {
+    if (isAdmin) return true;
+    if (isParamedic) {
+      return !r.status || ['DRAFT', 'PENDING', 'ACTIVE', 'APPROVED'].includes(r.status);
+    }
+    return false;
+  };
+
+  const canSubmitRecord = (r) => {
+    if (isAdmin) return true;
+    if (isParamedic) {
+      return !r.status || ['DRAFT', 'PENDING', 'ACTIVE'].includes(r.status);
+    }
+    return false;
+  };
 
   const fetchRecords = (pageNum = 0, isAppend = false) => {
-    dispatch(fetchEpcrRecords({
-      page: pageNum,
-      size: 20,
-      isAppend,
-      filters: { ...filters, search: searchTerm },
-      paramedicId: isParamedic ? (user?.userId || user?.id) : null
-    }));
+    dispatch(fetchEpcrRecords({ page: pageNum, size: 20, isAppend, filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }));
   };
 
-  useEffect(() => {
-    fetchRecords(0, false);
-  }, [dispatch]);
+  useEffect(() => { fetchRecords(0, false); }, [dispatch]);
 
-  // ── VIEW ── use local data directly (no extra API call needed)
-  const handleView = (recordId) => {
-    const record = records.find(r => r.id === recordId);
-    if (record) {
-      setViewRecord(record);
-      setIsViewOpen(true);
-    }
-  };
+  const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
 
-  // ── EDIT ──
-  const handleOpenEdit = (record) => {
-    if (isReadOnly || isManager) return;
-    setEditData({
-      id: record.id,
-      patientName: record.patientName || '',
-      patientDateOfBirth: record.patientDateOfBirth || '',
-      patientGender: record.patientGender || '',
-      patientPhone: record.patientPhone || '',
-      patientAddress: record.patientAddress || '',
-      incidentDateTime: record.incidentDateTime ? record.incidentDateTime.substring(0, 16) : '',
-      incidentLocation: record.incidentLocation || '',
-      incidentDescription: record.incidentDescription || '',
-      complaints: Array.isArray(record.complaints) ? record.complaints.join(', ') : (record.complaints || ''),
-      vitals: Array.isArray(record.vitals) ? record.vitals.join(', ') : (record.vitals || ''),
-      diagnosis: record.diagnosis || '',
-      treatmentProvided: record.treatmentProvided || '',
-      transportDestination: record.transportDestination || ''
-    });
-    setEditStep(1);
-    setIsEditOpen(true);
-  };
+  const handleDeleteClick = (record) => setConfirmAction({ type: 'delete', recordId: record.id, message: `Delete record for: ${record.patientName || 'Anonymous'}?` });
+  const handleSubmitRecord = (recordId) => setConfirmAction({ type: 'submit', recordId, message: 'Submit this record to QA review?' });
 
-  const handleEditChange = (e) => setEditData({ ...editData, [e.target.name]: e.target.value });
-
-  const handleSaveEdit = async () => {
-    setEditSaving(true);
-    try {
-      const payload = {};
-      const stringFields = ['patientName', 'patientDateOfBirth', 'patientGender', 'patientPhone', 'patientAddress',
-        'incidentLocation', 'incidentDescription', 'diagnosis', 'treatmentProvided', 'transportDestination'];
-      
-      stringFields.forEach(field => {
-        if (editData[field] && editData[field].trim()) {
-          payload[field] = editData[field].trim();
-        }
-      });
-
-      if (editData.incidentDateTime) {
-        let dt = editData.incidentDateTime;
-        if (dt.length === 16) dt += ':00';
-        payload.incidentDateTime = dt;
-      }
-
-      payload.complaints = editData.complaints ? editData.complaints.split(',').map(c => c.trim()).filter(Boolean) : [];
-      payload.vitals = editData.vitals ? editData.vitals.split(',').map(v => v.trim()).filter(Boolean) : [];
-
-      await dispatch(updateRecord({ id: editData.id, data: payload })).unwrap();
-      setIsEditOpen(false);
-      dispatch(addToast({ type: 'success', message: 'Record updated' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to update' }));
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  // ── DELETE ──
-  const handleDelete = (recordId) => {
-    if (isReadOnly || isManager) return;
-    setConfirmAction({ type: 'delete', recordId, message: 'Are you sure you want to delete this EPCR record? This action cannot be undone.' });
-  };
-
-  // ── SUBMIT ──
-  const handleSubmitRecord = (recordId) => {
-    if (isReadOnly || isManager) return;
-    setConfirmAction({ type: 'submit', recordId, message: 'Submit this record for QA review? Once submitted it cannot be edited.' });
-  };
-
-  // Execute confirmed action
   const executeConfirm = async () => {
-    if (!confirmAction) return;
     const { type, recordId } = confirmAction;
     setConfirmAction(null);
     try {
       if (type === 'delete') {
         await dispatch(deleteRecord(recordId)).unwrap();
         dispatch(addToast({ type: 'success', message: 'Record deleted' }));
-      } else if (type === 'submit') {
+      } else {
         await dispatch(submitRecord(recordId)).unwrap();
-        dispatch(addToast({ type: 'success', message: 'Record submitted' }));
-        setIsViewOpen(false);
+        dispatch(addToast({ type: 'success', message: 'Record submitted for QA' }));
       }
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || `Failed to ${type} record.` }));
-    }
+      fetchRecords(0, false);
+      setIsViewOpen(false);
+    } catch (err) { dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })); }
   };
 
-  const filteredRecords = records.filter(record =>
-    record.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    record.id?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = records.filter(r =>
+    !searchTerm ||
+    r.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.incidentLocation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const inputClass = "w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50";
-
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 pb-10 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">EPCR Records</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            {isParamedic ? 'Your patient care reports returned by backend visibility.' : 'View and manage patient care reports.'}
-          </p>
+          <p className="section-label mb-1">Records</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">EPCR <span className="text-brand-blue">Registry</span></h1>
+          <p className="text-sm text-[#8A97B0] mt-0.5">Electronic Patient Care Records</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => fetchRecords(0, false)} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg transition-colors border border-slate-700/50 disabled:opacity-50" title="Refresh">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex gap-3">
+          <button onClick={() => setIsFilterOpen(o => !o)}
+            className={`btn-ghost border rounded-xl px-3 py-2.5 ${isFilterOpen ? 'border-brand-blue text-brand-blue bg-[#EEF2FF]' : 'border-[#DDE3F0]'}`}>
+            <Filter size={16} /> Filters
           </button>
-          {(isParamedic || user?.role === 'ADMIN') && (
-            <button onClick={() => navigate('/epcr/new')} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-              <Plus size={18} /><span>New Record</span>
+          {['ADMIN', 'PARAMEDIC'].includes(user?.role) && (
+            <button onClick={() => navigate('/epcr/new')} className="btn-primary text-sm px-4 py-2.5">
+              <Plus size={16} /> New Record
             </button>
           )}
         </div>
       </div>
 
-      {error && (
-        <div className="p-4 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError('')} className="text-rose-400 hover:text-rose-300"><X size={16} /></button>
-        </div>
-      )}
-
-      {/* Table Card */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input type="text" placeholder={isParamedic ? 'Search your records by name or ID...' : 'Search records by name or ID...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all" />
-          </div>
-          <button 
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isFilterOpen ? 'bg-teal-500/10 text-teal-400 border border-teal-500/50' : 'bg-slate-800/50 border border-slate-700/50 text-slate-300 hover:bg-slate-700/50'}`}
-          >
-            <Filter size={18} />
-            <span>{isFilterOpen ? 'Hide Filters' : 'Show Filters'}</span>
-          </button>
-        </div>
-
-        {/* Filter Section */}
-        {isFilterOpen && (
-          <div className="p-4 bg-slate-900/30 border-b border-slate-700/50 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top duration-300">
+      {/* Filters Panel */}
+      {isFilterOpen && (
+        <div className="card p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-400">Status</label>
-              <select 
-                value={filters.status} 
-                onChange={e => setFilters({...filters, status: e.target.value})}
-                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-teal-500/50"
-              >
+              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Status</label>
+              <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} className="input py-2.5 text-sm">
                 <option value="">All Statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="SUBMITTED">Submitted</option>
-                <option value="APPROVED">Approved</option>
-                <option value="QA_PENDING">QA Pending</option>
-                <option value="REJECTED">Rejected</option>
+                {['DRAFT', 'SUBMITTED', 'QA_PENDING', 'QA_APPROVED'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-400">From Date</label>
-              <input 
-                type="date" 
-                value={filters.startDate}
-                onChange={e => setFilters({...filters, startDate: e.target.value})}
-                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-teal-500/50"
-              />
+              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Date From</label>
+              <input type="date" value={filters.startDate} onChange={e => setFilters({ ...filters, startDate: e.target.value })} className="input py-2.5 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-400">To Date</label>
-              <input 
-                type="date" 
-                value={filters.endDate}
-                onChange={e => setFilters({...filters, endDate: e.target.value})}
-                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-teal-500/50"
-              />
+              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Date To</label>
+              <input type="date" value={filters.endDate} onChange={e => setFilters({ ...filters, endDate: e.target.value })} className="input py-2.5 text-sm" />
             </div>
             <div className="flex items-end gap-2">
-              <button 
-                onClick={() => fetchRecords(0, false)}
-                className="flex-1 bg-teal-500/10 text-teal-400 border border-teal-500/20 hover:bg-teal-500/20 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                Apply
-              </button>
-              <button 
-                onClick={() => {
-                  setFilters({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' });
-                  setSearchTerm('');
-                  fetchRecords(0, false);
-                }}
-                className="px-3 bg-slate-800 text-slate-400 hover:text-slate-200 py-2 rounded-lg text-sm transition-colors"
-                title="Reset"
-              >
+              <button onClick={() => fetchRecords(0, false)} className="btn-primary flex-1 justify-center py-2.5 text-sm">Apply</button>
+              <button onClick={() => { setFilters({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' }); setSearchTerm(''); fetchRecords(0, false); }}
+                className="btn-ghost border border-[#DDE3F0] rounded-xl p-2.5">
                 <RefreshCw size={16} />
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="overflow-x-auto min-h-[300px]">
-          <table className="w-full text-left border-collapse">
+      {/* Table Card */}
+      <div className="card overflow-hidden">
+        {/* Search */}
+        <div className="flex items-center gap-3 p-5 border-b border-[#F0F4FC]">
+          <div className="relative flex-1 max-w-md">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search by patient, location, or ID…" className="input pl-10 py-2.5 text-sm" />
+          </div>
+          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">{filtered.length} records</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="data-table">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <th className="px-6 py-4 font-medium">Patient / Record</th>
-                <th className="px-6 py-4 font-medium">Incident Date/Time</th>
-                <th className="px-6 py-4 font-medium">Location</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 text-right font-medium">Actions</th>
+              <tr>
+                <th>Patient</th>
+                <th>Location</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
-              {loading ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400"><RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" />Loading records...</td></tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">{isParamedic ? 'No records assigned to you yet.' : 'No records found.'}</td></tr>
-              ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-slate-800/30 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-200">{record.patientName || 'Unknown Patient'}</div>
-                      <div className="text-[10px] font-mono text-slate-500 mt-0.5">ID: {record.id?.substring(0,16)}...</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{record.incidentDateTime ? new Date(record.incidentDateTime).toLocaleString() : '—'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{record.incidentLocation}</td>
-                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={record.status} /></td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* View — always visible */}
-                        <button onClick={() => handleView(record.id)} className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors" title="View Details">
-                          <Eye size={16} />
-                        </button>
-                        {/* Edit — only for DRAFT */}
-                        {!isReadOnly && !isManager && (!record.status || record.status === 'DRAFT') && (
-                          <button onClick={() => handleOpenEdit(record)} className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Edit Record">
-                            <FileEdit size={16} />
-                          </button>
-                        )}
-                        {/* Submit — only for DRAFT */}
-                        {!isReadOnly && !isManager && (!record.status || record.status === 'DRAFT') && (
-                          <button onClick={() => handleSubmitRecord(record.id)} className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors" title="Submit Record">
-                            <Send size={16} />
-                          </button>
-                        )}
-                        {/* Delete — only for DRAFT */}
-                        {!isReadOnly && !isManager && (!record.status || record.status === 'DRAFT') && (
-                          <button onClick={() => handleDelete(record.id)} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete Record">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+            <tbody>
+              {loading && records.length === 0 ? (
+                [...Array(4)].map((_, i) => (
+                  <tr key={i}><td colSpan="5" className="py-3 px-5">
+                    <div className="h-10 bg-[#F0F4FC] rounded-xl animate-pulse" />
+                  </td></tr>
                 ))
-              )}
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan="5" className="py-16 text-center">
+                  <FileText size={36} className="text-[#DDE3F0] mx-auto mb-3" />
+                  <p className="text-sm text-[#A0AECB] font-medium">No records found</p>
+                </td></tr>
+              ) : filtered.map(r => (
+                <tr key={r.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue font-black text-sm shrink-0">
+                        {(r.patientName || 'A').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#0F1A3A]">{r.patientName || 'Anonymous'}</p>
+                        <p className="text-xs text-[#A0AECB] font-mono">#{r.id?.substring(0, 8)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1.5 text-sm text-[#4B5A7A]">
+                      <MapPin size={13} className="text-[#A0AECB]" /> {r.incidentLocation || '—'}
+                    </div>
+                  </td>
+                  <td className="text-sm text-[#4B5A7A]">
+                    {r.incidentDateTime ? new Date(r.incidentDateTime).toLocaleDateString() : '—'}
+                  </td>
+                  <td><StatusBadge status={r.status} /></td>
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => handleView(r)}
+                        className="p-2 rounded-lg bg-[#F0F4FC] text-brand-blue hover:bg-brand-blue hover:text-white transition-all">
+                        <Eye size={15} />
+                      </button>
+                      {canEditRecord(r) && (
+                        <button onClick={() => navigate(`/epcr/new?id=${r.id}`)}
+                          className="p-2 rounded-lg bg-[#F0F4FC] text-brand-blue hover:bg-brand-blue hover:text-white transition-all">
+                          <FileEdit size={15} />
+                        </button>
+                      )}
+                      {canDeleteRecord(r) && (
+                        <button onClick={() => handleDeleteClick(r)}
+                          className="p-2 rounded-lg bg-[#FFF0F3] text-brand-red hover:bg-brand-red hover:text-white transition-all">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-
-        <div className="p-4 border-t border-[var(--border-color)] flex items-center justify-between text-sm text-slate-400">
-          <span>{isParamedic ? `Showing ${filteredRecords.length} of your records` : `Showing ${filteredRecords.length} records`}</span>
-          {hasMore && (
-            <button 
-              onClick={() => fetchRecords(page + 1, true)}
-              disabled={loading}
-              className="px-4 py-1.5 text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-500/20 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
-            >
-              Load More
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* ═══════════ VIEW MODAL ═══════════ */}
-      {isViewOpen && viewRecord && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
-              <div>
-                <h2 className="text-xl font-bold text-white">{viewRecord.patientName || `Record ${viewRecord.id?.substring(0,8)}`}</h2>
-                <p className="text-xs text-slate-500 mt-0.5">{viewRecord.id}</p>
+      {/* View Modal */}
+      {isViewOpen && viewRecord && createPortal(
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[9999] flex items-start justify-center p-4 pt-12 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-[#DDE3F0] my-4">
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue text-lg font-black">
+                  {(viewRecord.patientName || 'A').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-xl">{viewRecord.patientName || 'Anonymous'}</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <StatusBadge status={viewRecord.status} />
+                    <span className="text-xs text-[#A0AECB] font-mono">#{viewRecord.id}</span>
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
-                {!isReadOnly && !isManager && (!viewRecord.status || viewRecord.status === 'DRAFT') && (
-                  <>
-                    <button onClick={() => { setIsViewOpen(false); handleOpenEdit(viewRecord); }} className="px-3 py-1.5 text-sm bg-slate-800 text-teal-400 border border-teal-500/20 rounded-lg hover:bg-teal-500/10 transition-colors flex items-center gap-1.5">
-                      <FileEdit size={14} />Edit
-                    </button>
-                    <button onClick={() => handleSubmitRecord(viewRecord.id)} className="px-3 py-1.5 text-sm bg-teal-500 text-slate-900 rounded-lg hover:bg-teal-400 transition-colors flex items-center gap-1.5 font-medium">
-                      <Send size={14} />Submit
-                    </button>
-                  </>
+                {canSubmitRecord(viewRecord) && (
+                  <button onClick={() => handleSubmitRecord(viewRecord.id)} className="btn-danger text-sm px-4 py-2">
+                    <Send size={15} /> Submit to QA
+                  </button>
                 )}
-                <button onClick={() => setIsViewOpen(false)} className="text-slate-400 hover:text-slate-200 ml-2"><X size={20} /></button>
+                <button onClick={() => setIsViewOpen(false)}
+                  className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                  <X size={20} />
+                </button>
               </div>
             </div>
-            <div className="p-6 overflow-y-auto space-y-6">
-              {/* Status */}
-              <div className="flex items-center gap-3">
-                <StatusBadge status={viewRecord.status} />
-                {viewRecord.createdAt && <span className="text-xs text-slate-500">Created: {new Date(viewRecord.createdAt).toLocaleString()}</span>}
-              </div>
 
-              {/* Patient Info */}
-              <div>
-                <h3 className="text-sm font-semibold text-teal-400 mb-3 uppercase tracking-wider">Patient Information</h3>
-                <div className="grid grid-cols-2 gap-4 bg-slate-900/30 rounded-xl p-4 border border-slate-800">
-                  <DetailRow label="Full Name" value={viewRecord.patientName} />
-                  <DetailRow label="Date of Birth" value={viewRecord.patientDateOfBirth} />
-                  <DetailRow label="Gender" value={viewRecord.patientGender} />
-                  <DetailRow label="Phone" value={viewRecord.patientPhone} />
-                  <div className="col-span-2"><DetailRow label="Address" value={viewRecord.patientAddress} /></div>
+            {/* Modal body */}
+            <div className="p-6 overflow-y-auto max-h-[75vh] bg-[#F8FAFC]">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {/* Subject Information */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                  <SectionHeader icon={User} title="Subject Information" color="text-brand-blue" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="Name" value={viewRecord.patientName} />
+                    <DetailRow label="DOB" value={viewRecord.patientDateOfBirth} />
+                    <DetailRow label="Gender" value={viewRecord.patientGender} />
+                    <DetailRow label="Age" value={viewRecord.age} />
+                    <DetailRow label="Phone" value={viewRecord.patientPhone} />
+                    <DetailRow label="Email" value={viewRecord.email} />
+                    <DetailRow label="SSN (Last 4)" value={viewRecord.patientSSNLast4} />
+                    <DetailRow label="Blood Group" value={viewRecord.bloodGroup} />
+                    <DetailRow label="Height" value={viewRecord.height ? `${viewRecord.height} cm` : ''} />
+                    <DetailRow label="Weight" value={viewRecord.weight ? `${viewRecord.weight} kg` : ''} />
+                    <DetailRow label="Address" value={viewRecord.patientAddress} colSpan={2} />
+                  </div>
+
+                  <div className="mt-6">
+                    <SectionHeader icon={Heart} title="Medical History" color="text-brand-red" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <DetailRow label="Allergies" value={viewRecord.allergy || viewRecord.medicalHistory?.allergies?.join(', ')} colSpan={2} />
+                      <DetailRow label="Comorbidities" value={viewRecord.comorbidity || viewRecord.medicalHistory?.pastConditions?.join(', ')} colSpan={2} />
+                      <DetailRow label="Current Meds" value={viewRecord.currentMedicines || viewRecord.medicalHistory?.currentMedications?.join(', ')} colSpan={2} />
+                      <DetailRow label="Surgical History" value={viewRecord.medicalHistory?.surgicalHistory?.join(', ')} colSpan={2} />
+                      <DetailRow label="Physician" value={viewRecord.doctor || viewRecord.medicalHistory?.primaryPhysicianName} />
+                      <DetailRow label="Physician Contact" value={viewRecord.medicalHistory?.primaryPhysicianContact} />
+                      <DetailRow label="Advance Directive" value={viewRecord.medicalHistory?.advanceDirective ? `YES - ${viewRecord.medicalHistory?.advanceDirectiveType}` : 'NO'} />
+                      <DetailRow label="DNR On File" value={viewRecord.medicalHistory?.dnrOnFile ? 'YES' : 'NO'} />
+                      <DetailRow label="Smoker" value={viewRecord.medicalHistory?.smoker ? 'YES' : 'NO'} />
+                      <DetailRow label="Alcohol Use" value={viewRecord.medicalHistory?.alcoholUse ? 'YES' : 'NO'} />
+                      <DetailRow label="Substance Use" value={viewRecord.medicalHistory?.substanceUse ? `YES - ${viewRecord.medicalHistory?.substanceUseDetails}` : 'NO'} colSpan={2} />
+                      {viewRecord.patientGender === 'FEMALE' && (
+                        <>
+                          <DetailRow label="Pregnant" value={viewRecord.medicalHistory?.pregnant ? 'YES' : 'NO'} />
+                          <DetailRow label="Gestational Wk" value={viewRecord.medicalHistory?.gestationalWeekIfPregnant} />
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Incident Info */}
-              <div>
-                <h3 className="text-sm font-semibold text-sky-400 mb-3 uppercase tracking-wider">Incident Details</h3>
-                <div className="grid grid-cols-2 gap-4 bg-slate-900/30 rounded-xl p-4 border border-slate-800">
-                  <DetailRow label="Date & Time" value={viewRecord.incidentDateTime ? new Date(viewRecord.incidentDateTime).toLocaleString() : ''} />
-                  <DetailRow label="Location" value={viewRecord.incidentLocation} />
-                  <div className="col-span-2"><DetailRow label="Description" value={viewRecord.incidentDescription} /></div>
-                  <div className="col-span-2"><DetailRow label="Chief Complaints" value={Array.isArray(viewRecord.complaints) ? viewRecord.complaints.join(', ') : viewRecord.complaints} /></div>
-                </div>
-              </div>
+                {/* Incident & Scene */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                  <SectionHeader icon={AlertTriangle} title="Incident & Scene" color="text-amber-500" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="Incident No." value={viewRecord.incidentNumber} />
+                    <DetailRow label="Date/Time" value={viewRecord.incidentDateTime ? new Date(viewRecord.incidentDateTime).toLocaleString() : ''} />
+                    <DetailRow label="Type" value={viewRecord.incidentType} />
+                    <DetailRow label="Location" value={viewRecord.incidentLocation} />
+                    <DetailRow label="Description" value={viewRecord.incidentDescription} colSpan={2} />
+                  </div>
 
-              {/* Treatment */}
-              <div>
-                <h3 className="text-sm font-semibold text-amber-400 mb-3 uppercase tracking-wider">Vitals & Treatment</h3>
-                <div className="grid grid-cols-2 gap-4 bg-slate-900/30 rounded-xl p-4 border border-slate-800">
-                  <div className="col-span-2"><DetailRow label="Vitals" value={Array.isArray(viewRecord.vitals) ? viewRecord.vitals.join(', ') : viewRecord.vitals} /></div>
-                  <DetailRow label="Diagnosis" value={viewRecord.diagnosis} />
-                  <DetailRow label="Transport Destination" value={viewRecord.transportDestination} />
-                  <div className="col-span-2"><DetailRow label="Treatment Provided" value={viewRecord.treatmentProvided} /></div>
-                </div>
-              </div>
-
-              {/* QA Auto-Flags */}
-              {viewRecord.dynamicFormResponses?.qaAutoFlags?.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-rose-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse inline-block"></span>
-                    QA Auto-Flags ({viewRecord.dynamicFormResponses.qaAutoFlags.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {viewRecord.dynamicFormResponses.qaAutoFlags.map((flag, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-rose-500/5 border border-rose-500/20 rounded-lg">
-                        <span className="text-rose-400 text-xs font-bold mt-0.5">⚑</span>
-                        <div>
-                          <p className="text-sm text-rose-300 font-medium">{flag.ruleName || flag.message || flag}</p>
-                          {flag.details && <p className="text-xs text-slate-400 mt-0.5">{flag.details}</p>}
-                        </div>
+                  {viewRecord.sceneAssessment && (
+                    <div className="mt-6">
+                      <SectionHeader icon={Activity} title="Scene Assessment" color="text-amber-600" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailRow label="Scene Type" value={viewRecord.sceneAssessment.sceneType} />
+                        <DetailRow label="Triage Tag" value={viewRecord.sceneAssessment.triageTag} />
+                        <DetailRow label="Patients Count" value={viewRecord.sceneAssessment.numberOfPatients} />
+                        <DetailRow label="Mass Casualty" value={viewRecord.sceneAssessment.massCasualtyIncident ? 'YES' : 'NO'} />
+                        <DetailRow label="Trauma Call" value={viewRecord.sceneAssessment.traumaCall ? 'YES' : 'NO'} />
+                        <DetailRow label="Scene Safe" value={viewRecord.sceneAssessment.sceneSafe ? 'YES' : 'NO'} />
+                        <DetailRow label="Mech. of Injury" value={viewRecord.sceneAssessment.mechanismOfInjury} colSpan={2} />
+                        <DetailRow label="Injury Location" value={viewRecord.sceneAssessment.injuryLocation} colSpan={2} />
+                        <DetailRow label="Hazards" value={viewRecord.sceneAssessment.sceneHazards} colSpan={2} />
+                        <DetailRow label="Witness Present" value={viewRecord.sceneAssessment.witnessPresent ? `YES - ${viewRecord.sceneAssessment.witnessName}` : 'NO'} colSpan={2} />
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Dynamic Form Responses */}
-              {viewRecord.dynamicFormResponses && (() => {
-                const { qaAutoFlags, workflowId, workflowName, ...customFields } = viewRecord.dynamicFormResponses;
-                const hasCustomFields = Object.keys(customFields).length > 0;
-                if (!hasCustomFields) return null;
-                return (
-                  <div>
-                    <h3 className="text-sm font-semibold text-purple-400 mb-3 uppercase tracking-wider">
-                      Workflow Fields {workflowName && <span className="normal-case text-slate-500 font-normal ml-1">({workflowName})</span>}
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4 bg-slate-900/30 rounded-xl p-4 border border-slate-800">
-                      {Object.entries(customFields).map(([key, value]) => (
-                        <DetailRow
-                          key={key}
-                          label={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                          value={typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value ?? '—')}
-                        />
-                      ))}
                     </div>
+                  )}
+
+                  {viewRecord.timeline && (
+                    <div className="mt-6">
+                      <SectionHeader icon={Clock} title="Timeline" color="text-slate-500" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailRow label="Call Received" value={viewRecord.timeline.callReceivedAt ? new Date(viewRecord.timeline.callReceivedAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Dispatched" value={viewRecord.timeline.dispatchedAt ? new Date(viewRecord.timeline.dispatchedAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="En Route" value={viewRecord.timeline.enRouteAt ? new Date(viewRecord.timeline.enRouteAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Arrived Scene" value={viewRecord.timeline.arrivedSceneAt ? new Date(viewRecord.timeline.arrivedSceneAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Patient Contact" value={viewRecord.timeline.patientContactAt ? new Date(viewRecord.timeline.patientContactAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Departed Scene" value={viewRecord.timeline.departedSceneAt ? new Date(viewRecord.timeline.departedSceneAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Arrived Dest." value={viewRecord.timeline.arrivedDestinationAt ? new Date(viewRecord.timeline.arrivedDestinationAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Unit Available" value={viewRecord.timeline.unitAvailableAt ? new Date(viewRecord.timeline.unitAvailableAt).toLocaleTimeString() : ''} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Clinical Assessment */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                  <SectionHeader icon={Heart} title="Clinical & Vitals" color="text-emerald-600" />
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <DetailRow label="BP" value={viewRecord.systolicBp && viewRecord.diastolicBp ? `${viewRecord.systolicBp}/${viewRecord.diastolicBp}` : ''} />
+                    <DetailRow label="Heart Rate" value={viewRecord.heartRate || viewRecord.pulseRate} />
+                    <DetailRow label="Resp. Rate" value={viewRecord.respirationRate} />
+                    <DetailRow label="SpO2" value={viewRecord.spo2 ? `${viewRecord.spo2}%` : ''} />
+                    <DetailRow label="Temp" value={viewRecord.temperature ? `${viewRecord.temperature}°C` : ''} />
+                    <DetailRow label="Blood Sugar" value={viewRecord.bloodSugar} />
+                    <DetailRow label="GCS" value={viewRecord.glasgowComaScale} />
+                    <DetailRow label="Hemoglobin" value={viewRecord.hemoglobin} />
                   </div>
-                );
-              })()}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="Primary Impression" value={viewRecord.primaryImpression} colSpan={2} />
+                    <DetailRow label="Secondary Imp." value={viewRecord.secondaryImpression} colSpan={2} />
+                    <DetailRow label="Diagnosis" value={viewRecord.diagnosis} colSpan={2} />
+                    <DetailRow label="ICD-10 Code" value={viewRecord.icd10Code} />
+                    <DetailRow label="Treatment" value={viewRecord.treatmentProvided} colSpan={2} />
+                  </div>
+
+                  {(viewRecord.complaints?.length > 0 || viewRecord.vitals?.length > 0 || viewRecord.medicationsAdministered?.length > 0 || viewRecord.proceduresPerformed?.length > 0) && (
+                    <div className="mt-6 pt-4 border-t border-slate-100 space-y-4">
+                      {viewRecord.complaints?.length > 0 && <DetailRow label="Complaints Logs" value={viewRecord.complaints.join(', ')} colSpan={2} />}
+                      {viewRecord.vitals?.length > 0 && <DetailRow label="Vitals Logs" value={viewRecord.vitals.join(', ')} colSpan={2} />}
+                      {viewRecord.medicationsAdministered?.length > 0 && <DetailRow label="Meds Administered" value={viewRecord.medicationsAdministered.join(', ')} colSpan={2} />}
+                      {viewRecord.proceduresPerformed?.length > 0 && <DetailRow label="Procedures" value={viewRecord.proceduresPerformed.join(', ')} colSpan={2} />}
+                    </div>
+                  )}
+                </div>
+
+                {/* Disposition & Transport */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                  <SectionHeader icon={Truck} title="Disposition & Transport" color="text-indigo-500" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="Destination" value={viewRecord.transportDestination || viewRecord.transport?.destinationName} colSpan={2} />
+                    <DetailRow label="Mode" value={viewRecord.transportMode || viewRecord.transport?.transportMode} />
+                    <DetailRow label="Care Level" value={viewRecord.careLevel || viewRecord.transport?.careLevel} />
+                    <DetailRow label="Transport Reason" value={viewRecord.transport?.transportReason} colSpan={2} />
+                    <DetailRow label="Condition Depart" value={viewRecord.transport?.patientConditionOnDeparture} />
+                    <DetailRow label="Condition Arrive" value={viewRecord.transport?.patientConditionOnArrival} />
+                    <DetailRow label="Paramedic" value={viewRecord.paramedicsName} />
+                    <DetailRow label="Organization" value={viewRecord.organizationName} />
+                  </div>
+
+                  {viewRecord.consent && (
+                    <div className="mt-6">
+                      <SectionHeader icon={Shield} title="Consent & Refusals" color="text-slate-600" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailRow label="Consent Obtained" value={viewRecord.consent.patientConsentObtained ? 'YES' : 'NO'} />
+                        <DetailRow label="Consent Type" value={viewRecord.consent.consentType} />
+                        <DetailRow label="Decision Capacity" value={viewRecord.consent.patientHasDecisionCapacity ? 'YES' : 'NO'} />
+                        <DetailRow label="Informed of Risks" value={viewRecord.consent.patientInformedOfRisks ? 'YES' : 'NO'} />
+                        {viewRecord.consent.refusalOfCare && (
+                          <>
+                            <DetailRow label="Refused Care" value="YES" />
+                            <DetailRow label="Refusal Reason" value={viewRecord.consent.refusalReason} colSpan={2} />
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-[#F0F4FC] flex justify-end">
+              <button onClick={() => setIsViewOpen(false)} className="btn-primary text-sm px-6 py-2.5">Close</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* ═══════════ EDIT MODAL (Multi-step) ═══════════ */}
-      {isEditOpen && editData && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
-              <div>
-                <h2 className="text-xl font-bold text-white">Edit Record</h2>
-                <p className="text-xs text-slate-500 mt-0.5">{editData.id}</p>
-              </div>
-              <button onClick={() => setIsEditOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
+      {/* Confirm Modal */}
+      {confirmAction && createPortal(
+        <div className="fixed inset-0 bg-[#0F1A3A]/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-[#DDE3F0] p-6 text-center">
+            <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={28} className="text-brand-red" />
             </div>
-
-            {/* Step indicator */}
-            <div className="px-6 py-4 border-b border-slate-800 flex gap-2">
-              {['Patient Info', 'Incident', 'Vitals & Treatment'].map((label, idx) => (
-                <button key={idx} onClick={() => setEditStep(idx + 1)}
-                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${editStep === idx + 1 ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' : 'text-slate-500 hover:text-slate-300 border border-slate-800 hover:border-slate-700'}`}>
-                  {idx + 1}. {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="p-6 overflow-y-auto">
-              {error && (<div className="mb-4 p-3 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg">{error}</div>)}
-
-              {editStep === 1 && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Full Name</label>
-                      <input name="patientName" value={editData.patientName} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Date of Birth</label>
-                      <input type="date" name="patientDateOfBirth" value={editData.patientDateOfBirth} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Gender</label>
-                      <select name="patientGender" value={editData.patientGender} onChange={handleEditChange} className={inputClass + ' appearance-none'}>
-                        <option value="">Select</option>
-                        <option value="MALE">Male</option>
-                        <option value="FEMALE">Female</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Phone</label>
-                      <input name="patientPhone" value={editData.patientPhone} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Address</label>
-                    <input name="patientAddress" value={editData.patientAddress} onChange={handleEditChange} className={inputClass} />
-                  </div>
-                </div>
-              )}
-
-              {editStep === 2 && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Date & Time</label>
-                      <input type="datetime-local" name="incidentDateTime" value={editData.incidentDateTime} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Location</label>
-                      <input name="incidentLocation" value={editData.incidentLocation} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Description</label>
-                    <textarea name="incidentDescription" value={editData.incidentDescription} onChange={handleEditChange} rows="3" className={inputClass + ' resize-none'} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Complaints (comma separated)</label>
-                    <input name="complaints" value={editData.complaints} onChange={handleEditChange} className={inputClass} />
-                  </div>
-                </div>
-              )}
-
-              {editStep === 3 && (
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Vitals (comma separated)</label>
-                    <input name="vitals" value={editData.vitals} onChange={handleEditChange} className={inputClass} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Diagnosis</label>
-                      <input name="diagnosis" value={editData.diagnosis} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Transport Destination</label>
-                      <input name="transportDestination" value={editData.transportDestination} onChange={handleEditChange} className={inputClass} />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Treatment Provided</label>
-                    <textarea name="treatmentProvided" value={editData.treatmentProvided} onChange={handleEditChange} rows="3" className={inputClass + ' resize-none'} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-6 border-t border-slate-800 flex justify-between items-center shrink-0">
-              <button onClick={() => setEditStep(prev => Math.max(1, prev - 1))} disabled={editStep === 1} className="px-4 py-2 rounded-lg text-slate-300 font-medium hover:bg-slate-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">
-                Back
-              </button>
-              <div className="flex gap-3">
-                <button onClick={() => setIsEditOpen(false)} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium transition-colors">Cancel</button>
-                {editStep < 3 ? (
-                  <button onClick={() => setEditStep(prev => prev + 1)} className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    Next <ChevronRight size={16} />
-                  </button>
-                ) : (
-                  <button onClick={handleSaveEdit} disabled={editSaving} className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                    <Save size={16} />
-                    {editSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                )}
-              </div>
+            <h3 className="font-black text-[#0F1A3A] text-lg mb-2">Confirm Action</h3>
+            <p className="text-sm text-[#8A97B0] mb-6">{confirmAction.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmAction(null)} className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
+              <button onClick={executeConfirm} className="btn-danger flex-1 justify-center py-2.5 text-sm">Confirm</button>
             </div>
           </div>
-        </div>
-      )}
-      {/* ═══════════ CONFIRM MODAL ═══════════ */}
-      {confirmAction && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 bg-slate-900/50">
-              <h2 className="text-lg font-bold text-white">{confirmAction.type === 'delete' ? 'Delete Record' : 'Submit Record'}</h2>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-slate-300">{confirmAction.message}</p>
-              <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => setConfirmAction(null)} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium transition-colors">Cancel</button>
-                <button onClick={executeConfirm} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${confirmAction.type === 'delete' ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'bg-teal-500 hover:bg-teal-400 text-slate-900'}`}>
-                  {confirmAction.type === 'delete' ? <><Trash2 size={14} /> Delete</> : <><Send size={14} /> Submit</>}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

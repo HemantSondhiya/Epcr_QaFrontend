@@ -1,30 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { loginSuccess, checkAuth } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import client from '../api/client';
-import { Mail, Lock, Eye, EyeOff, Zap, User, Key } from 'lucide-react';
-import { DEMO_CREDENTIALS } from '../constants/permissions';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, RefreshCw, Shield, AlertCircle, Activity, Heart, Fingerprint } from 'lucide-react';
+
 
 const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('STAFF'); // 'STAFF' or 'PATIENT'
-
-  // Staff Form
+  const [activeTab, setActiveTab] = useState('STAFF');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
-
-  // Patient Form
-  const [identifier, setIdentifier] = useState('');
-  const [otp, setOtp] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {}, []);
+  const [patientIdentifier, setPatientIdentifier] = useState('');
+  const [patientOtp, setPatientOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
 
   const handleStaffSubmit = async (e) => {
     e.preventDefault();
@@ -32,19 +26,32 @@ const Login = () => {
     try {
       const res = await client.post('/api/auth/login', { email, password });
       const { userId, role, organizationId, accessToken, refreshToken, token, firstName, lastName } = res.data;
-      const finalAccessToken = accessToken || token;
-      
-      localStorage.setItem('authMode', 'STAFF');
-
+      const finalToken = accessToken || token;
       dispatch(loginSuccess({
-        user: { id: userId, userId, email, firstName, lastName, role, organizationId, accessToken: finalAccessToken, refreshToken, ...res.data },
+        user: { id: userId, userId, email, firstName, lastName, role, organizationId, accessToken: finalToken, refreshToken, ...res.data },
       }));
-
       dispatch(checkAuth());
-      dispatch(addToast({ type: 'success', message: `Welcome${firstName ? ', ' + firstName : ''}! Logged in as ${role}` }));
+      dispatch(addToast({ type: 'success', message: 'Login successful' }));
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid credentials');
+      setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
+    } finally { setLoading(false); }
+  };
+
+  const handleRequestPatientOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      if (!patientIdentifier.trim()) {
+        setError('Please enter your patient identifier');
+        setLoading(false);
+        return;
+      }
+      await client.post('/api/patient/auth/request-otp', { identifier: patientIdentifier });
+      setOtpSent(true);
+      dispatch(addToast({ type: 'success', message: 'OTP sent to your registered contact' }));
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send OTP. Please try again.');
     } finally { setLoading(false); }
   };
 
@@ -52,151 +59,198 @@ const Login = () => {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      const res = await client.post('/api/patient/auth/login', { identifier, otp });
-      const { patientId, token, accessToken, refreshToken } = res.data;
-      const finalAccessToken = accessToken || token;
-      
-      localStorage.setItem('authMode', 'PATIENT');
-
+      const res = await client.post('/api/patient/auth/login', { identifier: patientIdentifier, otp: patientOtp });
+      const { userId, patientId, accessToken, refreshToken, token, firstName, lastName } = res.data;
+      const finalToken = accessToken || token;
       dispatch(loginSuccess({
-        user: { id: patientId, patientId, identifier, role: 'PATIENT', accessToken: finalAccessToken, refreshToken, ...res.data },
+        user: { id: userId, userId, patientId, firstName, lastName, role: 'PATIENT', accessToken: finalToken, refreshToken, ...res.data },
       }));
-
-      dispatch(checkAuth({ type: 'PATIENT' }));
-      dispatch(addToast({ type: 'success', message: `Welcome! Logged in as Patient.` }));
-      navigate('/patient-portal'); // Patients go straight to the portal
+      dispatch(checkAuth());
+      dispatch(addToast({ type: 'success', message: 'Patient login successful' }));
+      navigate('/patient-portal');
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid patient credentials');
+      setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
     } finally { setLoading(false); }
   };
 
-  const fillDemo = (cred) => { setEmail(cred.email); setPassword(cred.password); };
-  const fillPatientDemo = () => { setIdentifier('PAT-1001'); setOtp('123456'); };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-main)] p-4 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-teal-500/8 blur-[150px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-sky-500/8 blur-[150px] rounded-full pointer-events-none" />
+    <div className="h-screen flex bg-[#F0F4FC] overflow-hidden" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
 
-      <div className="w-full max-w-[440px] space-y-5">
-        <div className="text-center mb-2">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-sky-500 flex items-center justify-center shadow-[0_0_40px_rgba(45,212,191,0.3)] mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">MedEPCR</h1>
-          <p className="text-slate-400 text-sm mt-1">ePCR + QA/QI Platform</p>
-        </div>
+      {/* ── Left Panel ── */}
+      <div className="hidden lg:flex lg:w-1/2 bg-brand-blue relative overflow-hidden flex-col justify-between p-12">
+        {/* dot grid */}
+        <div className="absolute inset-0 opacity-5" style={{
+          backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+          backgroundSize: '36px 36px'
+        }} />
+        {/* red blob */}
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-brand-red rounded-full opacity-15 blur-3xl translate-x-1/3 translate-y-1/3" />
 
-        <div className="glass-card p-7 rounded-2xl">
-          {/* Tabs */}
-          <div className="flex bg-slate-900/50 p-1 rounded-xl mb-6 border border-slate-800">
-            <button onClick={() => { setActiveTab('STAFF'); setError(''); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'STAFF' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
-              Staff Login
-            </button>
-            <button onClick={() => { setActiveTab('PATIENT'); setError(''); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'PATIENT' ? 'bg-sky-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
-              Patient Login
-            </button>
-          </div>
-
-          <h2 className="text-lg font-semibold text-white mb-5">{activeTab === 'STAFF' ? 'Sign In as Staff' : 'Patient Access Portal'}</h2>
-
-          {error && <div className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">{error}</div>}
-
-          {activeTab === 'STAFF' ? (
-            <form onSubmit={handleStaffSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"
-                    className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-9 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 placeholder-slate-600"
-                    placeholder="you@example.com" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                    className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-9 pr-10 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 placeholder-slate-600"
-                    placeholder="••••••••" />
-                  <button type="button" onClick={() => setShowPw(p => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
-                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-              <button type="submit" disabled={loading}
-                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-900 py-2.5 rounded-lg font-semibold text-sm transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(45,212,191,0.25)] hover:shadow-[0_0_30px_rgba(45,212,191,0.4)]">
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handlePatientSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Patient Identifier</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)} required
-                    className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-9 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/50 placeholder-slate-600"
-                    placeholder="e.g. PAT-1001" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">One-Time Password (OTP)</label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input type="text" value={otp} onChange={e => setOtp(e.target.value)} required
-                    className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-9 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/50 placeholder-slate-600"
-                    placeholder="123456" />
-                </div>
-              </div>
-              <button type="submit" disabled={loading}
-                className="w-full bg-sky-500 hover:bg-sky-400 text-slate-900 py-2.5 rounded-lg font-semibold text-sm transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(14,165,233,0.25)] hover:shadow-[0_0_30px_rgba(14,165,233,0.4)]">
-                {loading ? 'Verifying...' : 'Access Portal'}
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* Demo Credentials Quick-Fill */}
-        {activeTab === 'STAFF' ? (
-          <div className="glass-card rounded-2xl p-4">
-            <div className="flex flex-col gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <Zap size={14} className="text-amber-400" />
-                <span className="text-xs font-medium text-slate-300">Staff Demo Credentials</span>
-              </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-16">
+            <div className="w-10 h-10 bg-brand-red rounded-xl flex items-center justify-center">
+              <Activity size={20} className="text-white" />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_CREDENTIALS.map(c => (
-                <button key={c.email} onClick={() => fillDemo(c)}
-                  className="text-left px-3 py-2 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-teal-500/30 hover:bg-teal-500/5 transition-all group">
-                  <p className="text-xs font-semibold text-teal-400 group-hover:text-teal-300">{c.role}</p>
-                  <p className="text-[10px] text-slate-500 truncate">{c.email}</p>
+            <div>
+              <p className="text-white font-black text-lg leading-none tracking-tight">INNOVIXA</p>
+              <p className="text-white/50 font-bold text-xs tracking-widest">HEALTH PRODUCTS</p>
+            </div>
+          </div>
+
+          <h1 className="text-5xl font-black text-white leading-tight tracking-tight mb-6">
+            Clinical<br />Quality<br /><span className="text-brand-red">Assurance</span>
+          </h1>
+          <p className="text-white/60 leading-relaxed max-w-sm">
+            Secure access to the ePCR management platform for authorized clinical staff and administrators.
+          </p>
+        </div>
+
+        {/* Stats at bottom */}
+        <div className="relative z-10 grid grid-cols-3 gap-4">
+          {[['1,200+', 'Records'], ['98%', 'Accuracy'], ['HIPAA', 'Compliant']].map(([val, lab]) => (
+            <div key={lab} className="bg-white/10 rounded-2xl p-4 border border-white/10">
+              <p className="text-white font-black text-xl">{val}</p>
+              <p className="text-white/50 text-xs uppercase tracking-wider">{lab}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Pulse SVG */}
+        <svg viewBox="0 0 400 50" className="absolute bottom-48 left-0 w-full opacity-20" style={{ height: 50 }}>
+          <path d="M0 25 L100 25 L130 5 L160 45 L190 25 L400 25"
+            fill="none" stroke="white" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+
+      {/* ── Right Panel ── FIXED: overflow-y-auto so content scrolls, pt for back button space */}
+      <div className="flex-1 flex flex-col overflow-y-auto">
+
+        {/* Back to home — fixed at top of right panel */}
+        <div className="shrink-0 px-8 pt-8 pb-4">
+          <Link to="/" className="inline-flex items-center gap-2 text-[#8A97B0] hover:text-brand-blue transition-colors text-sm font-semibold">
+            <ArrowLeft size={16} /> Back to Home
+          </Link>
+        </div>
+
+        {/* Centered content */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8 relative overflow-y-auto">
+          <div className="w-full max-w-md">
+
+            {/* Mobile logo */}
+            <div className="flex lg:hidden items-center gap-3 mb-8 justify-center">
+              <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center">
+                <Activity size={20} className="text-white" />
+              </div>
+              <p className="text-brand-blue font-black text-xl tracking-tight">INNOVIXA HEALTH</p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-3xl font-black text-[#0F1A3A] tracking-tight">Welcome back</h2>
+              <p className="text-[#8A97B0] text-sm mt-1">Sign in to access the QA/QI platform</p>
+            </div>
+
+            {/* Tab switcher */}
+            <div className="flex bg-[#E8EEF8] p-1 rounded-xl mb-6">
+              {['STAFF', 'PATIENT'].map(tab => (
+                <button key={tab} onClick={() => { setActiveTab(tab); setError(''); }}
+                  className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all duration-200 ${activeTab === tab
+                    ? 'bg-white text-brand-blue shadow-sm'
+                    : 'text-[#8A97B0] hover:text-brand-blue'
+                    }`}>
+                  {tab === 'STAFF' ? 'Staff Login' : 'Patient Login'}
                 </button>
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="glass-card rounded-2xl p-4">
-            <div className="flex flex-col gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <Zap size={14} className="text-amber-400" />
-                <span className="text-xs font-medium text-slate-300">Patient Demo Credentials</span>
-              </div>
+
+            {/* Card */}
+            <div className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(26,60,143,0.10)] border border-[#DDE3F0] p-8 space-y-5">
+              {error && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl text-brand-red text-sm font-semibold">
+                  <AlertCircle size={18} className="shrink-0" /> {error}
+                </div>
+              )}
+
+              {activeTab === 'STAFF' ? (
+                <form onSubmit={handleStaffSubmit} className="space-y-5">
+                  {/* Email */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Email Address</label>
+                    <div className="relative">
+
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                        className="input pl-10" />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Password</label>
+                    <div className="relative">
+
+                      <input type={showPw ? 'text' : 'password'} value={password}
+                        onChange={e => setPassword(e.target.value)} required
+                        className="input pl-10 pr-11" />
+                      <button type="button" onClick={() => setShowPw(p => !p)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB] hover:text-brand-blue transition-colors">
+                        {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading}
+                    className="btn-primary w-full justify-center py-3.5 text-sm mt-2">
+                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
+                    {loading ? 'Verifying…' : 'Sign In'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={otpSent ? handlePatientSubmit : handleRequestPatientOtp} className="space-y-5">
+                  {/* Patient Identifier */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Patient Identifier</label>
+                    <div className="relative">
+
+                      <input type="text" value={patientIdentifier} onChange={e => setPatientIdentifier(e.target.value)} required disabled={otpSent}
+                        className="input pl-10 " placeholder='Email' />
+                    </div>
+                  </div>
+
+                  {/* OTP Field */}
+                  {otpSent && (
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">One-Time Password</label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+                        <input type="text" value={patientOtp} onChange={e => setPatientOtp(e.target.value)} required
+                          className="input pl-10" placeholder="Enter 6-digit OTP" maxLength="6" />
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={loading}
+                    className="btn-primary w-full justify-center py-3.5 text-sm mt-2">
+                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
+                    {loading ? 'Verifying…' : (otpSent ? 'Verify OTP' : 'Request OTP')}
+                  </button>
+
+                  {otpSent && (
+                    <button type="button" onClick={() => { setOtpSent(false); setPatientOtp(''); }}
+                      className="w-full text-sm text-brand-blue hover:text-brand-blue/80 font-semibold py-2">
+                      Change Identifier
+                    </button>
+                  )}
+                </form>
+              )}
+
+
             </div>
-            <button onClick={fillPatientDemo}
-              className="w-full text-left px-3 py-2 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-sky-500/30 hover:bg-sky-500/5 transition-all group">
-              <p className="text-xs font-semibold text-sky-400 group-hover:text-sky-300">PATIENT (OTP)</p>
-              <p className="text-[10px] text-slate-500 truncate">ID: PAT-1001 • OTP: 123456</p>
-            </button>
+
+            <p className="text-center text-xs text-[#A0AECB] mt-6 font-medium">
+              Protected by HIPAA-compliant security protocols
+            </p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

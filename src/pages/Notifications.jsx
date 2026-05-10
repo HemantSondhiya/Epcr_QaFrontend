@@ -1,29 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { BellOff, Check, CheckCheck, Trash2, RefreshCw, X, Info, AlertTriangle, CheckCircle, XCircle, ChevronDown } from 'lucide-react';
+import {
+  BellOff, Check, CheckCheck, Trash2, RefreshCw, X,
+  Info, AlertTriangle, CheckCircle, XCircle, ChevronDown, Bell, Clock
+} from 'lucide-react';
 import client from '../api/client';
 import {
   fetchNotifications, markNotificationRead, markAllRead,
-  selectNotifications, selectUnreadCount, selectNotifLoading, selectNotifError, selectNotifPagination
+  selectNotifications, selectUnreadCount, selectNotifLoading, selectNotifPagination
 } from '../store/slices/notificationSlice';
 
 const TYPE_CONFIG = {
-  INFO:    { icon: <Info size={16} />,          color: 'text-sky-400',   bg: 'bg-sky-500/10 border-sky-500/20' },
-  WARNING: { icon: <AlertTriangle size={16} />, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-  SUCCESS: { icon: <CheckCircle size={16} />,   color: 'text-teal-400',  bg: 'bg-teal-500/10 border-teal-500/20' },
-  ERROR:   { icon: <XCircle size={16} />,       color: 'text-rose-400',  bg: 'bg-rose-500/10 border-rose-500/20' },
+  INFO:    { icon: Info,          color: 'text-sky-600',    bg: 'bg-sky-50 border-sky-100',     badge: 'badge badge-blue' },
+  WARNING: { icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 border-amber-100', badge: 'badge badge-orange' },
+  SUCCESS: { icon: CheckCircle,   color: 'text-emerald-600',bg: 'bg-emerald-50 border-emerald-100', badge: 'badge badge-green' },
+  ERROR:   { icon: XCircle,       color: 'text-brand-red',  bg: 'bg-red-50 border-red-100',     badge: 'badge badge-red' },
 };
-const getTypeConfig = (type) => TYPE_CONFIG[type?.toUpperCase()] || TYPE_CONFIG.INFO;
+const getConfig = (type) => TYPE_CONFIG[type?.toUpperCase()] || TYPE_CONFIG.INFO;
 
 const Notifications = () => {
-  const dispatch = useDispatch();
+  const dispatch    = useDispatch();
   const notifications = useSelector(selectNotifications);
-  const unreadCount = useSelector(selectUnreadCount);
-  const loading = useSelector(selectNotifLoading);
-  const loadError = useSelector(selectNotifError);
-  const pagination = useSelector(selectNotifPagination);
+  const unreadCount   = useSelector(selectUnreadCount);
+  const loading       = useSelector(selectNotifLoading);
+  const pagination    = useSelector(selectNotifPagination);
 
-  const [error, setError] = useState('');
+  const [error, setError]   = useState('');
   const [filter, setFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -41,125 +43,137 @@ const Notifications = () => {
     try {
       await client.delete(`/api/notifications/${id}`);
       loadNotifications(0);
-    } catch { setError('Failed to delete.'); }
+    } catch { setError('Failed to delete notification.'); }
   };
 
-  const filtered = filter === 'read' ? notifications.filter(n => n.read)
+  const filtered = filter === 'read'   ? notifications.filter(n => n.read)
     : filter === 'unread' ? notifications.filter(n => !n.read)
-      : notifications;
+    : notifications;
 
   const hasNextPage = currentPage < pagination.totalPages - 1;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-10 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-            Notifications
-            {unreadCount > 0 && <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-rose-500 text-white">{unreadCount}</span>}
+          <p className="section-label mb-1">Alerts</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">
+            Notifications {unreadCount > 0 && <span className="ml-2 text-sm font-black text-white bg-brand-red px-2 py-0.5 rounded-full">{unreadCount}</span>}
           </h1>
-          <p className="text-slate-400 text-sm mt-1">System alerts and activity updates.</p>
+          <p className="text-sm text-[#8A97B0] mt-0.5">System alerts and activity updates</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => loadNotifications(0)} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex gap-3">
+          <button onClick={() => loadNotifications(0)} disabled={loading}
+            className="btn-ghost border border-[#DDE3F0] px-3 py-2.5 rounded-xl">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
           {unreadCount > 0 && (
-            <button onClick={handleMarkAllAsRead} className="flex items-center gap-2 px-4 py-2 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 rounded-lg text-sm font-medium transition-colors">
-              <CheckCheck size={16} />Mark All Read
+            <button onClick={handleMarkAllAsRead} className="btn-primary text-sm px-4 py-2.5">
+              <CheckCheck size={16} /> Mark All Read
             </button>
           )}
         </div>
       </div>
 
-      {error && (
-        <div className="p-4 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg flex justify-between">
-          <span>{error}</span><button onClick={() => setError('')}><X size={16} /></button>
-        </div>
-      )}
-
-      {loadError && (
-        <div className="p-4 bg-amber-500/10 text-amber-400 text-sm border border-amber-500/20 rounded-lg">
-          {loadError}
-        </div>
-      )}
-
-      <div className="flex gap-2">
+      {/* Filter Tabs */}
+      <div className="flex gap-1 p-1 bg-[#F0F4FC] rounded-xl w-fit">
         {['all', 'unread', 'read'].map(f => (
           <button key={f} onClick={() => { setFilter(f); setCurrentPage(0); }}
-            className={`px-4 py-2 text-sm rounded-lg border capitalize transition-colors ${filter === f ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/50'}`}>
-            {f}{f === 'unread' && unreadCount > 0 && <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white rounded-full">{unreadCount}</span>}
+            className={`relative px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${filter === f ? 'bg-white text-brand-blue shadow-sm' : 'text-[#8A97B0] hover:text-[#4B5A7A]'}`}>
+            {f}
+            {f === 'unread' && unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-black bg-brand-red text-white rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      <div className="space-y-3">
-        {loading ? (
-          <div className="glass-card rounded-2xl p-12 text-center">
-            <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" /><p className="text-slate-400">Loading...</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="glass-card rounded-2xl p-16 text-center">
-            <BellOff className="w-14 h-14 text-slate-600 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-slate-300">All caught up!</h2>
-            <p className="text-slate-500 mt-2 text-sm">No {filter !== 'all' ? filter + ' ' : ''}notifications.</p>
-          </div>
-        ) : (
-          <>
-            {filtered.map(notif => {
-              const cfg = getTypeConfig(notif.type);
-              return (
-                <div key={notif.id} className={`glass-card rounded-xl p-5 border transition-all ${notif.read ? 'opacity-60' : 'hover-glow'}`}>
-                  <div className="flex items-start gap-4">
-                    <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.color}`}>{cfg.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`text-sm font-semibold ${notif.read ? 'text-slate-300' : 'text-white'}`}>{notif.title || 'Notification'}</p>
-                            {!notif.read && <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />}
-                            {notif.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${cfg.bg} ${cfg.color} font-medium uppercase`}>{notif.type}</span>}
-                          </div>
-                          <p className="text-sm text-slate-400 mt-1">{notif.message}</p>
-                          <p className="text-xs text-slate-600 mt-1.5">{notif.createdAt ? new Date(notif.createdAt).toLocaleString() : ''}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {!notif.read && (
-                            <button onClick={() => handleMarkAsRead(notif.id)} className="p-1.5 text-slate-500 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Mark read">
-                              <Check size={15} />
-                            </button>
-                          )}
-                          <button onClick={() => deleteNotification(notif.id)} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete">
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+      {error && (
+        <div className="flex items-center justify-between p-4 bg-red-50 border border-red-100 rounded-xl">
+          <p className="text-sm text-brand-red font-semibold">{error}</p>
+          <button onClick={() => setError('')} className="p-1 hover:bg-red-100 rounded-lg"><X size={16} className="text-brand-red" /></button>
+        </div>
+      )}
+
+      {/* Notifications List */}
+      {loading && notifications.length === 0 ? (
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 bg-[#F0F4FC] rounded-2xl animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-16 text-center">
+          <BellOff size={40} className="text-[#DDE3F0] mx-auto mb-4" />
+          <h3 className="font-black text-[#0F1A3A] text-lg mb-1">No Notifications</h3>
+          <p className="text-sm text-[#A0AECB]">You're all caught up. No {filter !== 'all' ? filter + ' ' : ''}notifications.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(notif => {
+            const cfg = getConfig(notif.type);
+            const Icon = cfg.icon;
+            return (
+              <div key={notif.id}
+                className={`card flex items-start gap-4 p-5 transition-all border-l-4 ${notif.read ? 'opacity-60 border-l-[#DDE3F0]' : 'border-l-brand-blue'}`}>
+                {/* Icon */}
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.color}`}>
+                  <Icon size={18} />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className={`font-bold text-sm ${notif.read ? 'text-[#8A97B0]' : 'text-[#0F1A3A]'}`}>
+                      {notif.title || 'Notification'}
+                    </h3>
+                    {notif.type && <span className={cfg.badge}>{notif.type}</span>}
+                    {!notif.read && <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />}
+                  </div>
+                  <p className="text-sm text-[#8A97B0]">{notif.message}</p>
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-[#A0AECB]">
+                    <Clock size={11} />
+                    {notif.createdAt ? new Date(notif.createdAt).toLocaleString() : '—'}
                   </div>
                 </div>
-              );
-            })}
 
-            {hasNextPage && (
-              <div className="flex justify-center pt-4">
-                <button
-                  onClick={() => loadNotifications(currentPage + 1)}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-6 py-3 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                  <ChevronDown size={16} />
-                  Load More
-                </button>
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {!notif.read && (
+                    <button onClick={() => handleMarkAsRead(notif.id)} title="Mark as read"
+                      className="p-2 rounded-lg bg-[#F0FDF4] text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all">
+                      <Check size={14} />
+                    </button>
+                  )}
+                  <button onClick={() => deleteNotification(notif.id)} title="Delete"
+                    className="p-2 rounded-lg bg-[#FFF0F3] text-brand-red hover:bg-brand-red hover:text-white transition-all">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
-            )}
+            );
+          })}
 
-            {pagination.totalElements > 0 && (
-              <div className="text-center text-xs text-slate-500 pt-2">
-                Showing {(currentPage * pagination.pageSize) + 1} to {Math.min((currentPage + 1) * pagination.pageSize, pagination.totalElements)} of {pagination.totalElements}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          {hasNextPage && (
+            <div className="text-center pt-2">
+              <button onClick={() => loadNotifications(currentPage + 1)} disabled={loading}
+                className="btn-outline text-sm px-6 py-2.5">
+                {loading ? <RefreshCw size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+                Load More
+              </button>
+            </div>
+          )}
+
+          {pagination.totalElements > 0 && (
+            <p className="text-center text-xs text-[#A0AECB] pt-2">
+              Showing {Math.min((currentPage + 1) * pagination.pageSize, pagination.totalElements)} of {pagination.totalElements}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

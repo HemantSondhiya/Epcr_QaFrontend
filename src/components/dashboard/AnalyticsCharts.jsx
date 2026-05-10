@@ -1,11 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { useSelector } from 'react-redux';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Cell, AreaChart, Area } from 'recharts';
 import client from '../../api/client';
-import { Clock } from 'lucide-react';
+import { Clock, TrendingUp, BarChart3, Activity } from 'lucide-react';
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border border-[var(--border-active)] p-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95">
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{label}</p>
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+            <p className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight">
+              {entry.name}: <span className="text-indigo-500">{entry.value}{entry.name === 'Pass Rate' ? '%' : ''}</span>
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 const AnalyticsCharts = () => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const theme = useSelector(state => state.ui.theme);
 
   useEffect(() => {
     client.get('/api/reports/dashboard-metrics')
@@ -18,10 +39,10 @@ const AnalyticsCharts = () => {
 
   if (loading) {
     return (
-      <div className="glass-card p-6 rounded-2xl flex items-center justify-center min-h-[300px] mt-6">
-        <div className="animate-pulse flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-slate-400 text-sm">Loading analytics...</span>
+      <div className="glass-card p-20 rounded-[2.5rem] flex items-center justify-center min-h-[400px] mt-10 premium-border">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">Processing Intelligence...</span>
         </div>
       </div>
     );
@@ -29,7 +50,6 @@ const AnalyticsCharts = () => {
 
   if (!metrics) return null;
 
-  // Format data assuming backend returns objects/maps, e.g., { "Jan": 85, "Feb": 90 }
   const formatMonthData = (data) => {
     if (Array.isArray(data)) return data;
     if (typeof data === 'object' && data !== null) {
@@ -49,53 +69,128 @@ const AnalyticsCharts = () => {
   const monthData = formatMonthData(metrics.monthWiseQaPassRate || []);
   const locationData = formatLocationData(metrics.topIncidentLocations || []);
 
+  const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)';
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-      <div className="glass-card p-6 rounded-2xl">
-        <h3 className="text-sm font-semibold text-white mb-4">6-Month QA Pass Rate</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={monthData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(tick) => `${tick}%`} />
-              <RechartsTooltip 
-                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }}
-                itemStyle={{ color: '#2dd4bf' }}
-              />
-              <Line type="monotone" dataKey="passRate" name="Pass Rate" stroke="#2dd4bf" strokeWidth={3} dot={{ r: 4, fill: '#2dd4bf', strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="glass-card p-6 rounded-2xl">
-        <h3 className="text-sm font-semibold text-white mb-4">Top Incident Locations</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={locationData} layout="vertical" margin={{ top: 0, right: 0, left: 20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-              <XAxis type="number" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis dataKey="location" type="category" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} width={100} />
-              <RechartsTooltip 
-                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }}
-                cursor={{ fill: 'rgba(51, 65, 85, 0.4)' }}
-              />
-              <Bar dataKey="count" name="Incidents" fill="#38bdf8" radius={[0, 4, 4, 0]} barSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {metrics.averageReviewTimeHours != null && (
-        <div className="glass-card p-6 rounded-2xl lg:col-span-2 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Average QA Review Turnaround</h3>
-            <p className="text-xs text-slate-400 mt-1">From submission to completion</p>
+    <div className="space-y-8 mt-10">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Line Chart */}
+        <div className="glass-card p-10 rounded-[3rem] premium-border hover:bg-white/[0.02] transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 blur-[80px] -z-10" />
+          <div className="flex justify-between items-start mb-10">
+            <div>
+              <h3 className="text-lg font-black text-[var(--text-primary)] uppercase tracking-tight group-hover:text-indigo-500 transition-colors">QA Compliance Flux</h3>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">6-Month historical pass rate indices</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/10"><TrendingUp size={24} /></div>
           </div>
-          <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-5 py-3 rounded-xl">
-            <Clock className="text-amber-400" size={24} />
-            <span className="text-2xl font-bold text-amber-400">{metrics.averageReviewTimeHours.toFixed(1)} <span className="text-sm font-normal">hrs</span></span>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthData}>
+                <defs>
+                  <linearGradient id="colorPass" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#C8102E" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#C8102E" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke={gridColor} vertical={false} />
+                <XAxis 
+                  dataKey="month" 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  fontWeight={900}
+                  tickLine={false} 
+                  axisLine={false} 
+                  dy={15}
+                  tickFormatter={(val) => val.substring(0, 3).toUpperCase()}
+                />
+                <YAxis 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  fontWeight={900}
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickFormatter={(tick) => `${tick}%`} 
+                />
+                <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: '#C8102E', strokeWidth: 2, strokeDasharray: '4 4' }} />
+                <Area 
+                  type="monotone" 
+                  dataKey="passRate" 
+                  name="Pass Rate" 
+                  stroke="#C8102E" 
+                  strokeWidth={4} 
+                  fillOpacity={1} 
+                  fill="url(#colorPass)" 
+                  animationDuration={2000}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Bar Chart */}
+        <div className="glass-card p-10 rounded-[3rem] premium-border hover:bg-white/[0.02] transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 blur-[80px] -z-10" />
+          <div className="flex justify-between items-start mb-10">
+            <div>
+              <h3 className="text-lg font-black text-[var(--text-primary)] uppercase tracking-tight group-hover:text-cyan-500 transition-colors">Incident Hotspots</h3>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Top critical response environments</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-500 shadow-xl shadow-cyan-500/10"><BarChart3 size={24} /></div>
+          </div>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={locationData} layout="vertical" margin={{ left: 20 }}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#1A3C8F" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#C8102E" stopOpacity={0.8}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke={gridColor} horizontal={false} />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="location" 
+                  type="category" 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  fontWeight={900}
+                  tickLine={false} 
+                  axisLine={false} 
+                  width={100}
+                  tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
+                />
+                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                <Bar 
+                  dataKey="count" 
+                  name="Incidents" 
+                  fill="url(#colorCount)" 
+                  radius={[0, 12, 12, 0]} 
+                  barSize={24} 
+                  animationDuration={2000}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Hero Stat */}
+      {metrics.averageReviewTimeHours != null && (
+        <div className="glass-card p-12 rounded-[3rem] premium-border flex flex-col md:flex-row items-center justify-between gap-8 hover:bg-white/[0.02] transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-96 h-full bg-amber-500/5 blur-[120px] -z-10 group-hover:bg-amber-500/10 transition-colors" />
+          <div className="flex items-center gap-8">
+            <div className="w-20 h-20 rounded-[2rem] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-2xl shadow-amber-500/10 group-hover:scale-110 transition-transform duration-500">
+              <Clock size={40} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tight">Review Throughput</h3>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1 italic">Average QA turnaround temporal index</p>
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-7xl font-black text-amber-500 tabular-nums tracking-tighter">{metrics.averageReviewTimeHours.toFixed(1)}</span>
+            <span className="text-xl font-black text-slate-500 uppercase tracking-widest">Hours</span>
           </div>
         </div>
       )}

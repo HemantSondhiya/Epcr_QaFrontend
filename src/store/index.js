@@ -17,6 +17,7 @@ import reportReducer        from './slices/reportSlice';
 import auditReducer         from './slices/auditSlice';
 import baaReducer           from './slices/baaSlice';
 import feedbackReducer      from './slices/feedbackSlice';
+import patientHistoryReducer from './slices/patientHistorySlice';
 
 const store = configureStore({
   reducer: {
@@ -37,7 +38,8 @@ const store = configureStore({
     reports:       reportReducer,
     audit:         auditReducer,
     baa:           baaReducer,
-    feedback:      feedbackReducer,
+    feedback:       feedbackReducer,
+    patientHistory: patientHistoryReducer,
   },
 });
 

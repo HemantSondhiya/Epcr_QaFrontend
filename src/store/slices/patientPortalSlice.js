@@ -3,7 +3,43 @@ import client, { extractErrorMessage } from '../../api/client';
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
-// ── Async Thunks ────────────────────────────────────────────────────
+// ── OTP Auth Thunks (email-only) ─────────────────────────────────────
+
+/**
+ * Step 1 — Request OTP: POST /api/patient/auth/request-otp
+ * Body: { email: string }
+ */
+export const requestPatientOtp = createAsyncThunk(
+  'patientPortal/requestOtp',
+  async ({ email }, { rejectWithValue }) => {
+    try {
+      // Backend expects { identifier } not { email }
+      const res = await client.post('/api/patient/auth/request-otp', { identifier: email });
+      return res.data;
+    } catch (e) {
+      return rejectWithValue(extractErrorMessage(e));
+    }
+  }
+);
+
+/**
+ * Step 2 — Verify OTP & login: POST /api/patient/auth/login
+ * Body: { email: string, otp: string }
+ */
+export const verifyPatientOtp = createAsyncThunk(
+  'patientPortal/verifyOtp',
+  async ({ email, otp }, { rejectWithValue }) => {
+    try {
+      // Backend expects { identifier, otp }
+      const res = await client.post('/api/patient/auth/login', { identifier: email, otp });
+      return res.data;
+    } catch (e) {
+      return rejectWithValue(extractErrorMessage(e));
+    }
+  }
+);
+
+// ── Portal Data Thunks ───────────────────────────────────────────────
 
 export const fetchPortalData = createAsyncThunk('patientPortal/fetchAll', async (_, { rejectWithValue }) => {
   try {

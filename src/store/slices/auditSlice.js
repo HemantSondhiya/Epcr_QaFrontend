@@ -65,5 +65,6 @@ export const selectAuditLogs = (state) => state.audit.logs;
 export const selectAuditLoading = (state) => state.audit.loading;
 export const selectAuditHasMore = (state) => state.audit.hasMore;
 export const selectAuditPage = (state) => state.audit.page;
+export const selectAuditError = (state) => state.audit.error;
 
 export default auditSlice.reducer;

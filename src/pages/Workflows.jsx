@@ -1,44 +1,380 @@
 import { useState, useEffect } from 'react';
-import { GitBranch, Plus, RefreshCw, X, Trash2, Edit2, Eye, Rocket, Check, ChevronRight } from 'lucide-react';
+import {
+  GitBranch, Plus, RefreshCw, X, Trash2, Edit2,
+  Rocket, Check, ChevronRight, ArrowUpRight,
+  ToggleLeft, ToggleRight, AlertCircle
+} from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import client, { extractErrorMessage } from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import {
-  fetchWorkflows,
-  createWorkflow,
-  updateWorkflow,
-  deleteWorkflow,
-  createDeployment,
-  selectWorkflows,
-  selectWorkflowLoading
+  fetchWorkflows, createWorkflow, updateWorkflow,
+  deleteWorkflow, createDeployment,
+  selectWorkflows, selectWorkflowLoading
 } from '../store/slices/workflowSlice';
 import { fetchOrganizations } from '../store/slices/orgSlice';
 import FormBuilder from '../components/forms/FormBuilder';
 
-const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
+/* ── Shared style tokens (same as Dashboard) ── */
+const inputCls = 'w-full bg-white border border-[#DDE3F0] rounded-xl px-4 py-2.5 text-sm text-[#0F1A3A] focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/10 transition-all placeholder-[#A0AECB] font-medium';
+const labelCls = 'block text-xs font-semibold text-[#8A97B0] mb-1.5';
 
+const ROLES = ['ADMIN', 'MANAGER', 'PARAMEDIC', 'PHYSICIAN', 'QA_REVIEWER', 'VIEWER'];
 const emptyStep = () => ({ stepNumber: 1, stepName: '', assignedRole: 'PARAMEDIC', action: '', durationDays: 1, isMandatory: true });
-const ROLES = ['ADMIN','MANAGER','PARAMEDIC','PHYSICIAN','QA_REVIEWER','VIEWER'];
+const emptyForm = (user) => ({ name: '', description: '', organizationId: user?.organizationId || '', domain: '', category: '', active: true, steps: [emptyStep()], formSchema: { fields: [] } });
 
+/* ── Section Header (same as Dashboard) ── */
+const SectionHeader = ({ icon: Icon, title }) => (
+  <div className="flex items-center gap-3 p-5 border-b border-[#F0F4FC]">
+    <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] text-brand-blue flex items-center justify-center">
+      <Icon size={17} />
+    </div>
+    <h2 className="text-sm font-bold text-[#0F1A3A]">{title}</h2>
+  </div>
+);
+
+/* ── Status Badge ── */
+const StatusBadge = ({ active }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-[#F0F4FC] text-[#8A97B0] border border-[#DDE3F0]'}`}>
+    <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-green-500' : 'bg-[#C0CADF]'}`} />
+    {active ? 'Active' : 'Draft'}
+  </span>
+);
+
+/* ── Steps Editor ── */
+const StepsEditor = ({ form, setForm }) => {
+  const addStep = () => setForm(prev => ({ ...prev, steps: [...prev.steps, { ...emptyStep(), stepNumber: prev.steps.length + 1 }] }));
+  const updateStep = (idx, field, val) => {
+    const steps = [...form.steps];
+    steps[idx] = { ...steps[idx], [field]: val };
+    setForm({ ...form, steps });
+  };
+  const removeStep = (idx) => setForm({ ...form, steps: form.steps.filter((_, i) => i !== idx) });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <label className={labelCls}>Steps ({form.steps?.length || 0})</label>
+        <button type="button" onClick={addStep} className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue/80 transition-colors">
+          <Plus size={13} /> Add Step
+        </button>
+      </div>
+      <div className="space-y-3">
+        {form.steps?.map((step, idx) => (
+          <div key={idx} className="p-4 bg-[#F8FAFF] rounded-xl border border-[#DDE3F0] space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-brand-blue bg-[#EEF2FF] px-2.5 py-0.5 rounded-full">Step {idx + 1}</span>
+              {form.steps.length > 1 && (
+                <button type="button" onClick={() => removeStep(idx)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#A0AECB] hover:text-brand-red hover:bg-red-50 transition-colors">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Step Name</label>
+                <input value={step.stepName} onChange={e => updateStep(idx, 'stepName', e.target.value)} className={inputCls} placeholder="e.g. Initial Assessment" />
+              </div>
+              <div>
+                <label className={labelCls}>Assigned Role</label>
+                <select value={step.assignedRole} onChange={e => updateStep(idx, 'assignedRole', e.target.value)} className={inputCls + ' appearance-none cursor-pointer'}>
+                  {ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Action</label>
+                <input value={step.action} onChange={e => updateStep(idx, 'action', e.target.value)} className={inputCls} placeholder="e.g. APPROVE" />
+              </div>
+              <div>
+                <label className={labelCls}>Duration (days)</label>
+                <input type="number" min="1" value={step.durationDays} onChange={e => updateStep(idx, 'durationDays', parseInt(e.target.value) || 1)} className={inputCls} placeholder="1" />
+              </div>
+              <div className="flex flex-col justify-end">
+                <label className={labelCls}>Mandatory</label>
+                <button
+                  type="button"
+                  onClick={() => updateStep(idx, 'isMandatory', !step.isMandatory)}
+                  className="flex items-center gap-2 px-3 py-2.5 border border-[#DDE3F0] rounded-xl hover:border-brand-blue transition-colors bg-white"
+                >
+                  {step.isMandatory
+                    ? <ToggleRight size={18} className="text-brand-blue" />
+                    : <ToggleLeft size={18} className="text-[#A0AECB]" />}
+                  <span className={`text-xs font-semibold ${step.isMandatory ? 'text-brand-blue' : 'text-[#8A97B0]'}`}>
+                    {step.isMandatory ? 'Yes' : 'No'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ── Workflow Modal ── */
+const WfModal = ({ mode, form, setForm, onSubmit, onClose, isSubmitting, error }) => (
+  <div className="fixed inset-0 bg-[#0F1A3A]/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden my-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-[#F0F4FC]">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] text-brand-blue flex items-center justify-center">
+            <GitBranch size={17} />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-[#0F1A3A]">{mode === 'create' ? 'New Workflow' : 'Edit Workflow'}</h2>
+            <p className="text-xs text-[#A0AECB]">{mode === 'create' ? 'Define a new clinical protocol sequence' : 'Update workflow configuration'}</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8A97B0] hover:text-[#0F1A3A] hover:bg-[#F0F4FC] transition-colors">
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <form onSubmit={onSubmit}>
+        <div className="p-4 space-y-4 max-h-[65vh] overflow-y-auto">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-xs font-semibold text-brand-red">
+              <AlertCircle size={14} /> {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Workflow Name *</label>
+              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required className={inputCls} placeholder="e.g. Patient Intake Review" />
+            </div>
+            <div>
+              <label className={labelCls}>Domain</label>
+              <input value={form.domain || ''} onChange={e => setForm({ ...form, domain: e.target.value })} className={inputCls} placeholder="e.g. Clinical, Administrative" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Category</label>
+              <input value={form.category || ''} onChange={e => setForm({ ...form, category: e.target.value })} className={inputCls} placeholder="e.g. QA Governance, Compliance" />
+            </div>
+            <div>
+              <label className={labelCls}>Review Tag</label>
+              <input value={form.reviewCategory || ''} onChange={e => setForm({ ...form, reviewCategory: e.target.value })} className={inputCls} placeholder="e.g. CARDIAC_SOP, TRAUMA_PROTOCOL" />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className={inputCls + ' resize-none'} placeholder="Describe the purpose and scope of this workflow..." />
+          </div>
+
+          {/* Active toggle */}
+          <div>
+            <label className={labelCls}>Status</label>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, active: !form.active })}
+              className="flex items-center gap-2 px-4 py-2.5 border border-[#DDE3F0] rounded-xl hover:border-brand-blue transition-colors"
+            >
+              {form.active
+                ? <ToggleRight size={20} className="text-brand-blue" />
+                : <ToggleLeft size={20} className="text-[#A0AECB]" />}
+              <span className={`text-sm font-semibold ${form.active ? 'text-brand-blue' : 'text-[#8A97B0]'}`}>
+                {form.active ? 'Active' : 'Draft'}
+              </span>
+            </button>
+          </div>
+
+          {/* Steps */}
+          <div className="pt-2 border-t border-[#F0F4FC]">
+            <StepsEditor form={form} setForm={setForm} />
+          </div>
+
+          {/* Form Builder */}
+          <div className="pt-2 border-t border-[#F0F4FC]">
+            <label className={labelCls + ' mb-3'}>Form Schema</label>
+            <FormBuilder
+              schema={form.formSchema || { fields: [] }}
+              onChange={newSchema => setForm({ ...form, formSchema: newSchema })}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 p-3 border-t border-[#F0F4FC] bg-[#FAFBFF]">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs font-semibold text-[#8A97B0] hover:text-[#0F1A3A] transition-colors">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="btn-primary px-4 py-1.5 text-xs flex items-center gap-2 disabled:opacity-60">
+            {isSubmitting ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+            {isSubmitting ? 'Saving...' : mode === 'create' ? 'Create Workflow' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+);
+
+/* ── Deploy Modal ── */
+const DeployModal = ({ workflow, orgs, onClose, onDeploy, isSubmitting, error }) => {
+  const [deployTargets, setDeployTargets] = useState([]);
+  const toggleTarget = (id) => setDeployTargets(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const available = orgs.filter(o => o.id !== workflow.organizationId);
+
+  return (
+    <div className="fixed inset-0 bg-[#0F1A3A]/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden my-auto">
+        <div className="flex items-center justify-between p-4 border-b border-[#F0F4FC]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] text-brand-blue flex items-center justify-center">
+              <Rocket size={15} />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-[#0F1A3A]">Deploy Workflow</h2>
+              <p className="text-xs text-[#A0AECB] truncate max-w-xs">{workflow.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8A97B0] hover:text-[#0F1A3A] hover:bg-[#F0F4FC] transition-colors shrink-0">
+            <X size={15} />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); onDeploy(deployTargets); }}>
+          <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-xs font-semibold text-brand-red">
+                <AlertCircle size={14} /> {error}
+              </div>
+            )}
+            <p className="text-xs font-semibold text-[#8A97B0]">Select target organizations:</p>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {available.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-[#A0AECB] font-medium">No other organizations available</p>
+                </div>
+              ) : available.map(org => (
+                <label key={org.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#DDE3F0] cursor-pointer hover:border-brand-blue hover:bg-[#F8FAFF] transition-colors group">
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${deployTargets.includes(org.id) ? 'bg-brand-blue border-brand-blue' : 'border-[#DDE3F0] group-hover:border-brand-blue'}`}>
+                    {deployTargets.includes(org.id) && <Check size={12} className="text-white" />}
+                  </div>
+                  <input type="checkbox" className="hidden" checked={deployTargets.includes(org.id)} onChange={() => toggleTarget(org.id)} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#0F1A3A] truncate">{org.name}</p>
+                    <p className="text-xs text-[#A0AECB]">{org.code}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {deployTargets.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-[#EEF2FF] rounded-xl">
+                <Check size={13} className="text-brand-blue" />
+                <span className="text-xs font-semibold text-brand-blue">{deployTargets.length} organization{deployTargets.length > 1 ? 's' : ''} selected</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-3 p-4 border-t border-[#F0F4FC] bg-[#FAFBFF]">
+            <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-semibold text-[#8A97B0] hover:text-[#0F1A3A] transition-colors">Cancel</button>
+            <button type="submit" disabled={isSubmitting || !deployTargets.length} className="btn-primary px-4 py-2 text-xs flex items-center gap-2 disabled:opacity-60">
+              {isSubmitting ? <RefreshCw size={12} className="animate-spin" /> : <Rocket size={12} />}
+              {isSubmitting ? 'Deploying...' : 'Deploy'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/* ── Workflow Card ── */
+const WorkflowCard = ({ wf, onEdit, onDelete, onDeploy, isAdmin }) => (
+  <div className="card hover:shadow-[0_4px_24px_rgba(26,60,143,0.08)] transition-all group">
+    {/* Card Header */}
+    <div className="p-5 border-b border-[#F0F4FC]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] text-brand-blue flex items-center justify-center shrink-0 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+            <GitBranch size={17} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-[#0F1A3A] truncate">{wf.name}</h3>
+            <div className="flex items-center gap-2 mt-0.5">
+              {wf.domain && <span className="text-[10px] font-semibold text-[#A0AECB] bg-[#F0F4FC] px-2 py-0.5 rounded">{wf.domain}</span>}
+              {wf.category && <span className="text-[10px] text-[#A0AECB]">{wf.category}</span>}
+            </div>
+          </div>
+        </div>
+        <StatusBadge active={wf.active} />
+      </div>
+    </div>
+
+    {/* Description */}
+    {wf.description && (
+      <div className="px-5 pt-4">
+        <p className="text-xs text-[#8A97B0] line-clamp-2 leading-relaxed">{wf.description}</p>
+      </div>
+    )}
+
+    {/* Steps Pipeline */}
+    <div className="px-5 py-4">
+      <p className="text-[10px] font-bold text-[#A0AECB] uppercase tracking-widest mb-3">
+        Pipeline · {wf.steps?.length || 0} step{wf.steps?.length !== 1 ? 's' : ''}
+      </p>
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {wf.steps?.slice(0, 6).map((step, i) => (
+          <div key={i} className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col items-center">
+              <div className="w-7 h-7 rounded-lg bg-[#EEF2FF] border border-[#DDE3F0] flex items-center justify-center text-[10px] font-bold text-brand-blue">
+                {i + 1}
+              </div>
+              {step.stepName && (
+                <span className="text-[9px] text-[#A0AECB] mt-1 max-w-[56px] text-center leading-tight truncate">{step.stepName}</span>
+              )}
+            </div>
+            {i < (wf.steps?.length || 0) - 1 && i < 5 && (
+              <ChevronRight size={12} className="text-[#DDE3F0] shrink-0 mb-3" />
+            )}
+          </div>
+        ))}
+        {wf.steps?.length > 6 && (
+          <span className="text-[10px] font-semibold text-[#A0AECB] ml-1 mb-3">+{wf.steps.length - 6} more</span>
+        )}
+        {(!wf.steps || wf.steps.length === 0) && (
+          <span className="text-xs text-[#C0CADF]">No steps defined</span>
+        )}
+      </div>
+    </div>
+
+    {/* Actions */}
+    <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#F0F4FC]">
+      {isAdmin && (
+        <button onClick={() => onDeploy(wf)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8A97B0] hover:text-brand-blue hover:bg-[#EEF2FF] transition-colors" title="Deploy">
+          <Rocket size={14} />
+        </button>
+      )}
+      <button onClick={() => onEdit(wf)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8A97B0] hover:text-brand-blue hover:bg-[#EEF2FF] transition-colors" title="Edit">
+        <Edit2 size={14} />
+      </button>
+      <button onClick={() => onDelete(wf.id)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8A97B0] hover:text-brand-red hover:bg-red-50 transition-colors" title="Delete">
+        <Trash2 size={14} />
+      </button>
+    </div>
+  </div>
+);
+
+/* ── Main Workflows Page ── */
 const Workflows = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-
   const workflows = useSelector(selectWorkflows);
-  const loading   = useSelector(selectWorkflowLoading);
+  const loading = useSelector(selectWorkflowLoading);
   const { organizations: orgs } = useSelector(state => state.org);
 
-  const [error, setError]           = useState('');
+  const [error, setError] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeployOpen, setIsDeployOpen] = useState(false);
-  const [selectedWf, setSelectedWf] = useState(null);
+  const [editWf, setEditWf] = useState(null);
+  const [deployWf, setDeployWf] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deployTargets, setDeployTargets] = useState([]);
-
-  const emptyForm = () => ({ name:'', description:'', organizationId: user?.organizationId||'', domain:'', category:'', active:true, steps:[emptyStep()], formSchema: { fields: [] } });
-  const [wfForm, setWfForm] = useState(emptyForm());
+  const [wfForm, setWfForm] = useState(emptyForm(user));
 
   const fetchData = () => {
     dispatch(fetchWorkflows(user?.organizationId));
@@ -47,40 +383,25 @@ const Workflows = () => {
 
   useEffect(() => { fetchData(); }, [user, dispatch]);
 
-  // Steps helpers
-  const addStep = (form, setForm) => setForm(prev => ({
-    ...prev, steps: [...prev.steps, { ...emptyStep(), stepNumber: prev.steps.length + 1 }]
-  }));
-  const updateStep = (form, setForm, idx, field, val) => {
-    const steps = [...form.steps];
-    steps[idx] = { ...steps[idx], [field]: val };
-    setForm({ ...form, steps });
-  };
-  const removeStep = (form, setForm, idx) => setForm({ ...form, steps: form.steps.filter((_, i) => i !== idx) });
+  const openEdit = (wf) => { setEditWf(wf); setWfForm({ ...wf }); };
 
   const handleCreate = async (e) => {
     e.preventDefault(); setIsSubmitting(true); setError('');
     try {
       await dispatch(createWorkflow({ ...wfForm, rules: [], formSchema: {} })).unwrap();
-      setIsCreateOpen(false); setWfForm(emptyForm());
-      dispatch(addToast({ type: 'success', message: 'Workflow created successfully' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to create workflow.' }));
-    }
+      setIsCreateOpen(false); setWfForm(emptyForm(user));
+      dispatch(addToast({ type: 'success', message: 'Workflow created successfully.' }));
+    } catch (err) { setError(err || 'Failed to create workflow.'); }
     finally { setIsSubmitting(false); }
   };
-
-  const openEdit = (wf) => { setSelectedWf(wf); setWfForm({ ...wf }); setIsEditOpen(true); };
 
   const handleEdit = async (e) => {
     e.preventDefault(); setIsSubmitting(true); setError('');
     try {
-      await dispatch(updateWorkflow({ id: selectedWf.id, data: wfForm })).unwrap();
-      setIsEditOpen(false); setSelectedWf(null);
-      dispatch(addToast({ type: 'success', message: 'Workflow updated successfully' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to update workflow.' }));
-    }
+      await dispatch(updateWorkflow({ id: editWf.id, data: wfForm })).unwrap();
+      setEditWf(null);
+      dispatch(addToast({ type: 'success', message: 'Workflow updated.' }));
+    } catch (err) { setError(err || 'Failed to update workflow.'); }
     finally { setIsSubmitting(false); }
   };
 
@@ -88,242 +409,146 @@ const Workflows = () => {
     if (!window.confirm('Delete this workflow?')) return;
     try {
       await dispatch(deleteWorkflow(id)).unwrap();
-      dispatch(addToast({ type: 'success', message: 'Workflow deleted' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to delete workflow.' }));
-    }
+      dispatch(addToast({ type: 'success', message: 'Workflow deleted.' }));
+    } catch (err) { dispatch(addToast({ type: 'error', message: err || 'Failed to delete.' })); }
   };
 
-  const openDeploy = (wf) => { setSelectedWf(wf); setDeployTargets([]); setIsDeployOpen(true); };
-
-  const handleDeploy = async (e) => {
-    e.preventDefault(); if (!deployTargets.length) return;
+  const handleDeploy = async (targets) => {
+    if (!targets.length) return;
     setIsSubmitting(true); setError('');
     try {
-      await dispatch(createDeployment({
-        targetOrganizationIds: deployTargets,
-        configType: 'WORKFLOW',
-        configId: selectedWf.id,
-        configVersion: 1
-      })).unwrap();
-      setIsDeployOpen(false);
-      dispatch(addToast({ type: 'success', message: 'Deployment initiated successfully!' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to deploy.' }));
-    }
+      await dispatch(createDeployment({ targetOrganizationIds: targets, configType: 'WORKFLOW', configId: deployWf.id, configVersion: 1 })).unwrap();
+      setDeployWf(null);
+      dispatch(addToast({ type: 'success', message: 'Deployment initiated.' }));
+    } catch (err) { setError(err || 'Failed to deploy.'); }
     finally { setIsSubmitting(false); }
   };
 
-  const toggleTarget = (orgId) => setDeployTargets(prev =>
-    prev.includes(orgId) ? prev.filter(id => id !== orgId) : [...prev, orgId]
-  );
-
-  const StepsEditor = ({ form, setForm }) => (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <label className="text-sm font-medium text-slate-300">Steps ({form.steps?.length || 0})</label>
-        <button type="button" onClick={() => addStep(form, setForm)} className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1"><Plus size={14} />Add Step</button>
-      </div>
-      {form.steps?.map((step, idx) => (
-        <div key={idx} className="p-4 bg-slate-900/50 rounded-xl border border-slate-800 space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-semibold text-teal-400">Step {idx + 1}</span>
-            {form.steps.length > 1 && <button type="button" onClick={() => removeStep(form, setForm, idx)} className="text-rose-400 hover:text-rose-300"><Trash2 size={14} /></button>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><label className="text-xs text-slate-400">Step Name</label>
-              <input value={step.stepName} onChange={e => updateStep(form, setForm, idx, 'stepName', e.target.value)} className={inputCls} placeholder="Review" /></div>
-            <div className="space-y-1.5"><label className="text-xs text-slate-400">Assigned Role</label>
-              <select value={step.assignedRole} onChange={e => updateStep(form, setForm, idx, 'assignedRole', e.target.value)} className={inputCls + ' appearance-none'}>
-                {ROLES.map(r => <option key={r} value={r}>{r.replace('_',' ')}</option>)}
-              </select></div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5"><label className="text-xs text-slate-400">Action</label>
-              <input value={step.action} onChange={e => updateStep(form, setForm, idx, 'action', e.target.value)} className={inputCls} placeholder="REVIEW" /></div>
-            <div className="space-y-1.5"><label className="text-xs text-slate-400">Duration (days)</label>
-              <input type="number" min="1" value={step.durationDays} onChange={e => updateStep(form, setForm, idx, 'durationDays', parseInt(e.target.value)||1)} className={inputCls} /></div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input type="checkbox" checked={step.isMandatory} onChange={e => updateStep(form, setForm, idx, 'isMandatory', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-teal-500" />Mandatory
-              </label>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
-  const WfModal = ({ form, setForm, onSubmit, onCancel, title }) => (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-        </div>
-        <div className="p-6 overflow-y-auto space-y-5">
-          {error && <div className="p-3 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg">{error}</div>}
-          <form onSubmit={onSubmit} className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Workflow Name *</label>
-                <input value={form.name} onChange={e => setForm({...form,name:e.target.value})} required className={inputCls} placeholder="EPCR Review Workflow" /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Domain</label>
-                <input value={form.domain||''} onChange={e => setForm({...form,domain:e.target.value})} className={inputCls} placeholder="EMS" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Category</label>
-                <input value={form.category||''} onChange={e => setForm({...form,category:e.target.value})} className={inputCls} placeholder="QA" /></div>
-              <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Review Category</label>
-                <input value={form.reviewCategory||''} onChange={e => setForm({...form,reviewCategory:e.target.value})} className={inputCls} placeholder="CARDIAC" /></div>
-            </div>
-            <div className="space-y-1.5"><label className="text-xs font-medium text-slate-300">Description</label>
-              <textarea value={form.description||''} onChange={e => setForm({...form,description:e.target.value})} rows="2" className={inputCls+' resize-none'} /></div>
-            <StepsEditor form={form} setForm={setForm} />
-            {/* Dynamic Form Builder */}
-            <div className="pt-2 border-t border-slate-800">
-              <FormBuilder
-                schema={form.formSchema || { fields: [] }}
-                onChange={newSchema => setForm({ ...form, formSchema: newSchema })}
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-              <input type="checkbox" checked={form.active} onChange={e => setForm({...form,active:e.target.checked})} className="rounded border-slate-700 bg-slate-900 text-teal-500" />Active Workflow
-            </label>
-            <div className="pt-4 flex justify-end gap-3">
-              <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
-              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-                {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
-                {isSubmitting ? 'Saving...' : title}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
+  const wfList = Array.isArray(workflows) ? workflows : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-10 animate-fade-in">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Workflows</h1>
-          <p className="text-slate-400 text-sm mt-1">Configure and manage EMS process workflows.</p>
+          <p className="text-xs font-semibold text-[#A0AECB] uppercase tracking-widest mb-1">Process Management</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">
+            <span className="text-brand-blue">Workflows</span>
+          </h1>
+          <p className="text-sm text-[#8A97B0] mt-0.5">Design and manage clinical protocol sequences.</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={fetchData} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#DDE3F0] bg-white text-[#8A97B0] hover:text-brand-blue hover:border-brand-blue transition-colors"
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-            <Plus size={18} /><span>New Workflow</span>
+          <button
+            onClick={() => { setWfForm(emptyForm(user)); setIsCreateOpen(true); }}
+            className="btn-primary text-sm px-4 py-2 flex items-center gap-2"
+          >
+            <Plus size={15} /> New Workflow
           </button>
         </div>
       </div>
 
-      {error && !isCreateOpen && !isEditOpen && !isDeployOpen && (
-        <div className="p-4 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg flex justify-between">
-          <span>{error}</span><button onClick={() => setError('')}><X size={16} /></button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {loading ? (
-          <div className="col-span-2 glass-card rounded-2xl p-12 text-center">
-            <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" /><p className="text-slate-400">Loading workflows...</p>
-          </div>
-        ) : (Array.isArray(workflows) ? workflows : []).length === 0 ? (
-          <div className="col-span-2 glass-card rounded-2xl p-16 text-center">
-            <GitBranch className="w-14 h-14 text-slate-600 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-slate-300">No Workflows</h2>
-            <p className="text-slate-500 mt-2 text-sm">Create your first workflow to get started.</p>
-          </div>
-        ) : (Array.isArray(workflows) ? workflows : []).map(wf => (
-          <div key={wf.id} className="glass-card rounded-2xl p-5 hover-glow transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
-                  <GitBranch size={18} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-white">{wf.name}</h3>
-                  <p className="text-xs text-slate-500">{wf.domain || 'General'} • {wf.category || 'Workflow'}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${wf.active ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
-                {wf.active ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-            {wf.description && <p className="text-xs text-slate-400 mb-4 line-clamp-2">{wf.description}</p>}
-
-            {/* Steps pipeline */}
-            {wf.steps?.length > 0 && (
-              <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-4">
-                {wf.steps.slice(0,5).map((step, i) => (
-                  <div key={i} className="flex items-center gap-1 shrink-0">
-                    <div className="text-center">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs text-teal-400 font-bold">{i+1}</div>
-                      <p className="text-[9px] text-slate-500 mt-1 max-w-[60px] truncate">{step.stepName}</p>
-                    </div>
-                    {i < wf.steps.slice(0,5).length - 1 && <ChevronRight size={12} className="text-slate-600 shrink-0" />}
-                  </div>
-                ))}
-                {wf.steps.length > 5 && <span className="text-xs text-slate-500 ml-1">+{wf.steps.length-5} more</span>}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-1 pt-4 border-t border-slate-800">
-              {user?.role === 'ADMIN' && (
-                <button onClick={() => openDeploy(wf)} className="p-1.5 text-slate-400 hover:text-purple-400 hover:bg-purple-400/10 rounded-md transition-colors" title="Deploy to orgs"><Rocket size={15} /></button>
-              )}
-              <button onClick={() => openEdit(wf)} className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Edit"><Edit2 size={15} /></button>
-              <button onClick={() => handleDelete(wf.id)} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete"><Trash2 size={15} /></button>
-            </div>
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Total', value: wfList.length, color: 'bg-[#EEF2FF] text-brand-blue' },
+          { label: 'Active', value: wfList.filter(w => w.active).length, color: 'bg-green-50 text-green-600' },
+          { label: 'Draft', value: wfList.filter(w => !w.active).length, color: 'bg-[#F0F4FC] text-[#8A97B0]' },
+          { label: 'Avg Steps', value: wfList.length ? Math.round(wfList.reduce((s, w) => s + (w.steps?.length || 0), 0) / wfList.length) : 0, color: 'bg-[#EEF2FF] text-brand-blue' },
+        ].map((s, i) => (
+          <div key={i} className="card p-5">
+            <p className={`text-2xl font-black leading-none mb-1 ${s.color.split(' ')[1]}`}>{s.value}</p>
+            <p className="text-xs font-semibold text-[#8A97B0]">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {isCreateOpen && <WfModal form={wfForm} setForm={setWfForm} onSubmit={handleCreate} onCancel={() => setIsCreateOpen(false)} title="Create Workflow" />}
-      {isEditOpen && <WfModal form={wfForm} setForm={setWfForm} onSubmit={handleEdit} onCancel={() => setIsEditOpen(false)} title="Save Changes" />}
+      {/* Workflows Grid */}
+      <div className="card">
+        <SectionHeader icon={GitBranch} title="All Workflows" />
 
-      {/* DEPLOY MODAL */}
-      {isDeployOpen && selectedWf && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <div>
-                <h2 className="text-xl font-bold text-white">Deploy Workflow</h2>
-                <p className="text-xs text-slate-500 mt-0.5">{selectedWf.name}</p>
+        {loading ? (
+          <div className="grid sm:grid-cols-2 gap-4 p-5">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="animate-pulse rounded-xl border border-[#F0F4FC] p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-[#F0F4FC] rounded-xl" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-[#F0F4FC] rounded w-32" />
+                    <div className="h-2.5 bg-[#F0F4FC] rounded w-20" />
+                  </div>
+                </div>
+                <div className="h-2.5 bg-[#F0F4FC] rounded w-full" />
+                <div className="flex gap-2">
+                  {[...Array(4)].map((_, j) => <div key={j} className="w-7 h-7 bg-[#F0F4FC] rounded-lg" />)}
+                </div>
               </div>
-              <button onClick={() => setIsDeployOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-            </div>
-            <div className="p-6">
-              {error && <div className="mb-4 p-3 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg">{error}</div>}
-              <p className="text-sm text-slate-400 mb-4">Select target organizations to deploy this workflow to:</p>
-              <form onSubmit={handleDeploy} className="space-y-4">
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {orgs.filter(o => o.id !== selectedWf.organizationId).map(org => (
-                    <label key={org.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800 cursor-pointer hover:border-teal-500/30 transition-colors">
-                      <input type="checkbox" checked={deployTargets.includes(org.id)} onChange={() => toggleTarget(org.id)} className="rounded border-slate-700 bg-slate-900 text-teal-500" />
-                      <div>
-                        <p className="text-sm text-slate-200">{org.name}</p>
-                        <p className="text-xs text-slate-500">{org.code}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                {deployTargets.length > 0 && (
-                  <p className="text-xs text-teal-400">{deployTargets.length} organization(s) selected</p>
-                )}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => setIsDeployOpen(false)} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium">Cancel</button>
-                  <button type="submit" disabled={isSubmitting || !deployTargets.length} className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-                    {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Rocket size={16} />}
-                    {isSubmitting ? 'Deploying...' : 'Deploy'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            ))}
           </div>
-        </div>
+        ) : wfList.length === 0 ? (
+          <div className="py-16 text-center">
+            <GitBranch size={32} className="text-[#DDE3F0] mx-auto mb-3" />
+            <p className="text-sm text-[#A0AECB] font-medium">No workflows yet</p>
+            <p className="text-xs text-[#C0CADF] mt-1">Create your first workflow to get started</p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-4 p-5">
+            {wfList.map(wf => (
+              <WorkflowCard
+                key={wf.id}
+                wf={wf}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                onDeploy={setDeployWf}
+                isAdmin={user?.role === 'ADMIN'}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create Modal */}
+      {isCreateOpen && (
+        <WfModal
+          mode="create"
+          form={wfForm}
+          setForm={setWfForm}
+          onSubmit={handleCreate}
+          onClose={() => setIsCreateOpen(false)}
+          isSubmitting={isSubmitting}
+          error={error}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editWf && (
+        <WfModal
+          mode="edit"
+          form={wfForm}
+          setForm={setWfForm}
+          onSubmit={handleEdit}
+          onClose={() => setEditWf(null)}
+          isSubmitting={isSubmitting}
+          error={error}
+        />
+      )}
+
+      {/* Deploy Modal */}
+      {deployWf && (
+        <DeployModal
+          workflow={deployWf}
+          orgs={orgs}
+          onClose={() => setDeployWf(null)}
+          onDeploy={handleDeploy}
+          isSubmitting={isSubmitting}
+          error={error}
+        />
       )}
     </div>
   );

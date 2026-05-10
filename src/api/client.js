@@ -18,7 +18,7 @@ const client = axios.create({
 client.interceptors.request.use(
   (config) => {
     config.headers = config.headers || {};
-    
+
     // Add Bearer token if available (from in-memory Redux store)
     const token = _store?.getState()?.auth?.user?.accessToken;
     if (token && token !== "undefined" && token !== "null") {
@@ -44,7 +44,7 @@ client.interceptors.request.use(
       config.headers['X-Requested-With'] = 'XMLHttpRequest';
 
       // Ensure Content-Type is set for state-changing requests
-      if (!config.headers['Content-Type']) {
+      if (!config.headers['Content-Type'] && !(config.data instanceof FormData)) {
         config.headers['Content-Type'] = 'application/json';
       }
     }
@@ -64,6 +64,7 @@ client.interceptors.request.use(
  */
 export const extractErrorMessage = (err) => {
   const data = err.response?.data;
+
   if (!data) return err.message || 'An error occurred';
 
   if (typeof data === 'string') return data;
@@ -86,8 +87,16 @@ export const extractErrorMessage = (err) => {
   if (data.message && data.message !== 'Validation failed') return data.message;
   if (data.error && typeof data.error === 'string' && data.error !== 'Bad Request') return data.error;
 
-  // 4. Handle generic 400
-  if (err.response?.status === 400) return 'Invalid request parameters or malformed data.';
+  // 4. Handle generic 400 with potential raw data
+  if (err.response?.status === 400) {
+    if (data && typeof data === 'object' && Object.keys(data).length > 0 && !data.message && !data.error) {
+       const details = Object.entries(data)
+         .filter(([k]) => k !== 'timestamp' && k !== 'status' && k !== 'path')
+         .map(([k, v]) => `${k}: ${v}`).join(', ');
+       if (details) return `Validation failed: ${details}`;
+    }
+    return 'Invalid request parameters or malformed data.';
+  }
 
   return data.message || data.error || 'Validation failed. Please check your input.';
 };
@@ -113,11 +122,11 @@ client.interceptors.response.use(
     const originalRequest = err.config;
 
     // skip refresh on these specific endpoints to avoid infinite loops
-    const isAuthRequest = originalRequest.url.includes('/api/auth/login') || 
-                         originalRequest.url.includes('/api/auth/refresh') ||
-                         originalRequest.url.includes('/api/auth/logout') ||
-                         originalRequest.url.includes('/api/patient/auth/');
-                         
+    const isAuthRequest = originalRequest.url.includes('/api/auth/login') ||
+      originalRequest.url.includes('/api/auth/refresh') ||
+      originalRequest.url.includes('/api/auth/logout') ||
+      originalRequest.url.includes('/api/patient/auth/');
+
     // Only skip refresh for /api/auth/me if we don't have an access token yet
     const hasToken = !!_store?.getState()?.auth?.user?.accessToken;
     const isInitialSessionCheck = originalRequest.url.includes('/api/auth/me') && !hasToken;
@@ -173,6 +182,8 @@ client.interceptors.response.use(
 
     if (status === 403) {
       _store?.dispatch(addToast({ type: 'error', message: message || 'Access Denied — you don\'t have permission.' }));
+    } else if (status === 404) {
+      _store?.dispatch(addToast({ type: 'error', message: message || 'Resource not found.' }));
     } else if (status === 400) {
       _store?.dispatch(addToast({ type: 'error', message: `Validation Error: ${message}` }));
     } else if (status >= 500) {

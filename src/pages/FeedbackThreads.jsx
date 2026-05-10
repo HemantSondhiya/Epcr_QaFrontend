@@ -1,265 +1,245 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { MessageSquare, Plus, RefreshCw, X, Send, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Plus, RefreshCw, X, Send, Trash2, ChevronDown } from 'lucide-react';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
 import {
-  fetchFeedbackThreads,
-  createFeedbackThread,
-  addFeedbackMessage,
-  updateFeedbackStatus,
-  deleteFeedbackThread,
-  selectFeedbackThreads,
-  selectFeedbackLoading
+  fetchFeedbackThreads, createFeedbackThread, addFeedbackMessage,
+  updateFeedbackStatus, deleteFeedbackThread,
+  selectFeedbackThreads, selectFeedbackLoading
 } from '../store/slices/feedbackSlice';
 
-const STATUS_STYLES = {
-  OPEN:     'bg-sky-500/10 text-sky-400 border-sky-500/20',
-  CLOSED:   'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  RESOLVED: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  PENDING:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+const STATUS_BADGE = {
+  OPEN:     'badge badge-blue',
+  CLOSED:   'badge badge-gray',
+  RESOLVED: 'badge badge-green',
+  PENDING:  'badge badge-orange',
 };
-const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
 
-const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
+const asList = d => Array.isArray(d) ? d : (d?.content || []);
 
 const FeedbackThreads = () => {
-  const dispatch = useDispatch();
-  const user = useSelector(selectUser);
+  const dispatch  = useDispatch();
+  const user      = useSelector(selectUser);
+  const threads   = useSelector(selectFeedbackThreads);
+  const loading   = useSelector(selectFeedbackLoading);
+  const records   = useSelector(selectRecords);
 
-  const threads = useSelector(selectFeedbackThreads);
-  const loading = useSelector(selectFeedbackLoading);
-  const records = useSelector(selectRecords);
-
-  const [filter, setFilter]             = useState('all');
-  const [expandedId, setExpandedId]     = useState(null);
+  const [filter, setFilter]         = useState('all');
+  const [expandedId, setExpandedId] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [msgInputs, setMsgInputs]       = useState({});
+  const [msgInputs, setMsgInputs]   = useState({});
+  const [createForm, setCreateForm] = useState({ patientCareRecordId: '', subject: '' });
 
-  const [createForm, setCreateForm] = useState({
-    patientCareRecordId: '', subject: '', organizationId: ''
-  });
+  useEffect(() => { dispatch(fetchFeedbackThreads()); dispatch(fetchRecords()); }, [dispatch]);
 
-  const fetchThreads_ = () => {
-    dispatch(fetchFeedbackThreads());
-  };
-
-  useEffect(() => {
-    fetchThreads_();
-    dispatch(fetchRecords());
-  }, [dispatch]);
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  const handleCreate = async e => {
+    e.preventDefault(); setIsSubmitting(true);
     try {
-      await dispatch(createFeedbackThread({
-        patientCareRecordId: createForm.patientCareRecordId || undefined,
-        userId: user?.userId || user?.id,
-        subject: createForm.subject,
-        messages: [],
-        status: 'OPEN'
-      })).unwrap();
-      dispatch(addToast({ type: 'success', message: 'Thread created successfully' }));
-      setIsCreateOpen(false);
-      setCreateForm({ patientCareRecordId: '', subject: '', organizationId: '' });
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to create thread.' }));
-    } finally { setIsSubmitting(false); }
+      await dispatch(createFeedbackThread({ patientCareRecordId: createForm.patientCareRecordId || undefined, userId: user?.userId || user?.id, subject: createForm.subject, messages: [], status: 'OPEN' })).unwrap();
+      dispatch(addToast({ type: 'success', message: 'Thread created' }));
+      setIsCreateOpen(false); setCreateForm({ patientCareRecordId: '', subject: '' });
+    } catch { dispatch(addToast({ type: 'error', message: 'Failed to create thread.' })); }
+    finally { setIsSubmitting(false); }
   };
 
-  const handleAddMessage = async (threadId) => {
+  const sendMessage = async threadId => {
     const msg = msgInputs[threadId]?.trim();
     if (!msg) return;
     try {
       await dispatch(addFeedbackMessage({ threadId, message: msg })).unwrap();
-      setMsgInputs(prev => ({ ...prev, [threadId]: '' }));
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to send message.' }));
-    }
+      setMsgInputs(p => ({ ...p, [threadId]: '' }));
+    } catch { dispatch(addToast({ type: 'error', message: 'Failed to send message.' })); }
   };
 
   const updateStatus = async (threadId, status) => {
-    try {
-      await dispatch(updateFeedbackStatus({ threadId, status })).unwrap();
-      dispatch(addToast({ type: 'success', message: `Status updated to ${status}` }));
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to update status.' }));
-    }
+    try { await dispatch(updateFeedbackStatus({ threadId, status })).unwrap(); }
+    catch { dispatch(addToast({ type: 'error', message: 'Failed to update status.' })); }
   };
 
-  const deleteThread = async (threadId) => {
-    if (!window.confirm('Delete this feedback thread?')) return;
-    try {
-      await dispatch(deleteFeedbackThread(threadId)).unwrap();
-      if (expandedId === threadId) setExpandedId(null);
-      dispatch(addToast({ type: 'success', message: 'Thread deleted.' }));
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to delete thread.' }));
-    }
+  const deleteThread = async id => {
+    if (!window.confirm('Delete this thread?')) return;
+    try { await dispatch(deleteFeedbackThread(id)).unwrap(); if (expandedId === id) setExpandedId(null); }
+    catch { dispatch(addToast({ type: 'error', message: 'Failed to delete.' })); }
   };
+
+  const list = asList(threads).filter(t => {
+    if (filter === 'open') return t.status === 'OPEN';
+    if (filter === 'mine') return t.userId === (user?.userId || user?.id);
+    return true;
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-10 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Feedback Threads</h1>
-          <p className="text-slate-400 text-sm mt-1">Threaded discussions linked to EPCR records.</p>
+          <p className="section-label mb-1">Communication</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">Feedback <span className="text-brand-blue">Threads</span></h1>
+          <p className="text-sm text-[#8A97B0] mt-0.5">Peer-to-peer clinical communication channels</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={fetchThreads_} disabled={loading} className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          <button onClick={() => dispatch(fetchFeedbackThreads())} disabled={loading}
+            className="btn-ghost border border-[#DDE3F0] px-3 py-2.5 rounded-xl">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-            <Plus size={18} /><span>New Thread</span>
+          <button onClick={() => setIsCreateOpen(true)} className="btn-primary text-sm px-4 py-2.5">
+            <Plus size={16} /> New Thread
           </button>
         </div>
       </div>
 
-      <div className="flex gap-2">
-        {['all', 'open', 'mine'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 text-sm rounded-lg border capitalize transition-colors ${filter === f ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/50'}`}>
-            {f === 'mine' ? 'My Threads' : f}
+      {/* Filter Tabs */}
+      <div className="flex gap-1 p-1 bg-[#F0F4FC] rounded-xl w-fit">
+        {[{ id:'all', label:'All Threads' }, { id:'open', label:'Open' }, { id:'mine', label:'My Threads' }].map(f => (
+          <button key={f.id} onClick={() => setFilter(f.id)}
+            className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${filter === f.id ? 'bg-white text-brand-blue shadow-sm' : 'text-[#8A97B0] hover:text-[#4B5A7A]'}`}>
+            {f.label}
           </button>
         ))}
       </div>
 
-      <div className="space-y-4">
-        {loading ? (
-          <div className="glass-card rounded-2xl p-12 text-center">
-            <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" />
-            <p className="text-slate-400">Loading threads...</p>
-          </div>
-        ) : (Array.isArray(threads) ? threads : []).length === 0 ? (
-          <div className="glass-card rounded-2xl p-16 text-center">
-            <MessageSquare className="w-14 h-14 text-slate-600 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-slate-300">No threads yet</h2>
-            <p className="text-slate-500 mt-2 text-sm">Start a discussion by creating a new thread.</p>
-          </div>
-        ) : (Array.isArray(threads) ? threads : []).map(thread => {
-          const isExpanded = expandedId === thread.id;
-          const statusStyle = STATUS_STYLES[thread.status?.toUpperCase()] || STATUS_STYLES.OPEN;
-          return (
-            <div key={thread.id} className="glass-card rounded-2xl overflow-hidden hover-glow transition-all">
-              <div className="p-5 flex items-start justify-between gap-4 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : thread.id)}>
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 shrink-0">
-                    <MessageSquare size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-semibold text-white">{thread.subject || 'Untitled Thread'}</h3>
-                      <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${statusStyle}`}>
-                        {thread.status || 'OPEN'}
-                      </span>
+      {/* Threads */}
+      {loading && list.length === 0 ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-[#F0F4FC] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : list.length === 0 ? (
+        <div className="card p-16 text-center">
+          <MessageSquare size={40} className="text-[#DDE3F0] mx-auto mb-4" />
+          <h3 className="font-black text-[#0F1A3A] text-lg mb-1">No Threads</h3>
+          <p className="text-sm text-[#A0AECB]">No feedback threads found. Start a new discussion.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {list.map(thread => {
+            const isExpanded = expandedId === thread.id;
+            return (
+              <div key={thread.id} className={`card overflow-hidden border-l-4 transition-all ${isExpanded ? 'border-l-brand-blue' : 'border-l-[#DDE3F0]'}`}>
+                {/* Thread Header */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-5 cursor-pointer"
+                  onClick={() => setExpandedId(isExpanded ? null : thread.id)}>
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${isExpanded ? 'bg-brand-blue text-white' : 'bg-[#EEF2FF] text-brand-blue'}`}>
+                      <MessageSquare size={18} />
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {thread.messages?.length || 0} message{thread.messages?.length !== 1 ? 's' : ''} •{' '}
-                      {thread.createdAt ? new Date(thread.createdAt).toLocaleDateString() : ''}
-                    </p>
-                    {thread.patientCareRecordId && (
-                      <p className="text-xs text-slate-600 mt-0.5">Record: {thread.patientCareRecordId.substring(0, 20)}...</p>
-                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <h3 className={`font-bold text-sm ${isExpanded ? 'text-brand-blue' : 'text-[#0F1A3A]'}`}>{thread.subject || 'Untitled Thread'}</h3>
+                        <span className={STATUS_BADGE[thread.status?.toUpperCase()] || 'badge badge-gray'}>{thread.status || 'OPEN'}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-[#A0AECB]">
+                        <span>{thread.messages?.length || 0} messages</span>
+                        <span>·</span>
+                        <span>{thread.createdAt ? new Date(thread.createdAt).toLocaleDateString() : '—'}</span>
+                        {thread.patientCareRecordId && <span className="badge badge-blue">Record linked</span>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex gap-1">
-                    {['OPEN','RESOLVED','CLOSED'].map(s => (
-                      <button key={s} onClick={e => { e.stopPropagation(); updateStatus(thread.id, s); }}
-                        className={`px-2 py-1 text-[10px] rounded border transition-colors ${thread.status === s ? statusStyle : 'bg-slate-800/50 text-slate-500 border-slate-700/50 hover:bg-slate-700/50'}`}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                  <button onClick={e => { e.stopPropagation(); deleteThread(thread.id); }}
-                    className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors">
-                    <Trash2 size={15} />
-                  </button>
-                  {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="border-t border-slate-800">
-                  <div className="p-5 space-y-3 max-h-96 overflow-y-auto">
-                    {(!thread.messages || thread.messages.length === 0) ? (
-                      <p className="text-slate-500 text-sm text-center py-4">No messages yet. Start the conversation.</p>
-                    ) : thread.messages.map((msg, i) => {
-                      const isMe = msg.senderId === (user?.userId || user?.id);
-                      return (
-                        <div key={msg.messageId || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[75%] rounded-xl px-4 py-2.5 ${isMe ? 'bg-teal-500/10 border border-teal-500/20' : 'bg-slate-800/70 border border-slate-700/30'}`}>
-                            <p className={`text-xs font-medium mb-1 ${isMe ? 'text-teal-400' : 'text-slate-400'}`}>
-                              {msg.senderName || (isMe ? 'You' : 'Unknown')}
-                            </p>
-                            <p className="text-sm text-slate-200">{msg.message}</p>
-                            <p className="text-[10px] text-slate-600 mt-1">
-                              {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="p-4 border-t border-slate-800 flex gap-3">
-                    <input
-                      type="text"
-                      value={msgInputs[thread.id] || ''}
-                      onChange={e => setMsgInputs(prev => ({ ...prev, [thread.id]: e.target.value }))}
-                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAddMessage(thread.id)}
-                      placeholder="Type a message... (Enter to send)"
-                      className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none"
-                    />
-                    <button onClick={() => handleAddMessage(thread.id)}
-                      className="p-2.5 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg transition-colors shrink-0">
-                      <Send size={16} />
+                  <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-1 p-1 bg-[#F0F4FC] rounded-lg">
+                      {['OPEN','RESOLVED','CLOSED'].map(s => (
+                        <button key={s} onClick={() => updateStatus(thread.id, s)}
+                          className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${thread.status === s ? 'bg-white text-brand-blue shadow-sm' : 'text-[#8A97B0] hover:text-[#4B5A7A]'}`}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => deleteThread(thread.id)}
+                      className="p-2 rounded-lg text-[#A0AECB] hover:bg-red-50 hover:text-brand-red transition-all">
+                      <Trash2 size={15} />
                     </button>
+                    <ChevronDown size={16} className={`text-[#A0AECB] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
 
+                {/* Expanded Messages */}
+                {isExpanded && (
+                  <div className="border-t border-[#F0F4FC]">
+                    <div className="p-5 space-y-3 max-h-[400px] overflow-y-auto bg-[#F8FAFF]">
+                      {(!thread.messages || thread.messages.length === 0) ? (
+                        <p className="text-center text-sm text-[#A0AECB] py-8">No messages yet. Start the conversation.</p>
+                      ) : thread.messages.map((msg, i) => {
+                        const isMe = msg.senderId === (user?.userId || user?.id);
+                        return (
+                          <div key={msg.messageId || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMe ? 'bg-brand-blue text-white' : 'bg-white border border-[#DDE3F0] text-[#0F1A3A]'}`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-xs font-bold ${isMe ? 'text-blue-100' : 'text-brand-blue'}`}>
+                                  {msg.senderName || (isMe ? 'You' : 'User')}
+                                </span>
+                                <span className={`text-xs ${isMe ? 'text-blue-100/60' : 'text-[#A0AECB]'}`}>
+                                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : ''}
+                                </span>
+                              </div>
+                              <p className="text-sm">{msg.message}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="p-4 border-t border-[#F0F4FC] flex gap-3">
+                      <input
+                        value={msgInputs[thread.id] || ''}
+                        onChange={e => setMsgInputs(p => ({ ...p, [thread.id]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage(thread.id)}
+                        placeholder="Type a message… (Enter to send)"
+                        className="input py-2.5 text-sm flex-1"
+                      />
+                      <button onClick={() => sendMessage(thread.id)}
+                        className="w-10 h-10 bg-brand-blue text-white rounded-xl flex items-center justify-center hover:bg-brand-blue-dark transition-all shrink-0">
+                        <Send size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h2 className="text-xl font-bold text-white">New Feedback Thread</h2>
-              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-[#DDE3F0]">
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
+                  <MessageSquare size={20} />
+                </div>
+                <h2 className="font-black text-[#0F1A3A] text-lg">New Thread</h2>
+              </div>
+              <button onClick={() => setIsCreateOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-6">
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Subject *</label>
-                  <input value={createForm.subject} onChange={e => setCreateForm({ ...createForm, subject: e.target.value })}
-                    required className={inputCls} placeholder="Describe the issue..." />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Linked EPCR Record (optional)</label>
-                  <select value={createForm.patientCareRecordId}
-                    onChange={e => setCreateForm({ ...createForm, patientCareRecordId: e.target.value })}
-                    className={inputCls + ' appearance-none'}>
-                    <option value="">No record linked</option>
-                    {records.map(r => <option key={r.id} value={r.id}>{r.patientName || r.id}</option>)}
-                  </select>
-                </div>
-                <div className="pt-4 flex justify-end gap-3">
-                  <button type="button" onClick={() => setIsCreateOpen(false)}
-                    className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium transition-colors">Cancel</button>
-                  <button type="submit" disabled={isSubmitting}
-                    className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2">
-                    {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Plus size={16} />}
-                    {isSubmitting ? 'Creating...' : 'Create Thread'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Subject *</label>
+                <input required value={createForm.subject} onChange={e => setCreateForm({ ...createForm, subject: e.target.value })}
+                  placeholder="e.g. Protocol clarification for case #XYZ" className="input py-2.5 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Link to Record (optional)</label>
+                <select value={createForm.patientCareRecordId} onChange={e => setCreateForm({ ...createForm, patientCareRecordId: e.target.value })} className="input py-2.5 text-sm">
+                  <option value="">No record linked</option>
+                  {records.map(r => <option key={r.id} value={r.id}>{r.patientName || 'Anonymous'} — #{r.id?.substring(0,8).toUpperCase()}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsCreateOpen(false)}
+                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="btn-primary flex-1 justify-center py-2.5 text-sm">
+                  {isSubmitting ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
+                  {isSubmitting ? 'Creating…' : 'Create Thread'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -28,6 +28,11 @@ export default defineConfig({
         // Rewrite Set-Cookie domain so browser stores cookies under localhost:5173
         cookieDomainRewrite: { '*': '' },
       },
+      '/files': {
+        target: 'http://localhost:9091',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

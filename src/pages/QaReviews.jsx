@@ -1,302 +1,232 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, RefreshCw, X, Eye, CheckCircle, Trash2, ClipboardList, Star } from 'lucide-react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  Plus, Search, RefreshCw, X, Eye, CheckCircle2,
+  FileText, User, Star, ClipboardList, AlertCircle,
+  Layers, Target, Save, Shield, Filter
+} from 'lucide-react';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { fetchFormTemplates } from '../store/slices/formTemplateSlice';
 import {
-  fetchQaReviews,
-  fetchPendingReviews,
-  createQaReview,
-  completeQaReview,
-  fetchQaForms,
-  selectReviews,
-  selectPendingReviews,
-  selectForms,
-  selectReviewsLoading
+  fetchQaReviews, fetchPendingReviews, createQaReview, completeQaReview,
+  selectReviews, selectPendingReviews, selectReviewsLoading
 } from '../store/slices/qaSlice';
 import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
+import DynamicFormRenderer from '../components/forms/DynamicFormRenderer';
 
-const STATUS_STYLES = {
-  PENDING:      'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  QA_PENDING:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  IN_PROGRESS:  'bg-sky-500/10 text-sky-400 border-sky-500/20',
-  COMPLETED:    'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  QA_COMPLETED: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  APPROVED:     'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  REJECTED:     'bg-rose-500/10 text-rose-400 border-rose-500/20',
+const STATUS_BADGE = {
+  PENDING:      'badge badge-orange',
+  QA_PENDING:   'badge badge-orange',
+  IN_PROGRESS:  'badge badge-blue',
+  COMPLETED:    'badge badge-green',
+  QA_COMPLETED: 'badge badge-green',
+  APPROVED:     'badge badge-green',
+  REJECTED:     'badge badge-red',
 };
 
 const StatusBadge = ({ status }) => (
-  <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${STATUS_STYLES[status] || STATUS_STYLES.PENDING}`}>
+  <span className={STATUS_BADGE[status] || 'badge badge-gray'}>
     {(status || 'PENDING').replace(/_/g, ' ')}
   </span>
 );
 
-const inputCls = 'w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 outline-none';
-
-const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
-
 const QaReviews = () => {
   const dispatch = useDispatch();
-  const user = useSelector(selectUser);
+  const user     = useSelector(selectUser);
+  const reviews  = useSelector(selectReviews);
+  const loading  = useSelector(selectReviewsLoading);
+  const records  = useSelector(selectRecords);
+  const { templates: qaTemplates } = useSelector(state => state.formTemplate);
 
-  const reviews        = useSelector(selectReviews);
-  const pendingReviews = useSelector(selectPendingReviews);
-  const loading        = useSelector(selectReviewsLoading);
-  const records        = useSelector(selectRecords);
-  const forms          = useSelector(selectForms);
-
-  const [searchTerm, setSearchTerm]     = useState('');
-  const [filterStatus, setFilterStatus] = useState(['ADMIN', 'MANAGER'].includes(user?.role) ? 'all' : 'mine');
-  const [error, setError]               = useState('');
-
-  // Modals
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState(['ADMIN','MANAGER'].includes(user?.role) ? 'all' : 'mine');
   const [isCreateOpen, setIsCreateOpen]   = useState(false);
   const [isViewOpen, setIsViewOpen]       = useState(false);
   const [isCompleteOpen, setIsCompleteOpen] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
   const [isSubmitting, setIsSubmitting]   = useState(false);
-
-  // Create form
-  const [createForm, setCreateForm] = useState({ patientCareRecordId: '', qaFormId: '', feedback: '' });
-
-  // Complete review form
-  const [completeForm, setCompleteForm] = useState({ score: '', passed: true, feedback: '', responses: [] });
-
-  // ── Fetch ──────────────────────────────────────────────────────────
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  const [createForm, setCreateForm] = useState({ patientCareRecordId:'', templateId:'', feedback:'' });
+  const [completeForm, setCompleteForm] = useState({ score:'', passed:true, feedback:'', responses:{} });
 
   const fetchReviews_ = () => {
-    if (filterStatus === 'pending') {
-      dispatch(fetchPendingReviews());
-    } else {
-      dispatch(fetchQaReviews());
-    }
+    if (filterStatus === 'pending') dispatch(fetchPendingReviews());
+    else dispatch(fetchQaReviews());
   };
 
   useEffect(() => {
     fetchReviews_();
     dispatch(fetchRecords());
-    dispatch(fetchQaForms(user?.organizationId));
+    dispatch(fetchFormTemplates({ orgId:user?.organizationId, templateType:'QA_FORM' }));
   }, [filterStatus, user, dispatch]);
 
-  // ── Create Review ──────────────────────────────────────────────────
   const handleCreate = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError('');
+    e.preventDefault(); setIsSubmitting(true);
     try {
-      await dispatch(createQaReview({
-        patientCareRecordId: createForm.patientCareRecordId,
-        qaFormId: createForm.qaFormId || undefined,
-        reviewerId: user?.userId || user?.id,
-        feedback: createForm.feedback,
-        responses: []
-      })).unwrap();
+      await dispatch(createQaReview({ patientCareRecordId:createForm.patientCareRecordId, qaFormId:createForm.templateId, reviewerId:user?.id, feedback:createForm.feedback, responses:{} })).unwrap();
       setIsCreateOpen(false);
-      setCreateForm({ patientCareRecordId: '', qaFormId: '', feedback: '' });
-      dispatch(addToast({ type: 'success', message: 'QA review created successfully' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to create review.' }));
-    } finally {
-      setIsSubmitting(false);
-    }
+      setCreateForm({ patientCareRecordId:'', templateId:'', feedback:'' });
+      dispatch(addToast({ type:'success', message:'QA Review initiated' }));
+      fetchReviews_();
+    } catch (err) { dispatch(addToast({ type:'error', message:err || 'Failed to create review' })); }
+    finally { setIsSubmitting(false); }
   };
 
-  // ── View Review ────────────────────────────────────────────────────
-  const handleView = async (reviewId) => {
-    try {
-      const res = await client.get(`/api/qa/reviews/${reviewId}`);
-      setSelectedReview(res.data);
-      setIsViewOpen(true);
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to load review details.' }));
-    }
-  };
-
-  // ── Complete Review ────────────────────────────────────────────────
   const openComplete = (review) => {
     setSelectedReview(review);
-    setCompleteForm({ score: review.score ?? '', passed: review.passed ?? true, feedback: review.feedback || '', responses: review.responses || [] });
+    setCompleteForm({ score:review.score||'', passed:review.passed??true, feedback:review.feedback||'', responses:review.responses||{} });
     setIsCompleteOpen(true);
   };
 
   const handleComplete = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError('');
+    e.preventDefault(); setIsSubmitting(true);
     try {
-      await dispatch(completeQaReview({
-        id: selectedReview.id,
-        data: {
-          ...selectedReview,
-          reviewerId: user?.userId || user?.id,
-          score: parseFloat(completeForm.score) || 0,
-          passed: completeForm.passed,
-          feedback: completeForm.feedback,
-          comments: completeForm.feedback,
-          status: 'COMPLETED'
-        }
-      })).unwrap();
+      await dispatch(completeQaReview({ id:selectedReview.id, data:{ ...completeForm, status:'COMPLETED' } })).unwrap();
       setIsCompleteOpen(false);
-      dispatch(addToast({ type: 'success', message: 'QA review completed successfully' }));
-    } catch (err) {
-      dispatch(addToast({ type: 'error', message: err || 'Failed to complete review.' }));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // ── Delete Review ──────────────────────────────────────────────────
-  const handleDelete = async (reviewId) => {
-    if (!window.confirm('Delete this QA review? This cannot be undone.')) return;
-    try {
-      // Note: We need a delete thunk in qaSlice if we want to follow the pattern fully.
-      // For now I'll just use client directly OR add it to qaSlice.
-      // I'll add it to qaSlice in a moment if needed, but let's assume it exists or use client.
-      await client.delete(`/api/qa/reviews/${reviewId}`);
-      dispatch(addToast({ type: 'success', message: 'QA review deleted.' }));
+      dispatch(addToast({ type:'success', message:'QA Review completed' }));
       fetchReviews_();
-    } catch {
-      dispatch(addToast({ type: 'error', message: 'Failed to delete review.' }));
-    }
+    } catch (err) { dispatch(addToast({ type:'error', message:err || 'Failed' })); }
+    finally { setIsSubmitting(false); }
   };
 
-  const getRecordLabel = (id) => {
-    if (!id) return '—';
-    const rec = records.find(r => r.id === id);
-    return rec?.patientName || id.substring(0, 8) + '...';
+  const openView = async (review) => {
+    setSelectedReview(review);
+    try {
+      const res = await client.get(`/api/epcr/records/${review.patientCareRecordId}`);
+      setSelectedRecord(res.data); setIsViewOpen(true);
+    } catch { dispatch(addToast({ type:'error', message:'Failed to load record' })); }
   };
-  
-  // ── Filter ─────────────────────────────────────────────────────────
-  const filtered = reviews.filter(r => {
-    const rId = r.recordDisplay || r.recordId || r.patientCareRecordId || '';
-    const rReviewer = r.reviewerName || r.reviewerId || '';
-    const matchSearch = r.id?.toLowerCase().includes(searchTerm.toLowerCase())
-      || rId.toLowerCase().includes(searchTerm.toLowerCase())
-      || rReviewer.toLowerCase().includes(searchTerm.toLowerCase())
-      || r.status?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchSearch;
-  });
 
-  const FILTER_TABS = ['all', 'pending', 'mine'];
+  const filtered = (reviews || []).filter(r =>
+    r.patientCareRecordId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.feedback?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const inputCls = 'input py-2.5 text-sm';
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 pb-10 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">QA Reviews</h1>
-          <p className="text-slate-400 text-sm mt-1">Quality assurance checks on EPCR records.</p>
+          <p className="section-label mb-1">Quality Assurance</p>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">QA <span className="text-brand-blue">Reviews</span></h1>
+          <p className="text-sm text-[#8A97B0] mt-0.5">Clinical oversight and validation matrix</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => fetchReviews_()} disabled={loading}
-            className="p-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg transition-colors border border-slate-700/50">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex gap-3">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+            className="input py-2.5 text-sm pr-4 min-w-[160px]">
+            <option value="mine">Assigned to Me</option>
+            <option value="all">All Reviews</option>
+            <option value="pending">Pending</option>
+          </select>
+          <button onClick={fetchReviews_} disabled={loading}
+            className="btn-ghost border border-[#DDE3F0] px-3 py-2.5 rounded-xl">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition-colors shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-            <Plus size={18} /><span>New Review</span>
+          <button onClick={() => setIsCreateOpen(true)} className="btn-primary text-sm px-4 py-2.5">
+            <Plus size={16} /> New Review
           </button>
         </div>
       </div>
 
-      {error && !isCreateOpen && !isCompleteOpen && (
-        <div className="p-4 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg flex justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError('')}><X size={16} /></button>
-        </div>
-      )}
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label:'Total Reviews', value:reviews?.length||0, icon:ClipboardList, red:false },
+          { label:'Pending', value:reviews?.filter(r=>['PENDING','QA_PENDING'].includes(r.status)).length||0, icon:AlertCircle, red:true },
+          { label:'Completed', value:reviews?.filter(r=>r.status==='COMPLETED').length||0, icon:CheckCircle2, red:false },
+          { label:'Templates', value:qaTemplates?.length||0, icon:Layers, red:false },
+        ].map(({ label, value, icon: Icon, red }) => (
+          <div key={label} className="stat-card">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${red ? 'bg-red-50 text-brand-red' : 'bg-[#EEF2FF] text-brand-blue'}`}>
+              <Icon size={18} />
+            </div>
+            <p className={`text-3xl font-black ${red ? 'text-brand-red' : 'text-brand-blue'}`}>{value}</p>
+            <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
 
       {/* Table */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input type="text" placeholder="Search reviews..." value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500/50 transition-all" />
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-3 p-5 border-b border-[#F0F4FC]">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search reviews…" className="input pl-10 py-2.5 text-sm" />
           </div>
-          <div className="flex gap-2">
-            {FILTER_TABS.map(tab => (
-              <button key={tab} onClick={() => setFilterStatus(tab)}
-                className={`px-3 py-1.5 text-xs rounded-lg border capitalize transition-colors ${filterStatus === tab ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/50'}`}>
-                {tab === 'mine' ? 'My Reviews' : tab}
-              </button>
-            ))}
-          </div>
+          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">{filtered.length} reviews</span>
         </div>
 
-        <div className="overflow-x-auto min-h-[300px]">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto">
+          <table className="data-table">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <th className="px-6 py-4 font-medium">Review</th>
-                <th className="px-6 py-4 font-medium">Patient / Record</th>
-                <th className="px-6 py-4 font-medium">Reviewer</th>
-                <th className="px-6 py-4 font-medium">Score</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Created</th>
-                <th className="px-6 py-4 text-right font-medium">Actions</th>
+              <tr>
+                <th>Record</th>
+                <th>Reviewer</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
+            <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400">
-                  <RefreshCw className="animate-spin w-6 h-6 mx-auto mb-2 text-teal-500" />Loading reviews...
-                </td></tr>
+                [...Array(4)].map((_, i) => (
+                  <tr key={i}><td colSpan="5" className="py-3 px-5">
+                    <div className="h-10 bg-[#F0F4FC] rounded-xl animate-pulse" />
+                  </td></tr>
+                ))
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400">
-                  <ClipboardList className="w-10 h-10 mx-auto mb-3 text-slate-600" />
-                  <p>No QA reviews found.</p>
+                <tr><td colSpan="5" className="py-16 text-center">
+                  <ClipboardList size={36} className="text-[#DDE3F0] mx-auto mb-3" />
+                  <p className="text-sm text-[#A0AECB] font-medium">No reviews found</p>
                 </td></tr>
               ) : filtered.map(review => (
-                <tr key={review.id} className="hover:bg-slate-800/30 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-slate-200">Review {review.id?.substring(0, 8)}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-300 font-medium">{review.patientName || getRecordLabel(review.recordId || review.patientCareRecordId)}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">{(review.recordId || review.patientCareRecordId || '—')?.substring(0, 16)}...</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-slate-200">{review.reviewerName || review.reviewerId?.substring(0, 10) || '—'}</span>
-                      {review.reviewerEmail && <span className="text-xs text-slate-500">{review.reviewerEmail}</span>}
+                <tr key={review.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue shrink-0">
+                        <FileText size={16} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#0F1A3A]">#{review.patientCareRecordId?.substring(0,8).toUpperCase()}</p>
+                        <p className="text-xs text-[#A0AECB] font-mono">ID: {review.id?.substring(0,8)}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {(review.scoreDisplay && review.scoreDisplay !== '—') || review.score != null ? (
-                      <div className="flex items-center gap-1.5">
-                        <Star size={14} className={review.score >= 80 ? 'text-teal-400' : review.score >= 50 ? 'text-amber-400' : 'text-rose-400'} />
-                        <span className={`text-sm font-semibold ${review.score >= 80 ? 'text-teal-400' : review.score >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
-                          {review.scoreDisplay && review.scoreDisplay !== '—' ? review.scoreDisplay : `${review.score}%`}
-                        </span>
+                  <td>
+                    <div className="flex items-center gap-2 text-sm text-[#4B5A7A]">
+                      <User size={13} className="text-[#A0AECB]" />
+                      {review.reviewerId === user?.id ? 'You' : (review.reviewerName || 'Unassigned')}
+                    </div>
+                  </td>
+                  <td><StatusBadge status={review.status} /></td>
+                  <td>
+                    {review.score !== null && review.score !== undefined ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-2 bg-[#F0F4FC] rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${review.score >= 80 ? 'bg-emerald-500' : review.score >= 60 ? 'bg-amber-500' : 'bg-brand-red'}`}
+                            style={{ width:`${review.score}%` }} />
+                        </div>
+                        <span className="text-sm font-bold text-[#0F1A3A]">{review.score}%</span>
                       </div>
-                    ) : <span className="text-slate-500">—</span>}
+                    ) : <span className="text-xs text-[#A0AECB]">Pending</span>}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={review.status} /></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                    {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : '—'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleView(review.id)}
-                        className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors" title="View">
-                        <Eye size={16} />
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => openView(review)}
+                        className="p-2 rounded-lg bg-[#F0F4FC] text-brand-blue hover:bg-brand-blue hover:text-white transition-all">
+                        <Eye size={15} />
                       </button>
-                      {(review.status === 'PENDING' || review.status === 'QA_PENDING' || review.status === 'IN_PROGRESS') && (
+                      {['PENDING','QA_PENDING','IN_PROGRESS'].includes(review.status) && (
                         <button onClick={() => openComplete(review)}
-                          className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors" title="Complete Review">
-                          <CheckCircle size={16} />
+                          className="p-2 rounded-lg bg-[#F0FDF4] text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all">
+                          <CheckCircle2 size={15} />
                         </button>
                       )}
-                      <button onClick={() => handleDelete(review.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors" title="Delete">
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -304,196 +234,204 @@ const QaReviews = () => {
             </tbody>
           </table>
         </div>
-        <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center text-sm text-slate-400">
-          <span>Showing {filtered.length} of {reviews.length} reviews</span>
-          {hasMore && (
-            <button 
-              onClick={() => fetchReviews(page + 1, true)}
-              disabled={loading}
-              className="px-4 py-1.5 text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-500/20 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
-            >
-              Load More
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* ── CREATE MODAL ── */}
+      {/* Create Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h2 className="text-xl font-bold text-white">Create QA Review</h2>
-              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-[#DDE3F0] my-4">
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
+                  <Target size={20} />
+                </div>
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-lg">Initiate QA Review</h2>
+                  <p className="text-xs text-[#8A97B0]">Select record and template</p>
+                </div>
+              </div>
+              <button onClick={() => setIsCreateOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-6">
-              {error && <div className="mb-4 p-3 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg">{error}</div>}
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">EPCR Record *</label>
-                  <select name="patientCareRecordId" value={createForm.patientCareRecordId}
-                    onChange={e => setCreateForm({ ...createForm, patientCareRecordId: e.target.value })}
-                    required className={inputCls + ' appearance-none'}>
-                    <option value="" disabled>Select record to review</option>
-                    {records.map(r => (
-                      <option key={r.id} value={r.id}>{r.patientName || r.id} — {r.status || 'DRAFT'}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">QA Form (optional)</label>
-                  <select name="qaFormId" value={createForm.qaFormId}
-                    onChange={e => setCreateForm({ ...createForm, qaFormId: e.target.value })}
-                    className={inputCls + ' appearance-none'}>
-                    <option value="">No form / manual review</option>
-                    {forms.map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Initial Feedback</label>
-                  <textarea value={createForm.feedback}
-                    onChange={e => setCreateForm({ ...createForm, feedback: e.target.value })}
-                    rows="3" className={inputCls + ' resize-none'} placeholder="Initial review notes..." />
-                </div>
-                <div className="pt-4 flex justify-end gap-3">
-                  <button type="button" onClick={() => setIsCreateOpen(false)}
-                    className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium transition-colors">Cancel</button>
-                  <button type="submit" disabled={isSubmitting}
-                    className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2">
-                    {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Plus size={16} />}
-                    {isSubmitting ? 'Creating...' : 'Create Review'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">EPCR Record</label>
+                <select required value={createForm.patientCareRecordId}
+                  onChange={e => setCreateForm({ ...createForm, patientCareRecordId:e.target.value })}
+                  className={inputCls}>
+                  <option value="">Select Record</option>
+                  {records.map(r => <option key={r.id} value={r.id}>#{r.id?.substring(0,8).toUpperCase()} — {r.diagnosis || 'Unknown'}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">QA Template</label>
+                <select required value={createForm.templateId}
+                  onChange={e => setCreateForm({ ...createForm, templateId:e.target.value })}
+                  className={inputCls}>
+                  <option value="">Select Template</option>
+                  {qaTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Initial Notes</label>
+                <textarea rows={3} value={createForm.feedback}
+                  onChange={e => setCreateForm({ ...createForm, feedback:e.target.value })}
+                  placeholder="Enter initial review notes…" className="input py-2.5 text-sm resize-none" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsCreateOpen(false)}
+                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="btn-primary flex-1 justify-center py-2.5 text-sm">
+                  {isSubmitting ? <RefreshCw size={15} className="animate-spin" /> : <Target size={15} />}
+                  {isSubmitting ? 'Creating…' : 'Create Review'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* ── COMPLETE REVIEW MODAL ── */}
-      {isCompleteOpen && selectedReview && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <div>
-                <h2 className="text-xl font-bold text-white">Complete Review</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Patient: {selectedReview.patientName || getRecordLabel(selectedReview.recordId || selectedReview.patientCareRecordId)}</p>
+      {/* Complete Modal */}
+      {isCompleteOpen && (
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-[#DDE3F0] my-4">
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-lg">Complete Review</h2>
+                  <p className="text-xs text-[#8A97B0]">Record: #{selectedReview?.id?.substring(0,8)}</p>
+                </div>
               </div>
-              <button onClick={() => setIsCompleteOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
+              <button onClick={() => setIsCompleteOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-6">
-              {error && <div className="mb-4 p-3 bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20 rounded-lg">{error}</div>}
-              <form onSubmit={handleComplete} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Score (0–100)</label>
-                    <input type="number" min="0" max="100" value={completeForm.score}
-                      onChange={e => setCompleteForm({ ...completeForm, score: e.target.value })}
-                      className={inputCls} placeholder="e.g. 85" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-300">Result</label>
-                    <select value={completeForm.passed}
-                      onChange={e => setCompleteForm({ ...completeForm, passed: e.target.value === 'true' })}
-                      className={inputCls + ' appearance-none'}>
-                      <option value="true">Passed ✓</option>
-                      <option value="false">Failed ✗</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Feedback / Comments *</label>
-                  <textarea value={completeForm.feedback}
-                    onChange={e => setCompleteForm({ ...completeForm, feedback: e.target.value })}
-                    rows="4" required className={inputCls + ' resize-none'} placeholder="Provide detailed review feedback..." />
-                </div>
-                <div className="pt-4 flex justify-end gap-3">
-                  <button type="button" onClick={() => setIsCompleteOpen(false)}
-                    className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm font-medium transition-colors">Cancel</button>
-                  <button type="submit" disabled={isSubmitting}
-                    className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-900 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2">
-                    {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                    {isSubmitting ? 'Saving...' : 'Complete Review'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── VIEW MODAL ── */}
-      {isViewOpen && selectedReview && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-main)] border border-slate-700/50 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 sticky top-0">
-              <h2 className="text-xl font-bold text-white">Review Details</h2>
-              <div className="flex items-center gap-2">
-                {(selectedReview.status === 'PENDING' || selectedReview.status === 'QA_PENDING' || selectedReview.status === 'IN_PROGRESS') && (
-                  <button onClick={() => { setIsViewOpen(false); openComplete(selectedReview); }}
-                    className="px-3 py-1.5 text-sm bg-teal-500 text-slate-900 rounded-lg hover:bg-teal-400 transition-colors flex items-center gap-1.5 font-medium">
-                    <CheckCircle size={14} />Complete
-                  </button>
-                )}
-                <button onClick={() => setIsViewOpen(false)} className="text-slate-400 hover:text-slate-200"><X size={20} /></button>
-              </div>
-            </div>
-            <div className="p-6 space-y-5">
+            <form onSubmit={handleComplete} className="p-6 space-y-5">
               <div className="grid grid-cols-2 gap-4">
-                {[
-                  ['Review ID', selectedReview.id?.substring(0, 16) + '...'],
-                  ['Record ID', (selectedReview.recordId || selectedReview.patientCareRecordId || '—')?.substring(0, 16) + '...'],
-                  ['QA Form ID', selectedReview.qaFormId?.substring(0, 16) + '...' || '—'],
-                  ['Reviewer', selectedReview.reviewerId?.substring(0, 16) + '...' || '—'],
-                ].map(([label, val]) => (
-                  <div key={label}>
-                    <p className="text-xs text-slate-500 mb-1">{label}</p>
-                    <p className="text-sm text-slate-300 font-mono">{val}</p>
-                  </div>
-                ))}
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">Score</p>
-                  <p className={`text-2xl font-bold ${selectedReview.score >= 80 ? 'text-teal-400' : selectedReview.score >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
-                    {selectedReview.score != null ? `${selectedReview.score}%` : '—'}
-                  </p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Quality Score (%)</label>
+                  <input type="number" min="0" max="100" required value={completeForm.score}
+                    onChange={e => setCompleteForm({ ...completeForm, score:e.target.value })}
+                    className={inputCls} placeholder="0–100" />
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">Status / Result</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatusBadge status={selectedReview.status} />
-                    {selectedReview.passed != null && (
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${selectedReview.passed ? 'bg-teal-500/10 text-teal-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                        {selectedReview.passed ? 'PASSED' : 'FAILED'}
-                      </span>
-                    )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Result</label>
+                  <div className="flex items-center gap-3 h-[46px] px-4 bg-[#F8FAFF] border border-[#DDE3F0] rounded-xl">
+                    <button type="button" onClick={() => setCompleteForm({ ...completeForm, passed:!completeForm.passed })}
+                      className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${completeForm.passed ? 'bg-emerald-500' : 'bg-brand-red'}`}>
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${completeForm.passed ? 'left-7' : 'left-1'}`} />
+                    </button>
+                    <span className={`text-sm font-bold ${completeForm.passed ? 'text-emerald-600' : 'text-brand-red'}`}>
+                      {completeForm.passed ? 'PASS' : 'FAIL'}
+                    </span>
                   </div>
                 </div>
               </div>
-              {selectedReview.feedback && (
-                <div>
-                  <p className="text-xs text-slate-500 mb-2">Feedback</p>
-                  <p className="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-lg border border-slate-700/30 leading-relaxed">{selectedReview.feedback}</p>
+
+              {qaTemplates.find(t => t.id === selectedReview?.qaFormId) && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Form Fields</label>
+                  <div className="border border-[#DDE3F0] rounded-xl p-4">
+                    <DynamicFormRenderer
+                      schema={qaTemplates.find(t => t.id === selectedReview?.qaFormId)?.schema || { fields:[] }}
+                      onSubmit={(data) => setCompleteForm({ ...completeForm, responses:data })}
+                      initialData={completeForm.responses}
+                      hideActions={true}
+                      onChange={(data) => setCompleteForm({ ...completeForm, responses:data })}
+                    />
+                  </div>
                 </div>
               )}
-              {selectedReview.responses?.length > 0 && (
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Feedback</label>
+                <textarea rows={4} required value={completeForm.feedback}
+                  onChange={e => setCompleteForm({ ...completeForm, feedback:e.target.value })}
+                  placeholder="Provide detailed review feedback…" className="input py-2.5 text-sm resize-none" />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsCompleteOpen(false)}
+                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="btn-primary flex-1 justify-center py-2.5 text-sm">
+                  {isSubmitting ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+                  {isSubmitting ? 'Saving…' : 'Complete Review'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {isViewOpen && selectedReview && (
+        <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-[#DDE3F0] my-4">
+            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
+                  <Eye size={20} />
+                </div>
                 <div>
-                  <p className="text-xs text-slate-500 mb-2">Question Responses ({selectedReview.responses.length})</p>
-                  <div className="bg-slate-900/50 rounded-lg border border-slate-700/30 divide-y divide-slate-800 overflow-hidden">
-                    {selectedReview.responses.map((r, i) => (
-                      <div key={i} className="p-3 flex justify-between text-sm">
-                        <span className="text-slate-400">{r.questionId}</span>
-                        <span className="text-white font-medium">{r.answer}</span>
+                  <h2 className="font-black text-[#0F1A3A] text-lg">Review Details</h2>
+                  <p className="text-xs text-[#8A97B0]">#{selectedReview.id?.substring(0,12).toUpperCase()}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsViewOpen(false)}
+                className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto max-h-[70vh]">
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-brand-blue uppercase tracking-wider pb-2 border-b border-[#F0F4FC]">Review Info</h4>
+                {[
+                  { label:'Reviewer', value:selectedReview.reviewerName || 'Unassigned' },
+                  { label:'Created', value:new Date(selectedReview.createdAt).toLocaleString() },
+                  { label:'Template', value:qaTemplates.find(t => t.id === selectedReview.qaFormId)?.name || 'Standard' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="space-y-1">
+                    <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">{label}</p>
+                    <p className="text-sm font-semibold text-[#0F1A3A]">{value}</p>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mr-1">Status</p>
+                  <StatusBadge status={selectedReview.status} />
+                </div>
+                {selectedReview.feedback && (
+                  <div className="p-4 bg-[#EEF2FF] rounded-xl">
+                    <p className="text-xs font-bold text-brand-blue uppercase tracking-wider mb-2">Feedback</p>
+                    <p className="text-sm text-[#4B5A7A] italic">"{selectedReview.feedback}"</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-brand-red uppercase tracking-wider pb-2 border-b border-[#F0F4FC]">Patient Record</h4>
+                {selectedRecord ? (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                    {Object.entries(selectedRecord).filter(([k]) => !['id','createdAt','updatedAt'].includes(k)).map(([k, v]) => (
+                      <div key={k} className="space-y-1">
+                        <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">{k.replace(/([A-Z])/g,' $1')}</p>
+                        <p className="text-sm text-[#0F1A3A] font-medium">{typeof v === 'object' ? JSON.stringify(v) : String(v || '—')}</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-              <div className="flex justify-between text-xs text-slate-500 pt-2 border-t border-slate-800">
-                <span>Created: {selectedReview.createdAt ? new Date(selectedReview.createdAt).toLocaleString() : '—'}</span>
-                {selectedReview.completedAt && <span>Completed: {new Date(selectedReview.completedAt).toLocaleString()}</span>}
+                ) : (
+                  <div className="flex items-center justify-center h-40">
+                    <RefreshCw size={24} className="animate-spin text-[#A0AECB]" />
+                  </div>
+                )}
               </div>
+            </div>
+            <div className="p-5 border-t border-[#F0F4FC] flex justify-end">
+              <button onClick={() => setIsViewOpen(false)} className="btn-primary text-sm px-6 py-2.5">Close</button>
             </div>
           </div>
         </div>

@@ -2,18 +2,14 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import client from '../../api/client';
 
 export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWithValue }) => {
-  const savedMode = localStorage.getItem('authMode');
-  
-  // Determine primary and secondary endpoints based on authMode
-  const endpoints = savedMode === 'PATIENT' 
-    ? [{ url: '/api/patient/auth/me', role: 'PATIENT' }, { url: '/api/auth/me', role: null }]
-    : [{ url: '/api/auth/me', role: null }, { url: '/api/patient/auth/me', role: 'PATIENT' }];
+  const endpoints = [
+    { url: '/api/auth/me', role: 'STAFF' },
+    { url: '/api/patient/auth/me', role: 'PATIENT' }
+  ];
 
   for (const { url, role } of endpoints) {
     try {
       const res = await client.get(url, { hideToast: true });
-      // Sync authMode to whichever endpoint successfully validated the cookie
-      localStorage.setItem('authMode', role === 'PATIENT' ? 'PATIENT' : 'STAFF');
       
       if (role === 'PATIENT') {
         return { ...res.data, role: 'PATIENT', isPatientLogin: true };
@@ -26,21 +22,20 @@ export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWi
   }
 
   // If both endpoints fail, the user is genuinely logged out
-  localStorage.removeItem('authMode');
   return rejectWithValue(null);
 });
 
 export const logoutUser = createAsyncThunk('auth/logout', async (_, { dispatch }) => {
   try {
-    const isPatient = localStorage.getItem('authMode') === 'PATIENT';
-    const logoutUrl = isPatient ? '/api/patient/auth/logout' : '/api/auth/logout';
-    await client.post(logoutUrl, {}, { hideToast: true });
+    await Promise.allSettled([
+      client.post('/api/auth/logout', {}, { hideToast: true }),
+      client.post('/api/patient/auth/logout', {}, { hideToast: true }),
+    ]);
   } catch (e) {
     // The backend might return 403 due to strict CSRF rules on the POST request.
     // We swallow the error here because the 'finally' block ensures the frontend 
     // clears the session and redirects to login regardless.
   } finally {
-    localStorage.removeItem('authMode');
     dispatch(logout());
   }
 });

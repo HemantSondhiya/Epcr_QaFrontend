@@ -1,45 +1,42 @@
-/**
- * StatsCard — reusable metric card for dashboards.
- *
- * Props:
- *   icon      — Lucide icon element
- *   label     — metric label
- *   value     — metric value (string | number)
- *   sub       — optional subtitle / trend
- *   trend     — 'up' | 'down' | null
- *   color     — 'teal' | 'sky' | 'purple' | 'amber' | 'rose'
- *   loading   — shows skeleton if true
- */
-const COLORS = {
-  teal:   'text-teal-400   bg-teal-500/10   border-teal-500/20',
-  sky:    'text-sky-400    bg-sky-500/10    border-sky-500/20',
-  purple: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  amber:  'text-amber-400  bg-amber-500/10  border-amber-500/20',
-  rose:   'text-rose-400   bg-rose-500/10   border-rose-500/20',
-  indigo: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-};
-
-const StatsCard = ({ icon, label, value, sub, color = 'teal', loading = false }) => {
-  const cls = COLORS[color] || COLORS.teal;
+const StatsCard = ({ icon, label, value, sub, color = 'blue', loading = false }) => {
+  const isRed = ['rose', 'amber', 'red'].includes(color);
 
   if (loading) {
     return (
-      <div className="glass-card rounded-2xl p-5 animate-pulse">
-        <div className="w-10 h-10 rounded-xl bg-slate-700 mb-4" />
-        <div className="h-8 w-20 bg-slate-700 rounded mb-2" />
-        <div className="h-3 w-28 bg-slate-800 rounded" />
+      <div className="stat-card animate-pulse">
+        <div className="w-10 h-10 bg-[#F0F4FC] rounded-xl mb-4" />
+        <div className="h-8 w-20 bg-[#F0F4FC] rounded-lg mb-3" />
+        <div className="h-3 w-28 bg-[#F0F4FC] rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="glass-card rounded-2xl p-5 hover-glow transition-all group">
-      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 shrink-0 ${cls}`}>
+    <div className="stat-card group">
+      {/* Icon */}
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${
+        isRed
+          ? 'bg-red-50 text-brand-red'
+          : 'bg-[#EEF2FF] text-brand-blue'
+      }`}>
         {icon}
       </div>
-      <p className="text-3xl font-bold text-white tabular-nums">{value ?? '—'}</p>
-      <p className="text-sm text-slate-400 mt-1">{label}</p>
-      {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+
+      {/* Value */}
+      <p className={`text-4xl font-black leading-none tracking-tight mb-2 ${
+        isRed ? 'text-brand-red' : 'text-brand-blue'
+      }`}>
+        {value ?? '—'}
+      </p>
+
+      {/* Label */}
+      <p className="text-xs font-semibold text-[#8A97B0] uppercase tracking-wider">{label}</p>
+      {sub && <p className="text-[11px] text-[#A0AECB] mt-1">{sub}</p>}
+
+      {/* Bottom accent line */}
+      <div className={`absolute bottom-0 left-0 h-0.5 w-0 group-hover:w-full transition-all duration-500 rounded-b-2xl ${
+        isRed ? 'bg-brand-red' : 'bg-brand-blue'
+      }`} />
     </div>
   );
 };
