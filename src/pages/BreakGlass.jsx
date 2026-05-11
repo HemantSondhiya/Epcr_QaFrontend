@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Plus, Search, RefreshCw, X, Eye, Zap, ZapOff, Clock,
-  Shield, AlertTriangle, ShieldAlert, Activity, Fingerprint
+  Shield, AlertTriangle, ShieldAlert, Activity, Fingerprint, Check
 } from 'lucide-react';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
@@ -11,35 +11,48 @@ import {
   startBreakGlass, endBreakGlass,
   selectActiveBreakGlass, selectBreakGlassHistory, selectBreakGlassLoading
 } from '../store/slices/breakGlassSlice';
+import {
+  searchPatients,
+  selectPatientSearchResults,
+  selectPatientSearchLoading
+} from '../store/slices/patientHistorySlice';
 
 const emptyForm = { patientId: '', organizationId: '', justification: '', expiresIn: 3600 };
 
 export default function BreakGlass() {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const events  = useSelector(selectActiveBreakGlass) || [];
+  const events = useSelector(selectActiveBreakGlass) || [];
   const history = useSelector(selectBreakGlassHistory) || [];
   const loading = useSelector(selectBreakGlassLoading);
 
-  const [tab, setTab]           = useState('active');
-  const [search, setSearch]     = useState('');
+  const [tab, setTab] = useState('active');
+  const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [viewOpen, setViewOpen]     = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
 
-  const fetchActive  = useCallback(() => dispatch(fetchActiveBreakGlass()), [dispatch]);
+  const patientResults = useSelector(selectPatientSearchResults) || [];
+  const patientSearchLoading = useSelector(selectPatientSearchLoading);
+  const [patientSearchStr, setPatientSearchStr] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+  const fetchActive = useCallback(() => dispatch(fetchActiveBreakGlass()), [dispatch]);
   const fetchHistory_ = useCallback(() => dispatch(fetchBreakGlassHistory(user?.organizationId)), [dispatch, user]);
 
   useEffect(() => { tab === 'active' ? fetchActive() : fetchHistory_(); }, [tab]);
+
+
 
   const handleStart = async e => {
     e.preventDefault(); setSubmitting(true);
     try {
       await dispatch(startBreakGlass({ ...form, organizationId: form.organizationId || user?.organizationId, expiresIn: Number(form.expiresIn) || 3600 })).unwrap();
       dispatch(addToast({ type: 'success', message: 'Break-glass access initiated.' }));
-      setCreateOpen(false); setForm({ ...emptyForm });
+      setCreateOpen(false); setForm({ ...emptyForm }); setAcknowledged(false);
     } catch (err) { dispatch(addToast({ type: 'error', message: err || 'Authorization failed.' })); }
     finally { setSubmitting(false); }
   };
@@ -141,21 +154,23 @@ export default function BreakGlass() {
                 <tr key={ev.id}>
                   <td>
                     <div>
-                      <p className="font-bold text-brand-red font-mono text-sm">#{ev.id?.substring(0,8).toUpperCase()}</p>
+                      <p className="font-bold text-brand-red font-mono text-sm">#{ev.id?.substring(0, 8).toUpperCase()}</p>
                       <p className="text-xs text-[#A0AECB] flex items-center gap-1 mt-0.5">
                         <Clock size={11} /> {ev.startedAt ? new Date(ev.startedAt).toLocaleString() : '—'}
                       </p>
                     </div>
                   </td>
                   <td>
-                    <span className="badge badge-blue">{ev.patientId || 'Unknown'}</span>
+                    <span className="badge badge-blue font-mono">
+                      {ev.patientName || (ev.patientId ? `PAT-${ev.patientId.substring(0, 8).toUpperCase()}` : 'Unknown')}
+                    </span>
                   </td>
                   <td>
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 bg-[#EEF2FF] rounded-lg flex items-center justify-center text-brand-blue">
                         <Fingerprint size={13} />
                       </div>
-                      <p className="text-xs font-mono text-[#4B5A7A]">{ev.userId?.substring(0,12) || 'SYSTEM'}</p>
+                      <p className="text-xs font-mono text-[#4B5A7A]">{ev.userId?.substring(0, 12) || 'SYSTEM'}</p>
                     </div>
                   </td>
                   <td>
@@ -216,35 +231,125 @@ export default function BreakGlass() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleStart} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Patient ID *</label>
-                  <input required value={form.patientId} onChange={e => setForm({ ...form, patientId: e.target.value })}
-                    placeholder="e.g. PAT-992-X" className="input py-2.5 text-sm" />
+            <form onSubmit={handleStart} className="p-6 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="space-y-1.5 relative">
+                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Patient Identity *</label>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+                    <input
+                      required={!form.patientId}
+                      value={patientSearchStr}
+                      onChange={e => {
+                        setPatientSearchStr(e.target.value);
+                        setShowPatientDropdown(true);
+                        dispatch(searchPatients({ query: e.target.value, limit: 10 }));
+                      }}
+                      onFocus={() => {
+                        setShowPatientDropdown(true);
+                        if (patientSearchStr.length === 0) {
+                          dispatch(searchPatients({ query: '', limit: 100 }));
+                        }
+                      }}
+                      onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
+                      placeholder="Search patient..."
+                      className="input pl-9 py-2.5 text-sm w-full"
+                    />
+                    {patientSearchLoading && <RefreshCw size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-blue animate-spin" />}
+                  </div>
+                  {showPatientDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#DDE3F0] rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {patientResults.length === 0 && !patientSearchLoading ? (
+                        <div className="p-3 text-sm text-[#A0AECB] text-center font-medium">No patients found</div>
+                      ) : (
+                        patientResults.map(p => {
+                          const pid = p.patientId || p.id || p.userId;
+                          const pname = p.patientName || p.name || [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || p.phone || `PAT-${pid?.substring(0, 8).toUpperCase()}`;
+                          return (
+                            <button key={pid} type="button" onClick={() => {
+                              setForm({ ...form, patientId: pid });
+                              setPatientSearchStr(pname);
+                              setShowPatientDropdown(false);
+                            }} className="w-full text-left p-3 hover:bg-[#F8FAFF] border-b border-[#F0F4FC] last:border-0 transition-colors">
+                              <p className="text-sm font-bold text-[#0F1A3A]">{pname}</p>
+                              <p className="text-xs text-[#8A97B0] font-mono mt-0.5">
+                                {p.email ? `${p.email} • ` : ''}PAT-{pid?.substring(0, 8).toUpperCase()}
+                              </p>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                  {form.patientId && !showPatientDropdown && (
+                    <p className="text-[10px] font-bold text-brand-blue mt-1.5 flex items-center gap-1 uppercase tracking-wider">
+                      <Check size={12} className="text-green-500" /> ID: {form.patientId.substring(0, 8).toUpperCase()}...
+                    </p>
+                  )}
                 </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Duration (seconds)</label>
-                  <input type="number" min="300" max="86400" value={form.expiresIn}
-                    onChange={e => setForm({ ...form, expiresIn: e.target.value })} className="input py-2.5 text-sm" />
+                  <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Access Duration *</label>
+                  <select 
+                    value={form.expiresIn}
+                    onChange={e => setForm({ ...form, expiresIn: e.target.value })}
+                    className="input py-2.5 text-sm appearance-none bg-no-repeat bg-[right_1rem_center]"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238A97B0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` }}
+                  >
+                    <option value={900}>15 Minutes (Rapid Access)</option>
+                    <option value={3600}>1 Hour (Standard Emergency)</option>
+                    <option value={14400}>4 Hours (Extended Procedure)</option>
+                    <option value={28800}>8 Hours (Full Shift)</option>
+                    <option value={86400}>24 Hours (Critical Care)</option>
+                  </select>
                 </div>
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Clinical Justification *</label>
-                <textarea required rows={4} value={form.justification} onChange={e => setForm({ ...form, justification: e.target.value })}
-                  placeholder="Provide detailed clinical justification for emergency access…"
-                  className="input py-2.5 text-sm resize-none" />
+                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider flex justify-between">
+                  <span>Clinical Justification *</span>
+                  <span className="text-[10px] text-brand-red font-black">MANDATORY AUDIT LOG</span>
+                </label>
+                <textarea 
+                  required 
+                  rows={3} 
+                  value={form.justification} 
+                  onChange={e => setForm({ ...form, justification: e.target.value })}
+                  placeholder="State the emergency reason (e.g., Unconscious patient, missing chart, direct life threat)..."
+                  className="input py-2.5 text-sm resize-none" 
+                />
               </div>
-              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700 font-semibold flex items-center gap-2">
-                <AlertTriangle size={14} className="shrink-0" />
-                Window: {Math.floor(Number(form.expiresIn)/3600)}h {Math.floor((Number(form.expiresIn)%3600)/60)}m — This action will be permanently logged.
+
+              <div className="bg-[#FFF0F3] border border-red-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    <input 
+                      type="checkbox" 
+                      id="hipaa-ack"
+                      checked={acknowledged}
+                      onChange={e => setAcknowledged(e.target.checked)}
+                      className="w-4 h-4 rounded border-[#DDE3F0] text-brand-red focus:ring-brand-red cursor-pointer"
+                      required
+                    />
+                  </div>
+                  <label htmlFor="hipaa-ack" className="text-xs text-[#4B5A7A] leading-relaxed cursor-pointer font-medium">
+                    I solemnly attest that this emergency override is clinically necessary and I acknowledge that this action is being <span className="font-bold text-brand-red uppercase">permanently logged</span> in the HIPAA audit trail for compliance review under <span className="italic">45 CFR § 164.312(a)(2)(iii)</span>.
+                  </label>
+                </div>
               </div>
+
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setCreateOpen(false)}
-                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
-                <button type="submit" disabled={submitting} className="btn-danger flex-1 justify-center py-2.5 text-sm">
-                  {submitting ? <RefreshCw size={15} className="animate-spin" /> : <Zap size={15} />}
-                  {submitting ? 'Initiating…' : 'Activate Override'}
+                  className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={submitting || !acknowledged} 
+                  className={`btn-danger flex-1 justify-center py-2.5 text-sm ${(!acknowledged || submitting) ? 'opacity-70 cursor-not-allowed grayscale' : ''}`}
+                >
+                  {submitting ? <RefreshCw size={15} className="animate-spin" /> : <ShieldAlert size={15} />}
+                  {submitting ? 'Initiating...' : 'Activate Emergency Access'}
                 </button>
               </div>
             </form>
@@ -263,7 +368,10 @@ export default function BreakGlass() {
                 </div>
                 <div>
                   <h2 className="font-black text-[#0F1A3A] text-lg">Override Details</h2>
-                  <p className="text-xs font-mono text-[#A0AECB]">#{selectedEvent.id?.substring(0,16)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-mono text-[#A0AECB]">#{selectedEvent.id?.substring(0, 16)}</p>
+                    <span className="badge badge-blue text-[9px] py-0 px-1.5 border border-brand-blue/20">HIPAA AUDIT</span>
+                  </div>
                 </div>
               </div>
               <button onClick={() => setViewOpen(false)}
@@ -273,11 +381,11 @@ export default function BreakGlass() {
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
               {[
-                { label: 'Patient ID', value: selectedEvent.patientId },
-                { label: 'Initiated By', value: selectedEvent.userId?.substring(0,12) },
+                { label: 'Patient ID', value: selectedEvent.patientName || (selectedEvent.patientId ? `PAT-${selectedEvent.patientId.substring(0, 8).toUpperCase()}` : 'Unknown') },
+                { label: 'Initiated By', value: selectedEvent.userId?.substring(0, 12) },
                 { label: 'Started At', value: selectedEvent.startedAt ? new Date(selectedEvent.startedAt).toLocaleString() : '—' },
                 { label: 'Expires At', value: selectedEvent.expiresAt ? new Date(selectedEvent.expiresAt).toLocaleString() : '—' },
-                { label: 'Organization', value: selectedEvent.organizationId?.substring(0,16) },
+                { label: 'Organization', value: selectedEvent.organizationId?.substring(0, 16) },
                 { label: 'Status', value: selectedEvent.active ? 'ACTIVE' : 'CLOSED' },
               ].map(({ label, value }) => (
                 <div key={label} className="p-3 bg-[#F8FAFF] rounded-xl">

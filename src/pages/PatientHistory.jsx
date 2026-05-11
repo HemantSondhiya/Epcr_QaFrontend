@@ -102,7 +102,7 @@ const viewSecureDocument = async (documentId, patientId, fileName = '') => {
       responseType: 'blob',
       hideToast: true,
     });
-    
+
     // Explicitly set MIME type so the browser renders it (e.g., PDF) instead of forcing a download
     let mimeType = res.headers['content-type'];
     if (!mimeType || mimeType.includes('octet-stream') || mimeType.includes('multipart')) {
@@ -137,13 +137,13 @@ const Badge = ({ children, className = '' }) => (
 
 const EVENT_TYPE_STYLES = {
   CONDITION_DIAGNOSED: { icon: HeartPulse, color: '#C8102E', bg: '#FEE2E2', label: 'Condition Diagnosed' },
-  CONDITION_RESOLVED:  { icon: Check,      color: '#059669', bg: '#D1FAE5', label: 'Condition Resolved' },
-  MEDICATION_STARTED:  { icon: Pill,        color: '#7C3AED', bg: '#F3E8FF', label: 'Medication Started' },
-  MEDICATION_STOPPED:  { icon: Pill,        color: '#6B7280', bg: '#F3F4F6', label: 'Medication Stopped' },
-  EPCR_ENCOUNTER:      { icon: Stethoscope, color: '#EA580C', bg: '#FFEDD5', label: 'ePCR Encounter' },
-  HOSPITAL_ADMISSION:  { icon: BedDouble,   color: '#0891B2', bg: '#CFFAFE', label: 'Hospital Admission' },
-  LAB_RESULT:          { icon: FlaskConical, color: '#1A3C8F', bg: '#DBEAFE', label: 'Lab Result' },
-  DOCUMENT:            { icon: FileText,    color: '#475569', bg: '#E2E8F0', label: 'Document' },
+  CONDITION_RESOLVED: { icon: Check, color: '#059669', bg: '#D1FAE5', label: 'Condition Resolved' },
+  MEDICATION_STARTED: { icon: Pill, color: '#7C3AED', bg: '#F3E8FF', label: 'Medication Started' },
+  MEDICATION_STOPPED: { icon: Pill, color: '#6B7280', bg: '#F3F4F6', label: 'Medication Stopped' },
+  EPCR_ENCOUNTER: { icon: Stethoscope, color: '#EA580C', bg: '#FFEDD5', label: 'ePCR Encounter' },
+  HOSPITAL_ADMISSION: { icon: BedDouble, color: '#0891B2', bg: '#CFFAFE', label: 'Hospital Admission' },
+  LAB_RESULT: { icon: FlaskConical, color: '#1A3C8F', bg: '#DBEAFE', label: 'Lab Result' },
+  DOCUMENT: { icon: FileText, color: '#475569', bg: '#E2E8F0', label: 'Document' },
 };
 const DEFAULT_EVENT_STYLE = { icon: Activity, color: '#4B5A7A', bg: '#E8EEF8', label: 'Event' };
 
@@ -344,6 +344,7 @@ const field = (name, label, type = 'text', options = {}) => ({ name, label, type
 const FORM_CONFIG = {
   conditions: {
     title: 'Condition',
+    subtitle: 'Complete all required fields to save the condition',
     create: createCondition,
     update: updateCondition,
     defaults: { name: '', status: 'ACTIVE', severity: '', dateDiagnosed: isoToday(), dateResolved: '', notes: '' },
@@ -355,9 +356,15 @@ const FORM_CONFIG = {
       field('dateResolved', 'Date Resolved', 'date', { placeholder: 'Leave empty if ongoing' }),
       field('notes', 'Additional Notes', 'textarea', { placeholder: 'Any relevant clinical information...' }),
     ],
+    sections: [
+      { title: 'Condition Information', fieldNames: ['name', 'status', 'severity'] },
+      { title: 'Timeline', fieldNames: ['dateDiagnosed', 'dateResolved'] },
+      { title: 'Additional Notes', fieldNames: ['notes'] },
+    ],
   },
   medications: {
     title: 'Medication',
+    subtitle: 'Complete all required fields to save the medication',
     create: createMedication,
     update: updateMedication,
     defaults: { conditionId: '', name: '', dosage: '', frequency: '', status: 'ACTIVE', startDate: isoToday(), endDate: '', notes: '' },
@@ -371,9 +378,16 @@ const FORM_CONFIG = {
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID this medication treats' }),
       field('notes', 'Additional Notes', 'textarea', { placeholder: 'Side effects, warnings, or special instructions...' }),
     ],
+    sections: [
+      { title: 'Medication Details', fieldNames: ['name', 'dosage', 'frequency', 'status'] },
+      { title: 'Duration', fieldNames: ['startDate', 'endDate'] },
+      { title: 'Linked Condition', fieldNames: ['conditionId'] },
+      { title: 'Additional Notes', fieldNames: ['notes'] },
+    ],
   },
   encounters: {
     title: 'Encounter',
+    subtitle: 'Complete all required fields to save the encounter',
     create: createEncounter,
     update: updateEncounter,
     defaults: { conditionId: '', epcrRecordId: '', date: isoToday(), chiefComplaint: '', outcome: '', activeConditionIds: '', notes: '' },
@@ -388,9 +402,15 @@ const FORM_CONFIG = {
       field('activeConditionIds', 'Active Conditions (Optional)', 'text', { placeholder: 'Comma-separated condition IDs' }),
       field('notes', 'Clinical Notes', 'textarea', { placeholder: 'Assessment, treatment provided, patient response...' }),
     ],
+    sections: [
+      { title: 'Encounter Details', fieldNames: ['date', 'chiefComplaint', 'outcome'] },
+      { title: 'Linked Records', fieldNames: ['epcrRecordId', 'conditionId', 'activeConditionIds'] },
+      { title: 'Clinical Notes', fieldNames: ['notes'] },
+    ],
   },
   admissions: {
     title: 'Hospital Admission',
+    subtitle: 'Complete all required fields to save the admission',
     create: createAdmission,
     update: updateAdmission,
     defaults: { conditionId: '', hospital: '', admitDate: isoToday(), dischargeDate: '', reason: '', outcome: '' },
@@ -402,9 +422,15 @@ const FORM_CONFIG = {
       field('outcome', 'Discharge Outcome', 'text', { placeholder: 'e.g., Improved, Stable, Refer to specialist' }),
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID' }),
     ],
+    sections: [
+      { title: 'Facility Information', fieldNames: ['hospital'] },
+      { title: 'Admission Timeline', fieldNames: ['admitDate', 'dischargeDate'] },
+      { title: 'Details', fieldNames: ['reason', 'outcome', 'conditionId'] },
+    ],
   },
   labResults: {
     title: 'Lab Result',
+    subtitle: 'Complete all required fields to save the lab result',
     create: createLabResult,
     update: updateLabResult,
     defaults: { conditionId: '', testName: '', value: '', unit: '', normalRange: '', date: isoToday(), interpretation: '' },
@@ -417,9 +443,15 @@ const FORM_CONFIG = {
       field('date', 'Test Date', 'date', { required: true }),
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID' }),
     ],
+    sections: [
+      { title: 'Test Information', fieldNames: ['testName', 'date'] },
+      { title: 'Results', fieldNames: ['value', 'unit', 'normalRange', 'interpretation'] },
+      { title: 'Linked Condition', fieldNames: ['conditionId'] },
+    ],
   },
   documents: {
     title: 'Medical Document',
+    subtitle: 'Complete all required fields to save the document',
     create: createDocument,
     update: updateDocument,
     defaults: { conditionId: '', encounterId: '', admissionId: '', type: 'LAB_REPORT', fileName: '', fileUrl: '', date: isoToday(), notes: '', file: null },
@@ -429,13 +461,13 @@ const FORM_CONFIG = {
         // → multipart PUT /history/documents/{id}  (or multipart POST for create)
         const fd = new FormData();
         fd.append('file', data.file);
-        if (data.type)        fd.append('type',        data.type);
-        if (data.date)        fd.append('date',        data.date);
+        if (data.type) fd.append('type', data.type);
+        if (data.date) fd.append('date', data.date);
         if (data.conditionId) fd.append('conditionId', data.conditionId);
         if (data.encounterId) fd.append('encounterId', data.encounterId);
         if (data.admissionId) fd.append('admissionId', data.admissionId);
-        if (data.notes)       fd.append('notes',       data.notes);
-        if (data.fileName)    fd.append('fileName',    data.fileName);
+        if (data.notes) fd.append('notes', data.notes);
+        if (data.fileName) fd.append('fileName', data.fileName);
         return fd;
       }
       // → JSON-only PUT (metadata update, no file replacement)
@@ -449,6 +481,11 @@ const FORM_CONFIG = {
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID' }),
       field('encounterId', 'Related Encounter (Optional)', 'text', { placeholder: 'Encounter ID' }),
       field('admissionId', 'Related Admission (Optional)', 'text', { placeholder: 'Admission ID' }),
+    ],
+    sections: [
+      { title: 'Document Details', fieldNames: ['type', 'date'] },
+      { title: 'Summary', fieldNames: ['notes'] },
+      { title: 'Linked Records', fieldNames: ['conditionId', 'encounterId', 'admissionId'] },
     ],
   },
 };
@@ -490,60 +527,88 @@ function HistoryModal({ type, item, patientId, onClose }) {
     if (f) setForm((prev) => ({ ...prev, file: f }));
   };
 
+  const fieldMap = {};
+  config.fields.forEach((f) => { fieldMap[f.name] = f; });
+
+  const inputCls = 'w-full bg-slate-50 border-2 border-slate-200 px-5 py-4 text-sm text-brand-blue focus:border-brand-blue outline-none transition-all font-black uppercase';
+  const inputReqCls = 'w-full bg-white border-2 border-brand-blue/30 px-5 py-4 text-sm text-brand-blue focus:border-brand-blue outline-none transition-all font-black uppercase';
+  const labelCls = 'text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1';
+  const labelReqCls = 'text-[9px] font-black text-brand-blue uppercase tracking-widest mb-2 block ml-1 after:content-["*"] after:ml-1 after:text-brand-red';
+
   const renderField = (f) => {
+    const cls = f.required ? inputReqCls : inputCls;
     if (f.name === 'conditionId') return (
-      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className="input py-2.5 text-sm">
-        <option value="">-- None --</option>
+      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className={inputCls}>
+        <option value="">SELECT</option>
         {conditions.map((c) => <option key={getId(c)} value={getId(c)}>{c.name} ({date(c.dateDiagnosed)})</option>)}
       </select>
     );
     if (f.name === 'encounterId') return (
-      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className="input py-2.5 text-sm">
-        <option value="">-- None --</option>
+      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className={inputCls}>
+        <option value="">SELECT</option>
         {encounters.map((enc) => <option key={getId(enc)} value={getId(enc)}>{date(enc.date)} — {enc.chiefComplaint}</option>)}
       </select>
     );
     if (f.name === 'admissionId') return (
-      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className="input py-2.5 text-sm">
-        <option value="">-- None --</option>
+      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className={inputCls}>
+        <option value="">SELECT</option>
         {admissions.map((adm) => <option key={getId(adm)} value={getId(adm)}>{date(adm.admitDate)} — {adm.hospital}</option>)}
       </select>
     );
     if (f.type === 'select') return (
-      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className="input py-2.5 text-sm">
-        {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+      <select value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className={f.required ? inputReqCls : inputCls}>
+        <option value="">SELECT</option>
+        {f.options.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
       </select>
     );
     if (f.type === 'textarea') return (
-      <textarea rows={3} value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className="input resize-none py-2.5 text-sm" placeholder={f.placeholder} />
+      <textarea rows={3} value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className={cls + ' resize-none'} placeholder={f.placeholder} />
     );
-    return <input type={f.type} required={f.required} value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className="input py-2.5 text-sm" placeholder={f.placeholder} />;
+    return <input type={f.type} required={f.required} value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} className={cls} placeholder={f.placeholder} />;
   };
 
+  const sections = config.sections || [{ title: config.title, fieldNames: config.fields.map((f) => f.name) }];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#DDE3F0] bg-white px-6 py-4">
-          <h3 className="text-lg font-black text-[#0F1A3A]">{item ? 'Edit' : 'Add'} {config.title}</h3>
-          <IconButton title="Close" onClick={onClose}><X size={17} /></IconButton>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <form onSubmit={onSubmit} className="w-full max-w-4xl max-h-[92vh] flex flex-col bg-white shadow-2xl overflow-hidden">
+        {/* ── Header ── */}
+        <div className="shrink-0 flex items-center justify-between border-b-2 border-slate-100 bg-white px-10 py-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-brand-blue flex items-center justify-center text-white">
+              <Plus size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-brand-blue uppercase tracking-tighter">
+                {item ? 'Edit' : 'New'} <span className="text-brand-red">{config.title}</span>
+              </h2>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                {config.subtitle || 'Complete all required fields'}
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-brand-red transition-colors">
+            <X size={24} />
+          </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        {/* ── Scrollable Body ── */}
+        <div className="flex-1 overflow-y-auto px-10 py-8">
           {/* Document file upload zone — shown only for document type */}
           {isDoc && (
-            <div className="sm:col-span-2">
+            <div className="mb-10">
               {/* Current file banner */}
               {item && (item.fileUrl || item.fileName) && !form.file && (
-                <div className="mb-3 flex items-center gap-3 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF] px-4 py-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#E8EEF8] text-brand-blue">
-                    <Paperclip size={16} />
+                <div className="mb-4 flex items-center gap-4 border-2 border-slate-100 px-5 py-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-brand-blue text-white">
+                    <Paperclip size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#A0AECB]">Current file</p>
-                    <p className="truncate text-sm font-bold text-[#0F1A3A]">{item.fileName || 'Stored document'}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Current file</p>
+                    <p className="truncate text-sm font-black text-brand-blue uppercase">{item.fileName || 'Stored document'}</p>
                   </div>
                   {item.fileUrl && (
-                    <button type="button" onClick={() => viewSecureDocument(getId(item), patientId, item.fileName || item.fileUrl)} className="inline-flex items-center gap-1 text-xs font-bold text-brand-blue hover:underline shrink-0">
+                    <button type="button" onClick={() => viewSecureDocument(getId(item), patientId, item.fileName || item.fileUrl)} className="text-[9px] font-black text-brand-red uppercase tracking-widest hover:underline shrink-0 flex items-center gap-1">
                       View <ExternalLink size={12} />
                     </button>
                   )}
@@ -555,9 +620,7 @@ function HistoryModal({ type, item, patientId, onClose }) {
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
-                className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 transition-colors ${
-                  dragOver ? 'border-brand-blue bg-[#E8EEF8]' : form.file ? 'border-green-400 bg-green-50' : 'border-[#DDE3F0] bg-[#F8FAFF] hover:border-brand-blue hover:bg-[#EEF3FF]'
-                }`}
+                className={`relative flex flex-col items-center justify-center gap-3 border-2 border-dashed px-6 py-10 transition-colors ${dragOver ? 'border-brand-blue bg-blue-50' : form.file ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-slate-50 hover:border-brand-blue'}`}
               >
                 <input
                   type="file"
@@ -568,23 +631,23 @@ function HistoryModal({ type, item, patientId, onClose }) {
                 />
                 {form.file ? (
                   <>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-600">
-                      <Check size={20} />
+                    <div className="flex h-12 w-12 items-center justify-center bg-green-500 text-white">
+                      <Check size={24} />
                     </div>
-                    <p className="text-sm font-bold text-[#0F1A3A]">{form.file.name}</p>
-                    <p className="text-xs font-semibold text-[#8A97B0]">{(form.file.size / 1024).toFixed(1)} KB — will replace current file via multipart PUT</p>
-                    <button type="button" onClick={() => setForm((prev) => ({ ...prev, file: null }))} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-red-500 hover:underline">
+                    <p className="text-sm font-black text-brand-blue uppercase">{form.file.name}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{(form.file.size / 1024).toFixed(1)} KB</p>
+                    <button type="button" onClick={() => setForm((prev) => ({ ...prev, file: null }))} className="text-[9px] font-black text-brand-red uppercase tracking-widest hover:underline flex items-center gap-1">
                       <X size={12} /> Remove
                     </button>
                   </>
                 ) : (
                   <>
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${dragOver ? 'bg-brand-blue text-white' : 'bg-[#E8EEF8] text-brand-blue'}`}>
-                      <Upload size={20} />
+                    <div className={`flex h-12 w-12 items-center justify-center ${dragOver ? 'bg-brand-blue text-white' : 'bg-slate-200 text-slate-400'}`}>
+                      <Upload size={24} />
                     </div>
-                    <p className="text-sm font-bold text-[#0F1A3A]">{dragOver ? 'Drop to upload' : 'Drag & drop or click to browse'}</p>
-                    <p className="text-xs font-semibold text-[#8A97B0]">
-                      {item ? 'Upload a replacement file (multipart PUT) — leave empty to update metadata only' : 'PDF, PNG, JPG, JPEG, DOC, DOCX'}
+                    <p className="text-sm font-black text-brand-blue uppercase">{dragOver ? 'Drop to upload' : 'Drag & drop or click to browse'}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      {item ? 'Upload replacement file or leave empty for metadata only' : 'PDF, PNG, JPG, JPEG, DOC, DOCX'}
                     </p>
                   </>
                 )}
@@ -592,25 +655,42 @@ function HistoryModal({ type, item, patientId, onClose }) {
             </div>
           )}
 
-          {/* Regular fields grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {config.fields.map((f) => (
-              <label key={f.name} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
-                <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#0F1A3A]">
-                  {f.label}
-                  {f.required && <span className="text-red-500 text-lg leading-none">*</span>}
-                </span>
-                {renderField(f)}
-              </label>
-            ))}
+          {/* ── Sectioned Fields ── */}
+          <div className="space-y-10">
+            {sections.map((section, sIdx) => {
+              const sectionFields = section.fieldNames.map((name) => fieldMap[name]).filter(Boolean);
+              if (sectionFields.length === 0) return null;
+              return (
+                <div key={section.title}>
+                  {/* Section header — red bar + uppercase title */}
+                  <div className="flex items-center gap-4 pb-4 border-b-2 border-slate-100 mb-8">
+                    <div className="w-1.5 h-6 bg-brand-red" />
+                    <h3 className="text-xl font-black text-brand-blue uppercase tracking-tighter">{section.title}</h3>
+                  </div>
+
+                  {/* Fields grid — 2-column like ePCR */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {sectionFields.map((f) => (
+                      <div key={f.name} className={`space-y-2 ${f.type === 'textarea' ? 'md:col-span-2 lg:col-span-3' : ''}`}>
+                        <label className={f.required ? labelReqCls : labelCls}>{f.label}</label>
+                        {renderField(f)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[#DDE3F0] px-6 py-4">
-          <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-            {saving ? 'Saving…' : item && isDoc ? (form.file ? 'Replace File & Save' : 'Save Metadata') : 'Save'}
+        {/* ── Footer ── */}
+        <div className="shrink-0 flex justify-between items-center border-t-2 border-slate-100 px-10 py-5 bg-white">
+          <button type="button" onClick={onClose} className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-2 border-slate-200 hover:border-brand-blue hover:text-brand-blue transition-all">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving} className="bg-brand-red text-white px-10 py-4 font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-brand-blue transition-all disabled:opacity-50 shadow-xl">
+            {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+            {saving ? 'Saving...' : item && isDoc ? (form.file ? 'Replace & Save' : 'Save Metadata') : `Save ${config.title}`}
           </button>
         </div>
       </form>
