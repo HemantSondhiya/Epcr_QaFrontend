@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, Search, RefreshCw, X, Eye, Zap, ZapOff, Clock,
-  Shield, AlertTriangle, ShieldAlert, Activity, Fingerprint, Check
+  Shield, AlertTriangle, ShieldAlert, Activity, Fingerprint, Check, FileText
 } from 'lucide-react';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
@@ -21,6 +22,7 @@ const emptyForm = { patientId: '', organizationId: '', justification: '', expire
 
 export default function BreakGlass() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const user = useSelector(selectUser);
   const events = useSelector(selectActiveBreakGlass) || [];
   const history = useSelector(selectBreakGlassHistory) || [];
@@ -135,6 +137,7 @@ export default function BreakGlass() {
                 <th>Patient</th>
                 <th>Initiated By</th>
                 <th>Justification</th>
+                <th>Time Remaining</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
@@ -174,7 +177,17 @@ export default function BreakGlass() {
                     </div>
                   </td>
                   <td>
-                    <p className="text-xs text-[#8A97B0] max-w-[240px] truncate italic">"{ev.justification || '—'}"</p>
+                    <p className="text-xs text-[#8A97B0] max-w-[200px] truncate italic">"{ev.justification || '—'}"</p>
+                  </td>
+                  <td>
+                    {ev.active && new Date(ev.expiresAt) > new Date() ? (
+                      <div className="flex items-center gap-1.5 text-brand-red font-bold text-xs animate-pulse">
+                        <Clock size={12} />
+                        {Math.max(0, Math.floor((new Date(ev.expiresAt) - new Date()) / 60000))}m remaining
+                      </div>
+                    ) : (
+                      <span className="text-xs text-[#A0AECB] font-medium italic">Expired/Closed</span>
+                    )}
                   </td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -403,6 +416,9 @@ export default function BreakGlass() {
                 <button onClick={() => { setViewOpen(false); handleEnd(selectedEvent.id); }}
                   className="btn-danger text-sm px-5 py-2.5">Terminate Session</button>
               )}
+              <Link to={`/audit-logs?search=${selectedEvent.id}`} className="btn-outline text-sm px-5 py-2.5">
+                <FileText size={15} /> Audit Log
+              </Link>
               <button onClick={() => setViewOpen(false)} className="btn-primary text-sm px-6 py-2.5">Close</button>
             </div>
           </div>
