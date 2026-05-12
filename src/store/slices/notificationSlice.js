@@ -78,8 +78,15 @@ const notificationSlice = createSlice({
        s.loading = false;
        s.error = null;
        const content = extractContent(a.payload);
-       s.items = content;
-       s.unreadItems = content.filter(n => !n.read);
+       const pageArg = a.meta.arg ?? 0;
+       
+       if (pageArg === 0) {
+         s.items = content;
+       } else {
+         s.items = [...s.items, ...content];
+       }
+       
+       s.unreadItems = s.items.filter(n => !n.read);
        // Map API pagination fields correctly
        s.currentPage = a.payload?.page ?? 0;
        s.totalPages = a.payload?.totalPages ?? 0;
@@ -108,6 +115,7 @@ const notificationSlice = createSlice({
 
 export const { resetPagination } = notificationSlice.actions;
 export const selectNotifications = (s) => s.notifications.items;
+export const selectUnreadItems = (s) => s.notifications.unreadItems;
 export const selectUnreadCount = (s) => s.notifications.unreadItems.length;
 export const selectNotifLoading = (s) => s.notifications.loading;
 export const selectNotifError = (s) => s.notifications.error;
