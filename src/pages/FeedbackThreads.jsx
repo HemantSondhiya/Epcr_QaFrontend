@@ -12,26 +12,26 @@ import {
 } from '../store/slices/feedbackSlice';
 
 const STATUS_BADGE = {
-  OPEN:     'badge badge-blue',
-  CLOSED:   'badge badge-gray',
+  OPEN: 'badge badge-blue',
+  CLOSED: 'badge badge-gray',
   RESOLVED: 'badge badge-green',
-  PENDING:  'badge badge-orange',
+  PENDING: 'badge badge-orange',
 };
 
 const asList = d => Array.isArray(d) ? d : (d?.content || []);
 
 const FeedbackThreads = () => {
-  const dispatch  = useDispatch();
-  const user      = useSelector(selectUser);
-  const threads   = useSelector(selectFeedbackThreads);
-  const loading   = useSelector(selectFeedbackLoading);
-  const records   = useSelector(selectRecords);
+  const dispatch = useDispatch();
+  const user = useSelector(selectUser);
+  const threads = useSelector(selectFeedbackThreads);
+  const loading = useSelector(selectFeedbackLoading);
+  const records = useSelector(selectRecords);
 
-  const [filter, setFilter]         = useState('all');
+  const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [msgInputs, setMsgInputs]   = useState({});
+  const [msgInputs, setMsgInputs] = useState({});
   const [createForm, setCreateForm] = useState({ patientCareRecordId: '', subject: '' });
 
   useEffect(() => { dispatch(fetchFeedbackThreads()); dispatch(fetchRecords()); }, [dispatch]);
@@ -94,7 +94,7 @@ const FeedbackThreads = () => {
 
       {/* Filter Tabs */}
       <div className="flex gap-1 p-1 bg-[#F0F4FC] rounded-xl w-fit">
-        {[{ id:'all', label:'All Threads' }, { id:'open', label:'Open' }, { id:'mine', label:'My Threads' }].map(f => (
+        {[{ id: 'all', label: 'All Threads' }, { id: 'open', label: 'Open' }, { id: 'mine', label: 'My Threads' }].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${filter === f.id ? 'bg-white text-brand-blue shadow-sm' : 'text-[#8A97B0] hover:text-[#4B5A7A]'}`}>
             {f.label}
@@ -141,7 +141,7 @@ const FeedbackThreads = () => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1 p-1 bg-[#F0F4FC] rounded-lg">
-                      {['OPEN','RESOLVED','CLOSED'].map(s => (
+                      {['OPEN', 'RESOLVED', 'CLOSED'].map(s => (
                         <button key={s} onClick={() => updateStatus(thread.id, s)}
                           className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${thread.status === s ? 'bg-white text-brand-blue shadow-sm' : 'text-[#8A97B0] hover:text-[#4B5A7A]'}`}>
                           {s}
@@ -172,7 +172,7 @@ const FeedbackThreads = () => {
                                   {msg.senderName || (isMe ? 'You' : 'User')}
                                 </span>
                                 <span className={`text-xs ${isMe ? 'text-blue-100/60' : 'text-[#A0AECB]'}`}>
-                                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : ''}
+                                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </span>
                               </div>
                               <p className="text-sm">{msg.message}</p>
@@ -181,19 +181,27 @@ const FeedbackThreads = () => {
                         );
                       })}
                     </div>
-                    <div className="p-4 border-t border-[#F0F4FC] flex gap-3">
-                      <input
-                        value={msgInputs[thread.id] || ''}
-                        onChange={e => setMsgInputs(p => ({ ...p, [thread.id]: e.target.value }))}
-                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage(thread.id)}
-                        placeholder="Type a message… (Enter to send)"
-                        className="input py-2.5 text-sm flex-1"
-                      />
-                      <button onClick={() => sendMessage(thread.id)}
-                        className="w-10 h-10 bg-brand-blue text-white rounded-xl flex items-center justify-center hover:bg-brand-blue-dark transition-all shrink-0">
-                        <Send size={16} />
-                      </button>
-                    </div>
+                    {(thread.status === 'RESOLVED' || thread.status === 'CLOSED') ? (
+                      <div className="p-4 border-t border-[#F0F4FC] text-center bg-[#F8FAFF]">
+                        <p className="text-sm font-semibold text-[#8A97B0]">
+                          This thread is {thread.status.toLowerCase()}. New messages cannot be sent.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-4 border-t border-[#F0F4FC] flex gap-3">
+                        <input
+                          value={msgInputs[thread.id] || ''}
+                          onChange={e => setMsgInputs(p => ({ ...p, [thread.id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage(thread.id)}
+                          placeholder="Type a message… (Enter to send)"
+                          className="input py-2.5 text-sm flex-1"
+                        />
+                        <button onClick={() => sendMessage(thread.id)}
+                          className="w-10 h-10 bg-brand-blue text-white rounded-xl flex items-center justify-center hover:bg-brand-blue-dark transition-all shrink-0">
+                          <Send size={16} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -228,7 +236,7 @@ const FeedbackThreads = () => {
                 <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Link to Record (optional)</label>
                 <select value={createForm.patientCareRecordId} onChange={e => setCreateForm({ ...createForm, patientCareRecordId: e.target.value })} className="input py-2.5 text-sm">
                   <option value="">No record linked</option>
-                  {records.map(r => <option key={r.id} value={r.id}>{r.patientName || 'Anonymous'} — #{r.id?.substring(0,8).toUpperCase()}</option>)}
+                  {records.map(r => <option key={r.id} value={r.id}>{r.patientName || 'Anonymous'} — #{r.id?.substring(0, 8).toUpperCase()}</option>)}
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
