@@ -92,10 +92,16 @@ const RecordsList = () => {
   };
 
   const fetchRecords = (pageNum = 0, isAppend = false) => {
-    dispatch(fetchEpcrRecords({ page: pageNum, size: 20, isAppend, filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }));
+    dispatch(fetchEpcrRecords({ page: pageNum, size: 20, isAppend, filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }))
+      .unwrap()
+      .catch(err => dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })));
   };
 
-  useEffect(() => { fetchRecords(0, false); }, [dispatch]);
+  useEffect(() => { 
+    dispatch(fetchEpcrRecords({ filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }))
+      .unwrap()
+      .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
+  }, [dispatch]);
 
   const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
 

@@ -43,7 +43,12 @@ const Login = () => {
     setLoading(true); setError('');
     try {
       if (!patientIdentifier.trim()) {
-        setError('Please enter your patient identifier');
+        setError('Patient login only. Please enter your registered email.');
+        setLoading(false);
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patientIdentifier)) {
+        setError('Patient login only. Please enter a valid email address.');
         setLoading(false);
         return;
       }
@@ -211,8 +216,8 @@ const Login = () => {
                     <label className="block text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Patient Identifier</label>
                     <div className="relative">
 
-                      <input type="text" value={patientIdentifier} onChange={e => setPatientIdentifier(e.target.value)} required disabled={otpSent}
-                        className="input pl-10 " placeholder='Email' />
+                      <input type="email" value={patientIdentifier} onChange={e => setPatientIdentifier(e.target.value)} required disabled={otpSent}
+                        className="input pl-10 " placeholder='Patient Email (Patient Login Only)' />
                     </div>
                   </div>
 

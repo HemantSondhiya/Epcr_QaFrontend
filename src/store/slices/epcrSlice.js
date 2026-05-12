@@ -4,8 +4,14 @@ import client, { extractErrorMessage } from '../../api/client';
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
 // ── Async Thunks ────────────────────────────────────────────────────
-export const fetchRecords = createAsyncThunk('epcr/fetchAll', async (_, { rejectWithValue }) => {
-  try { return (await client.get('/api/epcr/records', { hideToast: true })).data; }
+export const fetchRecords = createAsyncThunk('epcr/fetchAll', async (payload = {}, { rejectWithValue }) => {
+  try {
+    const { page = 0, size = 20, filters = {}, paramedicId, ...rest } = payload;
+    const params = { page, size, paramedicId, ...filters, ...rest };
+    delete params.isAppend;
+    const res = await client.get('/api/epcr/records', { params, hideToast: true });
+    return { data: res.data, isAppend: payload.isAppend };
+  }
   catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
@@ -42,7 +48,12 @@ const epcrSlice = createSlice({
     const rejected  = (s, a) => { s.loading = false; s.error = a.payload; };
 
     b.addCase(fetchRecords.pending,   pending)
-     .addCase(fetchRecords.fulfilled, (s, a) => { s.loading = false; s.records = asList(a.payload); })
+     .addCase(fetchRecords.fulfilled, (s, a) => {
+       s.loading = false;
+       const newList = asList(a.payload.data);
+       if (a.payload.isAppend) s.records = [...s.records, ...newList];
+       else s.records = newList;
+     })
      .addCase(fetchRecords.rejected,  rejected)
 
      .addCase(createRecord.pending,   pending)

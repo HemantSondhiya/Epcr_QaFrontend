@@ -303,7 +303,7 @@ export default function BreakGlass() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Access Duration *</label>
-                  <select 
+                  <select
                     value={form.expiresIn}
                     onChange={e => setForm({ ...form, expiresIn: e.target.value })}
                     className="input py-2.5 text-sm appearance-none bg-no-repeat bg-[right_1rem_center]"
@@ -323,21 +323,21 @@ export default function BreakGlass() {
                   <span>Clinical Justification *</span>
                   <span className="text-[10px] text-brand-red font-black">MANDATORY AUDIT LOG</span>
                 </label>
-                <textarea 
-                  required 
-                  rows={3} 
-                  value={form.justification} 
+                <textarea
+                  required
+                  rows={3}
+                  value={form.justification}
                   onChange={e => setForm({ ...form, justification: e.target.value })}
                   placeholder="State the emergency reason (e.g., Unconscious patient, missing chart, direct life threat)..."
-                  className="input py-2.5 text-sm resize-none" 
+                  className="input py-2.5 text-sm resize-none"
                 />
               </div>
 
               <div className="bg-[#FFF0F3] border border-red-100 rounded-xl p-4 space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="hipaa-ack"
                       checked={acknowledged}
                       onChange={e => setAcknowledged(e.target.checked)}
@@ -356,9 +356,9 @@ export default function BreakGlass() {
                   className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={submitting || !acknowledged} 
+                <button
+                  type="submit"
+                  disabled={submitting || !acknowledged}
                   className={`btn-danger flex-1 justify-center py-2.5 text-sm ${(!acknowledged || submitting) ? 'opacity-70 cursor-not-allowed grayscale' : ''}`}
                 >
                   {submitting ? <RefreshCw size={15} className="animate-spin" /> : <ShieldAlert size={15} />}
