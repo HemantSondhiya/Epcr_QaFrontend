@@ -306,7 +306,7 @@ const CreateRecord = () => {
          patientName: cv(data.patientName) || '',
          patientDateOfBirth: data.patientDateOfBirth || null,
          patientGender: cv(data.patientGender) || '',
-         patientPhone: data.patientPhone || '',
+         patientPhone: data.patientPhone ? String(data.patientPhone).replace(/[^\d+]/g, '') : '',
          patientAddress: cv(data.patientAddress) || '',
          patientSSNLast4: data.patientSSNLast4 || '',
          email: cv(data.email) || '',
