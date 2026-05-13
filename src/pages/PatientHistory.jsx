@@ -101,6 +101,7 @@ const viewSecureDocument = async (documentId, patientId, fileName = '') => {
     const res = await client.get(`/api/patients/${patientId}/history/documents/${documentId}/file`, {
       responseType: 'blob',
       hideToast: true,
+      withCredentials: false, // Disable credentials to allow redirection to external storage without CORS conflicts
     });
 
     // Explicitly set MIME type so the browser renders it (e.g., PDF) instead of forcing a download
