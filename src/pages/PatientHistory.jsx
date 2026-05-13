@@ -472,8 +472,13 @@ const FORM_CONFIG = {
         return fd;
       }
       // → JSON-only PUT (metadata update, no file replacement)
-      const { file, ...rest } = data;
-      return rest;
+      // Only return JSON if it's an update and no file is present
+      if (isUpdate) {
+        const { file, ...rest } = data;
+        return rest;
+      }
+      // For create, if file is missing, the backend will throw error anyway
+      return data;
     },
     fields: [
       field('type', 'Document Type', 'select', { options: ['LAB_REPORT', 'DISCHARGE_SUMMARY', 'IMAGING', 'OTHER'], required: true }),
@@ -506,7 +511,7 @@ function HistoryModal({ type, item, patientId, onClose }) {
   const onSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
-    const payload = config.transform ? config.transform(form) : form;
+    const payload = config.transform ? config.transform(form, !!item) : form;
     const action = item
       ? config.update({ patientId, id: getId(item), data: payload })
       : config.create({ patientId, data: payload });
