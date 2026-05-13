@@ -95,7 +95,7 @@ const getFileUrl = (url) => {
   return url.startsWith('/') ? url : `/${url}`;
 };
 
-const viewSecureDocument = async (documentId, patientId, fileName = '') => {
+const viewSecureDocument = async (patientId, documentId, fileName = '') => {
   if (!documentId || !patientId) return;
   try {
     const res = await client.get(`/api/patients/${patientId}/history/documents/${documentId}/file`, {
@@ -118,6 +118,8 @@ const viewSecureDocument = async (documentId, patientId, fileName = '') => {
     window.open(url, '_blank');
   } catch (error) {
     console.error('Failed to view document securely', error);
+    const message = error.response?.data?.message || 'Unable to open document. It may have been stored on a previous server and is no longer accessible.';
+    dispatch(addToast({ type: 'error', message }));
   }
 };
 
@@ -614,7 +616,7 @@ function HistoryModal({ type, item, patientId, onClose }) {
                     <p className="truncate text-sm font-black text-brand-blue uppercase">{item.fileName || 'Stored document'}</p>
                   </div>
                   {item.fileUrl && (
-                    <button type="button" onClick={() => viewSecureDocument(getId(item), patientId, item.fileName || item.fileUrl)} className="text-[9px] font-black text-brand-red uppercase tracking-widest hover:underline shrink-0 flex items-center gap-1">
+                    <button type="button" onClick={() => viewSecureDocument(patientId, getId(item), item.fileName || item.fileUrl)} className="text-[9px] font-black text-brand-red uppercase tracking-widest hover:underline shrink-0 flex items-center gap-1">
                       View <ExternalLink size={12} />
                     </button>
                   )}
@@ -1195,7 +1197,7 @@ function PatientHistory() {
                     {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
                   </div>
                   {(item.fileUrl || item.url) && (
-                    <button type="button" onClick={() => viewSecureDocument(getId(item), patientId, item.fileName || item.name || item.fileUrl || item.url)} className="inline-flex items-center gap-1 text-xs font-black text-brand-blue hover:underline">
+                    <button type="button" onClick={() => viewSecureDocument(patientId, getId(item), item.fileName || item.name || item.fileUrl || item.url)} className="inline-flex items-center gap-1 text-xs font-black text-brand-blue hover:underline">
                       View <ExternalLink size={13} />
                     </button>
                   )}
