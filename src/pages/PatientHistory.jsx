@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  Legend, ResponsiveContainer, ReferenceArea, Area, AreaChart, Cell
+  Legend, ResponsiveContainer, ReferenceArea, Area, AreaChart, Cell,
+  BarChart, Bar
 } from 'recharts';
 import {
   clearHistory,
@@ -1264,6 +1265,80 @@ function PatientSearchPanel({ selectedPatientId, onSelect }) {
   );
 }
 
+const EncounterAnalytics = ({ encounters }) => {
+  const trendData = useMemo(() => {
+    const months = {};
+    [...encounters].sort((a, b) => new Date(a.date || a.encounterDate || a.timestamp) - new Date(b.date || b.encounterDate || b.timestamp))
+      .forEach(e => {
+        const dateStr = e.date || e.encounterDate || e.timestamp;
+        if (!dateStr) return;
+        const date = new Date(dateStr);
+        const key = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+        months[key] = (months[key] || 0) + 1;
+      });
+    return Object.entries(months).map(([name, count]) => ({ name, count }));
+  }, [encounters]);
+
+  const typeData = useMemo(() => {
+    const types = {};
+    encounters.forEach(e => {
+      const type = e.chiefComplaint || e.type || e.encounterType || 'Visit';
+      types[type] = (types[type] || 0) + 1;
+    });
+    return Object.entries(types).map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value).slice(0, 5);
+  }, [encounters]);
+
+  if (encounters.length < 2) return null;
+
+  return (
+    <div className="card p-5 border border-[#DDE3F0] mb-6 shadow-sm bg-white rounded-[24px]">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="font-black text-[#0F1A3A] text-sm uppercase tracking-wider">Visit Trends</h3>
+          <p className="text-xs text-[#8A97B0] mt-1">Frequency of clinical encounters over time</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="badge badge-blue bg-purple-50 text-purple-700 border border-purple-200">Analytics</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trendData}>
+              <defs>
+                <linearGradient id="encounterGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#7C3AED" stopOpacity={0.1} />
+                  <stop offset="95%" stopColor="#7C3AED" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0F4FC" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#8A97B0' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#8A97B0' }} />
+              <RechartsTooltip
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                labelStyle={{ fontWeight: '800', color: '#0F1A3A', marginBottom: '4px' }}
+              />
+              <Area type="monotone" dataKey="count" stroke="#7C3AED" strokeWidth={3} fillOpacity={1} fill="url(#encounterGradient)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={typeData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F0F4FC" />
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#4B5A7A', fontWeight: '700' }} width={80} />
+              <RechartsTooltip cursor={{ fill: 'transparent' }} />
+              <Bar dataKey="value" fill="#A78BFA" radius={[0, 4, 4, 0]} barSize={12} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function RowActions({ type, item, patientId, canEdit, onEdit, onView }) {
   const dispatch = useDispatch();
   const config = {
@@ -1659,16 +1734,19 @@ function PatientHistory() {
           )}
 
           {tab === 'encounters' && (
-            <Section icon={UserRound} title="Patient Visits" action={addButton('encounters')}>
-              {renderList('encounters', encounters, (item) => (
-                <>
-                  <p className="font-bold text-[#0F1A3A] text-base">{text(item.chiefComplaint || item.type || item.encounterType, 'Visit')}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.encounterDate)} {item.epcrRecordId ? `- EPCR ${item.epcrRecordId}` : ''}</p>
-                  {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
-                  {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
-                </>
-              ))}
-            </Section>
+            <div className="space-y-6">
+              <EncounterAnalytics encounters={encounters} />
+              <Section icon={UserRound} title="Patient Visits" action={addButton('encounters')}>
+                {renderList('encounters', encounters, (item) => (
+                  <>
+                    <p className="font-bold text-[#0F1A3A] text-base">{text(item.chiefComplaint || item.type || item.encounterType, 'Visit')}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.encounterDate)} {item.epcrRecordId ? `- EPCR ${item.epcrRecordId}` : ''}</p>
+                    {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
+                    {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
+                  </>
+                ))}
+              </Section>
+            </div>
           )}
 
           {tab === 'admissions' && (

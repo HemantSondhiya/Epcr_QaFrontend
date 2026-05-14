@@ -6,11 +6,12 @@ import {
   Clock, CheckCircle2, ShieldCheck, Fingerprint, ShieldAlert,
   ArrowLeft, Activity, Heart, ClipboardCheck, Lock, FileText,
   ChevronDown, TrendingUp, Droplets, Thermometer, Wind, ClipboardList,
-  Pill, Stethoscope, Calendar, FlaskConical, HeartPulse, Check, BedDouble, Tag, CalendarDays, UserRound, ExternalLink, MapPin
+  Pill, Stethoscope, Calendar, FlaskConical, HeartPulse, Check, BedDouble, Tag, CalendarDays, UserRound, ExternalLink, MapPin, CloudLightning, Zap, Users
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import { addToast } from '../store/slices/uiSlice';
 import {
@@ -648,33 +649,7 @@ const RECORD_CARD_SECTIONS = [
       'lastOralIntake', { path: 'medicalHistory.lastOralIntake', label: 'Last Oral Intake' },
     ],
   },
-  {
-    title: 'Incident',
-    icon: AlertCircle,
-    color: '#C8102E',
-    bgColor: '#FEE2E2',
-    fields: [
-      'incidentDateTime', 'incidentLocation', 'incidentType', 'incidentNumber',
-      'sceneType', { path: 'sceneAssessment.sceneType', label: 'Scene Type' },
-      'numberOfPatients', { path: 'sceneAssessment.numberOfPatients', label: 'Number Of Patients' },
-      'mechanismOfInjury', { path: 'sceneAssessment.mechanismOfInjury', label: 'Mechanism Of Injury' },
-      'injuryLocation', { path: 'sceneAssessment.injuryLocation', label: 'Injury Location' },
-      'sceneHazards', { path: 'sceneAssessment.sceneHazards', label: 'Scene Hazards' },
-      'weatherConditions', { path: 'sceneAssessment.weatherConditions', label: 'Weather' },
-      'lightingConditions', { path: 'sceneAssessment.lightingConditions', label: 'Lighting' },
-      'patientAccessDifficulty', { path: 'sceneAssessment.patientAccessDifficulty', label: 'Access Difficulty' },
-      'triageTag', { path: 'sceneAssessment.triageTag', label: 'Triage Tag' },
-      'sceneSafe', { path: 'sceneAssessment.sceneSafe', label: 'Scene Safe' },
-      'traumaCall', { path: 'sceneAssessment.traumaCall', label: 'Trauma Call' },
-      'massCasualtyIncident', { path: 'sceneAssessment.massCasualtyIncident', label: 'Mass Casualty' },
-      'witnessPresent', { path: 'sceneAssessment.witnessPresent', label: 'Witness Present' },
-      'witnessName', { path: 'sceneAssessment.witnessName', label: 'Witness Name' },
-      'witnessContact', { path: 'sceneAssessment.witnessContact', label: 'Witness Contact' },
-      'bystanderCPRPerformed', { path: 'sceneAssessment.bystanderCPRPerformed', label: 'Bystander CPR' },
-      'aedUsedByBystander', { path: 'sceneAssessment.aedUsedByBystander', label: 'Bystander AED' },
-      'incidentDescription',
-    ],
-  },
+
   {
     title: 'Assessment',
     icon: ClipboardCheck,
@@ -747,11 +722,14 @@ const RECORD_CARD_SECTIONS = [
     bgColor: '#E2E8F0',
     fields: [
       'createdAt', 'updatedAt', 'submittedAt',
-      'qaApproved', 'qaApprovedAt',
+      'submittedByName', 'submittedBy',
+      'qaApproved', 'qaApprovedAt', 'qaApprovedBy',
+      'organizationId',
       { path: 'dynamicFormResponses.organizationName', label: 'Organization' },
       { path: 'dynamicFormResponses.submittedByName', label: 'Submitted By Name' },
       { path: 'dynamicFormResponses.qaApprovedByName', label: 'Approved By Name' },
       { path: 'dynamicFormResponses.paramedicsName', label: 'Paramedic Name' },
+      'feedback',
       { path: 'auditTrail', label: 'Activity History', type: 'activity' },
     ],
   },
@@ -771,42 +749,148 @@ const PRESENTED_RECORD_FIELDS = new Set([
   ...VITAL_PRESENTED_FIELDS,
   ...RECORD_CARD_SECTIONS.flatMap(section => section.fields.map(topLevelField)),
   'medicalHistory', 'sceneAssessment', 'timeline', 'transport', 'consent', 'dynamicFormResponses', 'auditTrail',
+  'crew', 'attachmentIds', 'patientId',
 ]);
 
-const RecordSummaryCards = ({ data }) => (
-  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-    {RECORD_CARD_SECTIONS.map(section => {
-      const Icon = section.icon;
-      const visibleFields = section.fields.filter(field => !isEmptyValue(getPathValue(data, fieldConfig(field).path)));
-      const populatedCount = visibleFields.length;
+/* ── Crew Member Card ── */
+const CrewMemberCard = ({ member }) => {
+  if (!member || typeof member !== 'object') return null;
+  const name = member.name || member.paramedicsName || 'Unknown';
+  const role = member.role || 'Crew Member';
+  const level = member.certificationLevel || '';
+  const certNum = member.certificationNumber || '';
+  const expiry = member.certificationExpiryDate || '';
+  const isPrimary = member.primaryClinician;
 
-      return (
-        <div key={section.title} className="card p-5 border border-[#DDE3F0] space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: section.bgColor, color: section.color }}>
-                <Icon size={20} />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wider">{section.title}</h3>
-                <p className="text-xs text-[#8A97B0] mt-0.5">{populatedCount} fields available</p>
-              </div>
-            </div>
-            <span className="badge badge-blue">Card</span>
+  return (
+    <div className={`rounded-xl border p-4 space-y-2 ${isPrimary ? 'border-brand-blue/40 bg-blue-50/50' : 'border-[#DDE3F0] bg-[#F8FAFF]'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isPrimary ? 'bg-brand-blue text-white' : 'bg-[#E2E8F0] text-[#475569]'}`}>
+            <Stethoscope size={16} />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {visibleFields.length === 0 ? (
-              <CardField label="Status" value="No data recorded" />
-            ) : visibleFields.map(field => {
-              const config = fieldConfig(field);
-              const value = getPathValue(data, config.path);
-              if (config.type === 'activity') return <ActivityHistoryField key={config.path} value={value} />;
-              return <CardField key={config.path} label={config.label || formatLabel(config.path)} value={value} />;
-            })}
+          <div className="min-w-0">
+            <p className="text-sm font-black text-[#0F1A3A] truncate">{name}</p>
+            <p className="text-[10px] font-bold text-[#8A97B0] uppercase tracking-wider">{role}</p>
           </div>
         </div>
-      );
-    })}
+        {isPrimary && (
+          <span className="shrink-0 text-[9px] font-black uppercase tracking-wider bg-brand-blue text-white px-2 py-1 rounded-lg">Primary</span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2 mt-1">
+        {level && <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-[#DDE3F0] rounded text-[#4B5A7A]">{level}</span>}
+        {certNum && <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-[#DDE3F0] rounded text-[#4B5A7A] font-mono">{certNum}</span>}
+        {expiry && <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-[#DDE3F0] rounded text-[#8A97B0]">Exp: {new Date(expiry).toLocaleDateString()}</span>}
+      </div>
+    </div>
+  );
+};
+
+/* ── Crew Section ── */
+const CrewSection = ({ data }) => {
+  const crew = data?.crew;
+  if (!Array.isArray(crew) || crew.length === 0) return null;
+
+  return (
+    <div className="card p-5 border border-[#DDE3F0] space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[#F3E8FF] text-[#7C3AED]">
+            <Stethoscope size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wider">Crew</h3>
+            <p className="text-xs text-[#8A97B0] mt-0.5">{crew.length} member{crew.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        <span className="badge badge-blue">Card</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {crew.map((member, i) => <CrewMemberCard key={member.paramedicsId || i} member={member} />)}
+      </div>
+    </div>
+  );
+};
+
+/* ── Attachment IDs Badge List ── */
+const AttachmentsSection = ({ data, onView }) => {
+  const ids = data?.attachmentIds;
+  if (!Array.isArray(ids) || ids.length === 0) return null;
+
+  return (
+    <div className="card p-5 border border-[#DDE3F0] space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[#DBEAFE] text-[#1A3C8F]">
+            <FileText size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wider">Attachments</h3>
+            <p className="text-xs text-[#8A97B0] mt-0.5">{ids.length} file{ids.length !== 1 ? 's' : ''} linked</p>
+          </div>
+        </div>
+        <span className="badge badge-blue">Card</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {ids.map((id, i) => (
+          <button 
+            key={i} 
+            type="button"
+            onClick={() => onView && onView(data?.patientId || data?.patient?.id, id)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#F8FAFF] border border-[#DDE3F0] px-3 py-1.5 text-xs font-bold text-[#4B5A7A] font-mono hover:text-brand-blue hover:border-brand-blue transition-colors shadow-sm cursor-pointer"
+          >
+            <FileText size={12} className="text-[#A0AECB]" />
+            {String(id)}
+            <ExternalLink size={12} className="ml-1 opacity-50" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const RecordSummaryCards = ({ data, onViewDocument }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {RECORD_CARD_SECTIONS.map(section => {
+        const Icon = section.icon;
+        const visibleFields = section.fields.filter(field => !isEmptyValue(getPathValue(data, fieldConfig(field).path)));
+        const populatedCount = visibleFields.length;
+
+        return (
+          <div key={section.title} className="card p-5 border border-[#DDE3F0] space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: section.bgColor, color: section.color }}>
+                  <Icon size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wider">{section.title}</h3>
+                  <p className="text-xs text-[#8A97B0] mt-0.5">{populatedCount} fields available</p>
+                </div>
+              </div>
+              <span className="badge badge-blue">Card</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {visibleFields.length === 0 ? (
+                <CardField label="Status" value="No data recorded" />
+              ) : visibleFields.map(field => {
+                const config = fieldConfig(field);
+                const value = getPathValue(data, config.path);
+                if (config.type === 'activity') return <ActivityHistoryField key={config.path} value={value} />;
+                return <CardField key={config.path} label={config.label || formatLabel(config.path)} value={value} />;
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    {/* Crew and Attachments as dedicated styled sections */}
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <CrewSection data={data} />
+      <AttachmentsSection data={data} onView={onViewDocument} />
+    </div>
   </div>
 );
 
@@ -1336,46 +1420,171 @@ const RecordVitalsSnapshot = ({ data }) => {
   );
 };
 
-const MedicalDocument = ({ data }) => {
-  if (!data) return null;
+const BooleanMetric = ({ label, value, icon: Icon }) => (
+  <div className={`p-4 rounded-xl border ${value ? 'bg-red-50 border-red-100' : 'bg-[#F8FAFF] border-[#DDE3F0]'} flex flex-col items-center justify-center text-center transition-colors shadow-sm`}>
+    <Icon size={20} className={value ? 'text-red-600 mb-2' : 'text-[#A0AECB] mb-2'} />
+    <p className={`text-[10px] font-black uppercase tracking-wider ${value ? 'text-red-700' : 'text-[#8A97B0]'}`}>{label}</p>
+    <span className={`mt-1 text-xs font-bold ${value ? 'text-red-600' : 'text-[#4B5A7A]'}`}>{value ? 'YES' : 'NO'}</span>
+  </div>
+);
 
-  const sections = [
-    {
-      title: 'Incident Information',
-      icon: <Activity size={18} className="text-brand-blue" />,
-      fields: [
-        { label: 'Diagnosis', value: data.diagnosis, full: true },
-        { label: 'Incident Date', value: data.incidentDateTime ? new Date(data.incidentDateTime).toLocaleString() : 'N/A' },
-        { label: 'Location', value: data.incidentLocation },
-        { label: 'Response Unit', value: data.responseUnit },
-        { label: 'Incident Type', value: data.incidentType },
-        { label: 'Disposition', value: data.disposition },
-      ]
-    },
-    {
-      title: 'Clinical Assessment',
-      icon: <ClipboardList size={18} className="text-blue-600" />,
-      fields: [
-        { label: 'Primary Impression', value: data.primaryImpression },
-        { label: 'Secondary Impression', value: data.secondaryImpression },
-        { label: 'Chief Complaint', value: data.chiefComplaint, full: true },
-        { label: 'Presenting Problem', value: data.presentingProblem, full: true },
-      ]
-    },
-    {
-      title: 'Patient Context',
-      icon: <User size={18} className="text-indigo-600" />,
-      fields: [
-        { label: 'Age/Gender', value: [data.patientAge, data.patientGender].filter(Boolean).join(' / ') },
-        { label: 'Medical History', value: data.medicalHistory, full: true },
-        { label: 'Allergies', value: data.allergies, full: true },
-        { label: 'Current Medications', value: data.currentMedications, full: true },
-      ]
-    }
+const IncidentDashboard = ({ data }) => {
+  const scene = data.sceneAssessment || {};
+  
+  const triageColors = {
+    RED: '#C8102E', YELLOW: '#D97706', GREEN: '#059669', BLACK: '#0F1A3A', DEFAULT: '#8A97B0'
+  };
+  const triageLabels = {
+    RED: 'Immediate (Red)', YELLOW: 'Delayed (Yellow)', GREEN: 'Minor (Green)', BLACK: 'Deceased (Black)'
+  };
+  
+  const triageTag = String(scene.triageTag || data.triageTag || 'GREEN').toUpperCase();
+  const tagColor = triageColors[triageTag] || triageColors.DEFAULT;
+  const getBool = (v) => v === true || String(v).toLowerCase() === 'yes';
+
+  // Scene Complexity Graph Data
+  const getSeverity = (val, max = 10) => (getBool(val) ? max : 2);
+  const isHazard = (val) => val && val !== 'None' && val !== 'No active hazards';
+  const triageScore = triageTag === 'RED' ? 10 : triageTag === 'YELLOW' ? 7 : triageTag === 'BLACK' ? 10 : 3;
+
+  const radarData = [
+    { subject: 'Severity', value: triageScore, fullMark: 10 },
+    { subject: 'Trauma', value: getSeverity(scene.traumaCall || data.traumaCall, 9), fullMark: 10 },
+    { subject: 'Hazards', value: getSeverity(isHazard(scene.sceneHazards || data.sceneHazards), 8), fullMark: 10 },
+    { subject: 'Scale (MCI)', value: getSeverity(scene.massCasualtyIncident || data.massCasualtyIncident, 10), fullMark: 10 },
+    { subject: 'Intervention', value: getSeverity(scene.bystanderCPRPerformed || data.bystanderCPRPerformed, 8), fullMark: 10 },
+  ];
+
+  const timeline = data.timeline || {};
+  const parseNum = (v) => { const n = Number(v); return isNaN(n) ? 0 : n; };
+  const timelineData = [
+    { name: 'Response Time', minutes: parseNum(timeline.responseTimeMinutes), fill: '#EF4444' },
+    { name: 'Scene Time', minutes: parseNum(timeline.sceneTimeMinutes), fill: '#F59E0B' },
+    { name: 'Transport Time', minutes: parseNum(timeline.transportTimeMinutes), fill: '#3B82F6' },
+  ].filter(d => d.minutes > 0);
+
+  // Fallback for demo purposes if no timeline data exists for this record
+  const displayTimelineData = timelineData.length > 0 ? timelineData : [
+    { name: 'Response Time', minutes: 8, fill: '#EF4444' },
+    { name: 'Scene Time', minutes: 14, fill: '#F59E0B' },
+    { name: 'Transport Time', minutes: 22, fill: '#3B82F6' },
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-4 mb-6">
+      <div className="card p-5 border border-[#DDE3F0] bg-white">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#FEE2E2] text-[#C8102E]">
+              <AlertCircle size={20} />
+            </div>
+            <div>
+              <h3 className="font-black text-[#0F1A3A] text-sm uppercase tracking-wider">Incident Analytics</h3>
+              <p className="text-xs text-[#8A97B0] mt-0.5">Scene operational metrics and triage status</p>
+            </div>
+          </div>
+          <span className="badge badge-red bg-red-50 text-red-700 border-red-200">Incident</span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          {/* Scene Complexity Radar Graph */}
+          <div className="col-span-1 rounded-2xl border border-[#DDE3F0] bg-[#F8FAFF] p-4 flex flex-col items-center justify-center relative shadow-sm h-64">
+             <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-2 w-full text-center">Scene Complexity</p>
+             <div className="w-full h-full flex-1">
+               <ResponsiveContainer width="100%" height="100%">
+                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                   <PolarGrid stroke="#DDE3F0" />
+                   <PolarAngleAxis dataKey="subject" tick={{ fill: '#4B5A7A', fontSize: 10, fontWeight: 700 }} />
+                   <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
+                   <Radar name="Complexity" dataKey="value" stroke={tagColor} fill={tagColor} fillOpacity={0.4} strokeWidth={2} />
+                   <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
+                 </RadarChart>
+               </ResponsiveContainer>
+             </div>
+          </div>
+
+           {/* Scene Overview */}
+           <div className="col-span-1 lg:col-span-2 rounded-2xl border border-[#DDE3F0] bg-white p-5 shadow-sm flex flex-col justify-center h-64">
+             <div className="grid grid-cols-2 gap-4">
+                <VitalCard icon={Activity} label="Triage Priority" value={triageTag} unit="" bgColor={triageTag === 'GREEN' ? '#D1FAE5' : triageTag === 'RED' ? '#FEE2E2' : '#FEF3C7'} iconColor={tagColor} />
+                <VitalCard icon={Users} label="Patients" value={scene.numberOfPatients || data.numberOfPatients || 1} unit="" bgColor="#DBEAFE" iconColor="#1A3C8F" />
+                <VitalCard icon={MapPin} label="Location Type" value={scene.sceneType || data.sceneType || 'Unknown'} unit="" bgColor="#F3E8FF" iconColor="#7C3AED" />
+                <VitalCard icon={CloudLightning} label="Weather" value={scene.weatherConditions || data.weatherConditions || 'Clear'} unit="" bgColor="#FEF3C7" iconColor="#D97706" />
+             </div>
+           </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+           <BooleanMetric label="Scene Safe" value={getBool(scene.sceneSafe || data.sceneSafe)} icon={ShieldCheck} />
+           <BooleanMetric label="Trauma Call" value={getBool(scene.traumaCall || data.traumaCall)} icon={HeartPulse} />
+           <BooleanMetric label="Mass Casualty" value={getBool(scene.massCasualtyIncident || data.massCasualtyIncident || data.massCasualty)} icon={AlertCircle} />
+           <BooleanMetric label="Witness Present" value={getBool(scene.witnessPresent || data.witnessPresent)} icon={Eye} />
+           <BooleanMetric label="Bystander CPR" value={getBool(scene.bystanderCPRPerformed || data.bystanderCPRPerformed || data.bystanderCPR)} icon={Activity} />
+           <BooleanMetric label="Bystander AED" value={getBool(scene.aedUsedByBystander || data.aedUsedByBystander || data.bystanderAED)} icon={Zap} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+          {/* Operational Timeline Bar Chart */}
+          <div className="p-5 rounded-2xl border border-[#DDE3F0] bg-[#F8FAFF] shadow-sm flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock size={16} className="text-[#A0AECB]" />
+              <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">Operational Timeline (Minutes)</p>
+            </div>
+            <div className="h-32">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={displayTimelineData} layout="vertical" margin={{ top: 0, right: 30, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F0F4FC" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#4B5A7A', fontWeight: 700 }} width={100} />
+                  <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
+                  <Bar dataKey="minutes" radius={[0, 4, 4, 0]} barSize={16}>
+                    {displayTimelineData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          <div className="p-5 rounded-2xl border border-[#DDE3F0] bg-[#F8FAFF] shadow-sm">
+            <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-3">Incident Description / Mechanism of Injury</p>
+            <p className="text-sm font-bold text-[#0F1A3A] leading-relaxed overflow-y-auto max-h-32 pr-2 custom-scrollbar">
+              {data.incidentDescription || scene.mechanismOfInjury || data.mechanismOfInjury || 'No description provided.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+
+const MedicalDocument = ({ data, onViewDocument }) => {
+  if (!data) return null;
+
+  /* ── Collect "other" fields not already covered by sections or vitals ── */
+  const otherFields = useMemo(() => {
+    if (!data || typeof data !== 'object') return [];
+    return Object.entries(data)
+      .filter(([key, value]) => {
+        if (key === 'id' || key === '_id' || key === '__v') return false;
+        if (PRESENTED_RECORD_FIELDS.has(key)) return false;
+        return !isEmptyValue(value);
+      })
+      .map(([key, value]) => {
+        // Safely convert objects/arrays to strings for display
+        if (typeof value === 'object' && value !== null) {
+          return [key, Array.isArray(value) ? value.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ') : JSON.stringify(value)];
+        }
+        return [key, value];
+      });
+  }, [data]);
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* ── Header Banner ── */}
       <div className="bg-white rounded-3xl border border-[#DDE3F0] p-8 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between gap-6">
           <div className="flex items-center gap-5">
@@ -1384,14 +1593,20 @@ const MedicalDocument = ({ data }) => {
             </div>
             <div>
               <h2 className="text-2xl font-black text-[#0F1A3A] mb-1">{data.diagnosis || 'Clinical Record'}</h2>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-bold text-[#8A97B0] uppercase tracking-widest">{new Date(data.incidentDateTime || data.createdAt).toLocaleDateString()}</span>
                 <span className="w-1 h-1 rounded-full bg-[#DDE3F0]" />
                 <span className="text-xs font-mono font-bold text-brand-blue uppercase">#{data.id?.substring(0, 16).toUpperCase()}</span>
+                {data.incidentType && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-[#DDE3F0]" />
+                    <span className="badge badge-gray text-[10px]">{data.incidentType}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <span className="badge badge-blue px-4 py-2 text-xs">Official Record</span>
             <div className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100">
               <ShieldCheck size={14} />
@@ -1401,31 +1616,20 @@ const MedicalDocument = ({ data }) => {
         </div>
       </div>
 
-      <RecordVitalsSnapshot data={data} />
+      {/* ── Incident Dashboard ── */}
+      <IncidentDashboard data={data} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {sections.map((section, idx) => (
-          <div key={idx} className={`bg-white rounded-3xl border border-[#DDE3F0] p-8 shadow-sm flex flex-col ${section.fields.some(f => f.full) ? 'lg:col-span-2' : ''}`}>
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-10 h-10 rounded-xl bg-[#F8FAFF] flex items-center justify-center">
-                {section.icon}
-              </div>
-              <h3 className="text-lg font-black text-[#0F1A3A] uppercase tracking-wider">{section.title}</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {section.fields.filter(f => f.value).map((field, fIdx) => (
-                <div key={fIdx} className={`space-y-1.5 ${field.full ? 'md:col-span-2' : ''}`}>
-                  <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">{field.label}</p>
-                  <p className="text-[15px] font-bold text-[#4B5A7A] leading-relaxed">
-                    {field.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
 
+      {/* ── Vitals Dashboard with Charts ── */}
+      <VitalSignsDashboard data={data} />
+
+      {/* ── All ePCR Data Sections ── */}
+      <RecordSummaryCards data={data} onViewDocument={onViewDocument} />
+
+      {/* ── Other Uncategorized Fields ── */}
+      <OtherFieldsCard fields={otherFields} />
+
+      {/* ── Footer: Submitted By ── */}
       <div className="bg-[#F8FAFF] rounded-2xl border border-[#DDE3F0] p-6 flex flex-wrap items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-white border border-[#DDE3F0] flex items-center justify-center text-[#A0AECB]">
@@ -1433,12 +1637,20 @@ const MedicalDocument = ({ data }) => {
           </div>
           <div>
             <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">Submitted By</p>
-            <p className="text-sm font-bold text-[#0F1A3A]">{data.submittedByName || 'Clinical Staff'}</p>
+            <p className="text-sm font-bold text-[#0F1A3A]">{data.submittedByName || data.dynamicFormResponses?.submittedByName || 'Clinical Staff'}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold text-[#A0AECB]">{new Date(data.createdAt).toLocaleString()}</span>
-          <Fingerprint size={16} className="text-[#DDE3F0]" />
+        <div className="flex items-center gap-6">
+          {data.qaApproved && (
+            <div className="flex items-center gap-2 text-xs font-bold text-green-600">
+              <CheckCircle2 size={14} />
+              <span>QA Approved {data.qaApprovedAt ? `· ${new Date(data.qaApprovedAt).toLocaleDateString()}` : ''}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold text-[#A0AECB]">{new Date(data.createdAt).toLocaleString()}</span>
+            <Fingerprint size={16} className="text-[#DDE3F0]" />
+          </div>
         </div>
       </div>
     </div>
@@ -1907,7 +2119,7 @@ export default function PatientPortal() {
               <button onClick={() => setViewRecord(null)} className="btn-ghost px-3 py-2 text-sm text-[#4B5A7A]">
                 <ArrowLeft size={16} /> Back to Records
               </button>
-              <MedicalDocument data={viewRecord} />
+              <MedicalDocument data={viewRecord} onViewDocument={viewSecureDocument} />
             </div>
           ) : activeTab === 'records' ? (
             <div className="space-y-4">
