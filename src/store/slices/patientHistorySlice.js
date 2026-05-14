@@ -99,6 +99,11 @@ export const createDocument = makeCreate('Document', 'documents');
 export const updateDocument = makeUpdate('Document', 'documents', 'documentId');
 export const deleteDocument = makeDelete('Document', 'documents');
 
+export const fetchVitals = makeFetch('Vitals', 'vitals');
+export const createVital = makeCreate('Vital', 'vitals');
+export const updateVital = makeUpdate('Vital', 'vitals', 'id');
+export const deleteVital = makeDelete('Vital', 'vitals');
+
 export const fetchAllPatientHistory = createAsyncThunk(
   'patientHistory/fetchAll',
   async (patientId, { dispatch, rejectWithValue }) => {
@@ -112,6 +117,7 @@ export const fetchAllPatientHistory = createAsyncThunk(
         dispatch(fetchAdmissions(patientId)).unwrap(),
         dispatch(fetchLabResults(patientId)).unwrap(),
         dispatch(fetchDocuments(patientId)).unwrap(),
+        dispatch(fetchVitals(patientId)).unwrap(),
       ]);
       return patientId;
     } catch (e) {
@@ -132,6 +138,7 @@ const initialState = {
   admissions: [],
   labResults: [],
   documents: [],
+  vitals: [],
   loading: false,
   pendingCount: 0,
   error: null,
@@ -154,6 +161,7 @@ const patientHistorySlice = createSlice({
       state.admissions = [];
       state.labResults = [];
       state.documents = [];
+      state.vitals = [];
       state.error = null;
       state.pendingCount = 0;
       state.loading = false;
@@ -249,7 +257,14 @@ const patientHistorySlice = createSlice({
       .addCase(deleteLabResult.fulfilled, (state, action) => { state.labResults = remove(state.labResults, action.payload); })
       .addCase(createDocument.fulfilled, (state, action) => { upsert(state.documents, action.payload); })
       .addCase(updateDocument.fulfilled, (state, action) => { upsert(state.documents, action.payload); })
-      .addCase(deleteDocument.fulfilled, (state, action) => { state.documents = remove(state.documents, action.payload); });
+      .addCase(deleteDocument.fulfilled, (state, action) => { state.documents = remove(state.documents, action.payload); })
+
+      .addCase(fetchVitals.pending, pending)
+      .addCase(fetchVitals.fulfilled, (state, action) => { fulfilled(state); state.vitals = asList(action.payload); })
+      .addCase(fetchVitals.rejected, rejected)
+      .addCase(createVital.fulfilled, (state, action) => { upsert(state.vitals, action.payload); })
+      .addCase(updateVital.fulfilled, (state, action) => { upsert(state.vitals, action.payload); })
+      .addCase(deleteVital.fulfilled, (state, action) => { state.vitals = remove(state.vitals, action.payload); });
   },
 });
 
@@ -265,6 +280,7 @@ export const selectEncounters = (state) => state.patientHistory.encounters;
 export const selectAdmissions = (state) => state.patientHistory.admissions;
 export const selectLabResults = (state) => state.patientHistory.labResults;
 export const selectDocuments = (state) => state.patientHistory.documents;
+export const selectVitals = (state) => state.patientHistory.vitals;
 export const selectHistoryLoading = (state) => state.patientHistory.loading;
 export const selectHistoryError = (state) => state.patientHistory.error;
 export const selectCurrentPatientId = (state) => state.patientHistory.currentPatientId;

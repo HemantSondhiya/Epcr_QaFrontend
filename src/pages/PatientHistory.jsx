@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  Legend, ResponsiveContainer, ReferenceArea, Area, AreaChart, Cell
+} from 'recharts';
 import {
   clearHistory,
   createAdmission,
@@ -9,12 +13,14 @@ import {
   createEncounter,
   createLabResult,
   createMedication,
+  createVital,
   deleteAdmission,
   deleteCondition,
   deleteDocument,
   deleteEncounter,
   deleteLabResult,
   deleteMedication,
+  deleteVital,
   fetchAllPatientHistory,
   searchPatients,
   selectAdmissions,
@@ -30,6 +36,7 @@ import {
   selectPatientSearchLoading,
   selectPatientSearchResults,
   selectTimeline,
+  selectVitals,
   setCurrentPatientId,
   updateAdmission,
   updateCondition,
@@ -37,6 +44,7 @@ import {
   updateEncounter,
   updateLabResult,
   updateMedication,
+  updateVital,
 } from '../store/slices/patientHistorySlice';
 import { addToast } from '../store/slices/uiSlice';
 import { selectUser } from '../store/slices/authSlice';
@@ -44,10 +52,12 @@ import client from '../api/client';
 import {
   Activity,
   AlertCircle,
+  BarChart3,
   BedDouble,
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock,
   Edit3,
   ExternalLink,
@@ -65,7 +75,9 @@ import {
   Shield,
   Stethoscope,
   Tag,
+  Thermometer,
   Trash2,
+  TrendingUp,
   Upload,
   UserRound,
   X,
@@ -95,30 +107,20 @@ const getFileUrl = (url) => {
   return url.startsWith('/') ? url : `/${url}`;
 };
 
-const viewSecureDocument = async (patientId, documentId, fileName = '') => {
+const viewSecureDocument = async (dispatch, patientId, documentId) => {
   if (!documentId || !patientId) return;
   try {
-    const res = await client.get(`/api/patients/${patientId}/history/documents/${documentId}/file`, {
-      responseType: 'blob',
-      hideToast: true,
-      withCredentials: false, // Disable credentials to allow redirection to external storage without CORS conflicts
-    });
-
-    // Explicitly set MIME type so the browser renders it (e.g., PDF) instead of forcing a download
-    let mimeType = res.headers['content-type'];
-    if (!mimeType || mimeType.includes('octet-stream') || mimeType.includes('multipart')) {
-      const ext = String(fileName).split('.').pop()?.toLowerCase();
-      if (['jpg', 'jpeg'].includes(ext)) mimeType = 'image/jpeg';
-      else if (ext === 'png') mimeType = 'image/png';
-      else mimeType = 'application/pdf'; // Default for most medical documents
-    }
-
-    const fileBlob = new Blob([res.data], { type: mimeType });
-    const url = URL.createObjectURL(fileBlob);
-    window.open(url, '_blank');
+    const res = await client.get(
+      `/api/patients/${patientId}/history/documents/${documentId}/signed-url`,
+      { hideToast: true }
+    );
+    window.open(res.data.url, '_blank');
   } catch (error) {
     console.error('Failed to view document securely', error);
-    const message = error.response?.data?.message || 'Unable to open document. It may have been stored on a previous server and is no longer accessible.';
+    const status = error.response?.status;
+    const message = status === 404
+      ? 'This document was stored on a previous server and must be re-uploaded to be accessible.'
+      : (error.response?.data?.message || 'Unable to open document. Please try again or contact support.');
     dispatch(addToast({ type: 'error', message }));
   }
 };
@@ -322,17 +324,17 @@ const IconButton = ({ title, children, className = '', ...props }) => (
 );
 
 const Section = ({ icon: Icon, title, action, children }) => (
-  <section className="bg-white border border-[#DDE3F0] rounded-2xl shadow-sm overflow-hidden">
-    <div className="flex items-center justify-between gap-3 border-b border-[#DDE3F0] px-5 py-4">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-[#E8EEF8] text-brand-blue flex items-center justify-center">
-          <Icon size={19} />
+  <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
+    <div className="flex items-center justify-between gap-3 border-b border-[#DDE3F0] px-8 py-6">
+      <div className="flex items-center gap-4">
+        <div className="h-10 w-10 rounded-xl bg-[#E8EEF8] text-[#0F1A3A] flex items-center justify-center">
+          <Icon size={20} />
         </div>
-        <h2 className="text-base font-bold text-[#0F1A3A]">{title}</h2>
+        <h2 className="text-xl font-black text-[#0F1A3A] tracking-tight">{title}</h2>
       </div>
       {action}
     </div>
-    <div className="p-5">{children}</div>
+    <div className="p-8">{children}</div>
   </section>
 );
 
@@ -341,6 +343,50 @@ const Empty = ({ children }) => (
     {children}
   </div>
 );
+
+const MetricCard = ({ icon: Icon, label, value, unit, range, color, bgColor, children }) => (
+  <div className="card p-5 space-y-4 border border-[#DDE3F0] bg-white rounded-2xl shadow-sm">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bgColor, color }}>
+          <Icon size={20} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider truncate">{label}</p>
+          <p className="text-2xl font-black text-[#0F1A3A] tabular-nums">
+            {value ?? 'N/A'} <span className="text-sm text-[#8A97B0] font-bold">{unit}</span>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div className="h-24">
+      {children}
+    </div>
+    <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#F0F4FC]">
+      <p className="text-[10px] font-bold text-[#A0AECB] uppercase tracking-wider">{range}</p>
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
+        <Activity size={10} /> Active
+      </span>
+    </div>
+  </div>
+);
+
+const VitalTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="rounded-xl border border-[#DDE3F0] bg-white p-3 shadow-xl">
+      <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider mb-2">{new Date(label).toLocaleString()}</p>
+      <div className="space-y-1.5">
+        {payload.map((entry) => (
+          <div key={entry.dataKey} className="flex items-center gap-2 text-xs font-bold text-[#4B5A7A]">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            <span>{entry.name}: {entry.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const field = (name, label, type = 'text', options = {}) => ({ name, label, type, ...options });
 
@@ -496,7 +542,424 @@ const FORM_CONFIG = {
       { title: 'Linked Records', fieldNames: ['conditionId', 'encounterId', 'admissionId'] },
     ],
   },
+  vitals: {
+    title: 'Vital Reading',
+    subtitle: 'Record patient vital signs',
+    create: createVital,
+    update: updateVital,
+    defaults: {
+      recordedAt: new Date().toISOString().slice(0, 16), systolicBP: '', diastolicBP: '', heartRate: '',
+      oxygenSaturation: '', respiratoryRate: '', temperature: '', bloodGlucose: '', glasgowComaScale: '',
+      gcEye: '', gcVerbal: '', gcMotor: '', painScore: '', painLocation: '', oxygenDeliveryMethod: '',
+      temperatureRoute: '', hemoglobin: '', avpu: '', pupilLeft: '', pupilRight: '', skinColor: '', notes: '',
+      linkedEpcrId: '', linkedEncounterId: '',
+    },
+    fields: [
+      field('recordedAt', 'Recorded At', 'datetime-local', { required: true }),
+      field('systolicBP', 'Systolic BP (mmHg)', 'number', { placeholder: '120' }),
+      field('diastolicBP', 'Diastolic BP (mmHg)', 'number', { placeholder: '80' }),
+      field('heartRate', 'Heart Rate (bpm)', 'number', { placeholder: '72' }),
+      field('oxygenSaturation', 'SpO₂ (%)', 'number', { placeholder: '98' }),
+      field('respiratoryRate', 'Respiratory Rate (/min)', 'number', { placeholder: '16' }),
+      field('temperature', 'Temperature (°C)', 'number', { placeholder: '36.8' }),
+      field('temperatureRoute', 'Temp Route', 'select', { options: ['ORAL', 'AXILLARY', 'RECTAL', 'TYMPANIC'] }),
+      field('oxygenDeliveryMethod', 'O₂ Delivery', 'text', { placeholder: 'Room air, Nasal cannula...' }),
+      field('bloodGlucose', 'Blood Glucose (mg/dL)', 'number', { placeholder: '100' }),
+      field('hemoglobin', 'Hemoglobin (g/dL)', 'number', { placeholder: '14' }),
+      field('glasgowComaScale', 'GCS Total (/15)', 'number', { placeholder: '15' }),
+      field('gcEye', 'GCS Eye', 'number', { placeholder: '4' }),
+      field('gcVerbal', 'GCS Verbal', 'number', { placeholder: '5' }),
+      field('gcMotor', 'GCS Motor', 'number', { placeholder: '6' }),
+      field('avpu', 'AVPU', 'select', { options: ['A', 'V', 'P', 'U'] }),
+      field('painScore', 'Pain Score (/10)', 'number', { placeholder: '0' }),
+      field('painLocation', 'Pain Location', 'text', { placeholder: 'Chest, Abdomen...' }),
+      field('pupilLeft', 'Pupil Left', 'text', { placeholder: '3mm' }),
+      field('pupilRight', 'Pupil Right', 'text', { placeholder: '3mm' }),
+      field('skinColor', 'Skin Color', 'text', { placeholder: 'Normal, Pale, Cyanotic...' }),
+      field('linkedEpcrId', 'Linked ePCR ID', 'text', { placeholder: 'Optional' }),
+      field('linkedEncounterId', 'Linked Encounter ID', 'text', { placeholder: 'Optional' }),
+      field('notes', 'Notes', 'textarea', { placeholder: 'Additional observations...' }),
+    ],
+    sections: [
+      { title: 'Recording Info', fieldNames: ['recordedAt'] },
+      { title: 'Cardiovascular', fieldNames: ['systolicBP', 'diastolicBP', 'heartRate', 'oxygenSaturation', 'respiratoryRate'] },
+      { title: 'Temperature & Glucose', fieldNames: ['temperature', 'temperatureRoute', 'oxygenDeliveryMethod', 'bloodGlucose', 'hemoglobin'] },
+      { title: 'Neurological', fieldNames: ['glasgowComaScale', 'gcEye', 'gcVerbal', 'gcMotor', 'avpu', 'painScore', 'painLocation'] },
+      { title: 'Assessment', fieldNames: ['pupilLeft', 'pupilRight', 'skinColor'] },
+      { title: 'Linked Records', fieldNames: ['linkedEpcrId', 'linkedEncounterId'] },
+      { title: 'Notes', fieldNames: ['notes'] },
+    ],
+  },
 };
+
+/* ────────────────── Vitals: constants & helpers ────────────────── */
+
+const VITAL_METRICS = [
+  { key: 'systolicBP', label: 'Systolic BP', short: 'BP Sys', unit: 'mmHg', color: '#C8102E', lo: 90, hi: 140 },
+  { key: 'diastolicBP', label: 'Diastolic BP', short: 'BP Dia', unit: 'mmHg', color: '#E8476E', lo: 60, hi: 90 },
+  { key: 'heartRate', label: 'Heart Rate', short: 'HR', unit: 'bpm', color: '#7C3AED', lo: 60, hi: 100 },
+  { key: 'oxygenSaturation', label: 'SpO₂', short: 'SpO₂', unit: '%', color: '#059669', lo: 95, hi: 100 },
+  { key: 'respiratoryRate', label: 'Resp Rate', short: 'RR', unit: '/min', color: '#0891B2', lo: 12, hi: 20 },
+  { key: 'temperature', label: 'Temperature', short: 'Temp', unit: '°C', color: '#EA580C', lo: 36.1, hi: 37.2 },
+  { key: 'bloodGlucose', label: 'Blood Glucose', short: 'Glucose', unit: 'mg/dL', color: '#CA8A04', lo: 70, hi: 100 },
+  { key: 'glasgowComaScale', label: 'GCS', short: 'GCS', unit: '/15', color: '#1A3C8F', lo: 14, hi: 15 },
+  { key: 'painScore', label: 'Pain Score', short: 'Pain', unit: '/10', color: '#DC2626', lo: 0, hi: 3 },
+];
+
+const metricByKey = Object.fromEntries(VITAL_METRICS.map((m) => [m.key, m]));
+
+const assessVitalStatus = (v) => {
+  const crit = [
+    v.systolicBP != null && (v.systolicBP > 180 || v.systolicBP < 80),
+    v.diastolicBP != null && (v.diastolicBP > 120 || v.diastolicBP < 50),
+    v.heartRate != null && (v.heartRate > 150 || v.heartRate < 40),
+    v.oxygenSaturation != null && v.oxygenSaturation < 88,
+    v.respiratoryRate != null && (v.respiratoryRate > 30 || v.respiratoryRate < 8),
+    v.temperature != null && (v.temperature > 39.5 || v.temperature < 35),
+  ];
+  if (crit.some(Boolean)) return { label: 'Critical', cls: 'bg-red-100 text-red-700 border-red-200' };
+  const warn = [
+    v.systolicBP != null && (v.systolicBP > 140 || v.systolicBP < 90),
+    v.diastolicBP != null && (v.diastolicBP > 90 || v.diastolicBP < 60),
+    v.heartRate != null && (v.heartRate > 100 || v.heartRate < 60),
+    v.oxygenSaturation != null && v.oxygenSaturation < 95,
+    v.respiratoryRate != null && (v.respiratoryRate > 20 || v.respiratoryRate < 12),
+    v.temperature != null && (v.temperature > 37.2 || v.temperature < 36.1),
+  ];
+  if (warn.some(Boolean)) return { label: 'Monitor', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
+  return { label: 'Normal', cls: 'bg-green-100 text-green-700 border-green-200' };
+};
+
+const vitalPill = (value, metric) => {
+  if (value == null || value === '') return null;
+  const m = typeof metric === 'string' ? metricByKey[metric] : metric;
+  if (!m) return null;
+  const num = Number(value);
+  const outOfRange = !isNaN(num) && (num < m.lo || num > m.hi);
+  return (
+    <span key={m.key} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${outOfRange ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+      <span className="text-[10px] font-black text-[#8A97B0] uppercase">{m.short}</span>
+      {value}{m.unit ? <span className="text-[10px] text-[#A0AECB] ml-0.5">{m.unit}</span> : null}
+    </span>
+  );
+};
+
+const TIME_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: '24h', label: '24 h', ms: 86400000 },
+  { key: '7d', label: '7 days', ms: 604800000 },
+  { key: '30d', label: '30 days', ms: 2592000000 },
+];
+
+const formatChartTime = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}\n${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+};
+
+/* ────────────────── VitalsTab component ────────────────── */
+
+function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
+  const [subTab, setSubTab] = useState('chart');
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [primaryMetric, setPrimaryMetric] = useState('systolicBP');
+  const [compareMetrics, setCompareMetrics] = useState([]);
+  const [showCompare, setShowCompare] = useState(false);
+
+  const filtered = useMemo(() => {
+    let list = [...vitals];
+    if (timeFilter !== 'all') {
+      const cutoff = Date.now() - TIME_FILTERS.find((f) => f.key === timeFilter)?.ms;
+      list = list.filter((v) => new Date(v.recordedAt || v.createdAt).getTime() >= cutoff);
+    }
+    return list;
+  }, [vitals, timeFilter]);
+
+  const historyList = useMemo(() => [...filtered].sort((a, b) => new Date(b.recordedAt || b.createdAt) - new Date(a.recordedAt || a.createdAt)), [filtered]);
+  const chartData = useMemo(() => [...filtered].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt)).map((v) => ({
+    ...v,
+    time: new Date(v.recordedAt || v.createdAt).getTime(),
+    label: formatChartTime(v.recordedAt || v.createdAt),
+  })), [filtered]);
+
+  const toggleCompare = useCallback((key) => {
+    setCompareMetrics((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : prev.length < 3 ? [...prev, key] : prev);
+  }, []);
+
+  const activeChartMetrics = useMemo(() => {
+    const keys = [primaryMetric, ...(showCompare ? compareMetrics : [])];
+    return [...new Set(keys)].map((k) => metricByKey[k]).filter(Boolean);
+  }, [primaryMetric, compareMetrics, showCompare]);
+
+  const latest = chartData[chartData.length - 1] || {};
+
+  return (
+    <Section icon={Thermometer} title="Vital Signs" action={canEdit ? (
+      <button type="button" onClick={onAdd} className="btn-primary px-4 py-2 text-xs"><Plus size={15} /> Add</button>
+    ) : null}>
+      {/* Sub-tab toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="inline-flex rounded-xl border border-[#DDE3F0] bg-white overflow-hidden">
+          {[['history', 'Reading History', Clock], ['chart', 'Trend Chart', TrendingUp]].map(([id, label, Icon]) => (
+            <button key={id} type="button" onClick={() => setSubTab(id)} className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold transition ${subTab === id ? 'bg-brand-red text-white' : 'text-[#4B5A7A] hover:bg-[#F8FAFF]'}`}>
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-xl border border-[#DDE3F0] bg-white overflow-hidden">
+          {TIME_FILTERS.map((f) => (
+            <button key={f.key} type="button" onClick={() => setTimeFilter(f.key)} className={`px-4 py-2 text-xs font-bold transition ${timeFilter === f.key ? 'bg-[#0F1A3A] text-white' : 'text-[#4B5A7A] hover:bg-[#F8FAFF]'}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <Empty>No vital readings recorded{timeFilter !== 'all' ? ` in the selected time range` : ''}.</Empty>
+      ) : (
+        <div className="space-y-6">
+          {/* Summary Metric Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <MetricCard 
+              icon={HeartPulse} label="Heart Rate" 
+              value={latest.heartRate} unit="bpm" 
+              range="Latest Reading" color="#C8102E" bgColor="#FEE2E2"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="hrGradClin" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#C8102E" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#C8102E" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="heartRate" stroke="#C8102E" strokeWidth={2} fill="url(#hrGradClin)" dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+            </MetricCard>
+
+            <MetricCard 
+              icon={Activity} label="Blood Pressure" 
+              value={latest.systolicBP ? `${latest.systolicBP}/${latest.diastolicBP}` : 'N/A'} unit="mmHg" 
+              range="Latest Reading" color="#1A3C8F" bgColor="#DBEAFE"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <Line type="monotone" dataKey="systolicBP" stroke="#1A3C8F" strokeWidth={2} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="diastolicBP" stroke="#60A5FA" strokeWidth={2} dot={false} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </MetricCard>
+
+            <MetricCard 
+              icon={Activity} label="SpO₂" 
+              value={latest.oxygenSaturation} unit="%" 
+              range="Latest Reading" color="#059669" bgColor="#D1FAE5"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="spo2GradClin" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="oxygenSaturation" stroke="#059669" strokeWidth={2} fill="url(#spo2GradClin)" dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+            </MetricCard>
+          </div>
+
+          <div className="border-t border-[#F0F4FC] pt-6">
+            {subTab === 'history' ? (
+              /* ── Reading History ── */
+              <div className="space-y-3">
+          {historyList.map((v) => {
+            const status = assessVitalStatus(v);
+            const ts = v.recordedAt || v.createdAt;
+            return (
+              <div key={v.id || JSON.stringify(v)} className="rounded-xl border border-[#DDE3F0] bg-white p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    {/* Time & status */}
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="text-sm font-black text-[#0F1A3A]">
+                        {ts ? new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      </span>
+                      <span className="text-xs font-bold text-[#8A97B0]">{date(ts)}</span>
+                      <Badge className={status.cls}>{status.label}</Badge>
+                    </div>
+                    {/* Primary vitals row */}
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {v.systolicBP != null && v.diastolicBP != null && (
+                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${(v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+                          <span className="text-[10px] font-black text-[#8A97B0] uppercase">BP</span>
+                          {v.systolicBP}/{v.diastolicBP} <span className="text-[10px] text-[#A0AECB] ml-0.5">mmHg</span>
+                        </span>
+                      )}
+                      {vitalPill(v.heartRate, 'heartRate')}
+                      {vitalPill(v.oxygenSaturation, 'oxygenSaturation')}
+                      {vitalPill(v.respiratoryRate, 'respiratoryRate')}
+                      {vitalPill(v.temperature, 'temperature')}
+                    </div>
+                    {/* Secondary vitals row */}
+                    <div className="flex flex-wrap gap-2">
+                      {vitalPill(v.glasgowComaScale, 'glasgowComaScale')}
+                      {vitalPill(v.painScore, 'painScore')}
+                      {vitalPill(v.bloodGlucose, 'bloodGlucose')}
+                      {v.avpu && <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]"><span className="text-[10px] font-black text-[#8A97B0]">AVPU</span> {v.avpu}</span>}
+                    </div>
+                    {/* Recorded by */}
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-bold text-[#A0AECB] uppercase tracking-wider">
+                      {v.recordedByName && <span>👤 Recorded by {v.recordedByName}</span>}
+                      {v.oxygenDeliveryMethod && <span>· {v.oxygenDeliveryMethod}</span>}
+                      {v.linkedEpcrId && <span className="text-brand-blue">ePCR {v.linkedEpcrId}</span>}
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex shrink-0 gap-2">
+                    <IconButton title="View Details" onClick={() => onView(v)}><Eye size={15} /></IconButton>
+                    {canEdit && (
+                      <>
+                        <IconButton title="Edit" onClick={() => onEdit(v)}><Edit3 size={15} /></IconButton>
+                        <IconButton title="Delete" onClick={() => onDelete(v)} className="hover:border-red-200 hover:text-red-600"><Trash2 size={15} /></IconButton>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ── Trend Chart ── */
+        <div>
+          {/* Chart controls */}
+          <div className="flex flex-wrap items-end gap-4 mb-5">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest mb-2 block">Primary Metric</label>
+              <select value={primaryMetric} onChange={(e) => setPrimaryMetric(e.target.value)} className="input py-2.5 text-sm font-bold">
+                {VITAL_METRICS.map((m) => <option key={m.key} value={m.key}>{m.label} ({m.unit})</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={() => setShowCompare(!showCompare)} className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition ${showCompare ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue'}`}>
+              <BarChart3 size={14} /> Compare
+            </button>
+          </div>
+
+          {/* Compare selector */}
+          {showCompare && (
+            <div className="mb-5 p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
+              <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest mb-3">Select up to 3 metrics to compare</p>
+              <div className="flex flex-wrap gap-2">
+                {VITAL_METRICS.filter((m) => m.key !== primaryMetric).map((m) => {
+                  const active = compareMetrics.includes(m.key);
+                  return (
+                    <button key={m.key} type="button" onClick={() => toggleCompare(m.key)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold border transition ${active ? 'text-white border-transparent' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue'}`}
+                      style={active ? { background: m.color, borderColor: m.color } : undefined}>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: m.color }} /> {m.short}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Chart */}
+          <div className="rounded-xl border border-[#DDE3F0] bg-white p-5 shadow-sm">
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    {activeChartMetrics.map((m) => (
+                      <linearGradient key={`clin-grad-${m.key}`} id={`clin-grad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={m.color} stopOpacity={0.25} />
+                        <stop offset="95%" stopColor={m.color} stopOpacity={0} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#F0F4FC" />
+                  <XAxis 
+                    dataKey="time" 
+                    type="number"
+                    domain={['auto', 'auto']}
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#8A97B0', fontWeight: 600 }}
+                    tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    minTickGap={30}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#4B5A7A', fontWeight: 700 }}
+                    domain={['auto', 'auto']}
+                  />
+                  <RechartsTooltip content={<VitalTooltip />} />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 'bold' }}
+                    iconType="circle"
+                  />
+                  {activeChartMetrics.length === 1 && activeChartMetrics[0].lo != null && (
+                    <ReferenceArea 
+                      y1={activeChartMetrics[0].lo} 
+                      y2={activeChartMetrics[0].hi} 
+                      fill={activeChartMetrics[0].color} 
+                      fillOpacity={0.06} 
+                      stroke="none"
+                    />
+                  )}
+                  {activeChartMetrics.map((m, i) => i === 0 ? (
+                    <Area 
+                      key={m.key} 
+                      type="monotone" 
+                      dataKey={m.key} 
+                      name={m.label} 
+                      stroke={m.color} 
+                      strokeWidth={4} 
+                      fill={`url(#clin-grad-${m.key})`}
+                      dot={{ r: 4, fill: '#fff', strokeWidth: 3, stroke: m.color }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                      connectNulls 
+                      animationDuration={1500}
+                    />
+                  ) : (
+                    <Line 
+                      key={m.key} 
+                      type="monotone" 
+                      dataKey={m.key} 
+                      name={m.label} 
+                      stroke={m.color} 
+                      strokeWidth={3} 
+                      strokeDasharray="5 5"
+                      dot={{ r: 3, fill: '#fff', strokeWidth: 2, stroke: m.color }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                      connectNulls 
+                    />
+                  ))}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Legend with normal ranges */}
+            <div className="mt-4 pt-3 border-t border-[#F0F4FC] flex flex-wrap gap-3">
+              {activeChartMetrics.map((m) => (
+                <span key={m.key} className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#4B5A7A]">
+                  <span className="w-3 h-1 rounded-full" style={{ background: m.color }} />
+                  {m.label}: Normal {m.lo}–{m.hi} {m.unit}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+      </div>
+      )}
+    </Section>
+  );
+}
 
 function HistoryModal({ type, item, patientId, onClose }) {
   const dispatch = useDispatch();
@@ -616,7 +1079,7 @@ function HistoryModal({ type, item, patientId, onClose }) {
                     <p className="truncate text-sm font-black text-brand-blue uppercase">{item.fileName || 'Stored document'}</p>
                   </div>
                   {item.fileUrl && (
-                    <button type="button" onClick={() => viewSecureDocument(patientId, getId(item), item.fileName || item.fileUrl)} className="text-[9px] font-black text-brand-red uppercase tracking-widest hover:underline shrink-0 flex items-center gap-1">
+                    <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(item), item.fileName || item.fileUrl)} className="text-[9px] font-black text-brand-red uppercase tracking-widest hover:underline shrink-0 flex items-center gap-1">
                       View <ExternalLink size={12} />
                     </button>
                   )}
@@ -760,7 +1223,7 @@ function PatientSearchPanel({ selectedPatientId, onSelect }) {
         <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className="input py-3 text-sm">
           {[10, 20, 50].map((n) => <option key={n} value={n}>{n} results</option>)}
         </select>
-        <button type="submit" className="btn-primary justify-center">
+        <button type="submit" className="btn-danger justify-center">
           {searching ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
           Search
         </button>
@@ -810,6 +1273,7 @@ function RowActions({ type, item, patientId, canEdit, onEdit, onView }) {
     admissions: deleteAdmission,
     labResults: deleteLabResult,
     documents: deleteDocument,
+    vitals: deleteVital,
   };
 
   const remove = async () => {
@@ -819,12 +1283,12 @@ function RowActions({ type, item, patientId, canEdit, onEdit, onView }) {
   };
 
   return (
-    <div className="flex shrink-0 gap-2">
-      <IconButton title="View Details" onClick={() => onView(type, item)}><Eye size={15} /></IconButton>
+    <div className="flex shrink-0 items-center gap-3">
+      <IconButton title="View Details" onClick={() => onView(type, item)} className="w-10 h-10 rounded-xl bg-white border border-[#DDE3F0] hover:bg-[#F8FAFF]"><Eye size={16} /></IconButton>
       {canEdit && (
         <>
-          <IconButton title="Edit" onClick={() => onEdit(type, item)}><Edit3 size={15} /></IconButton>
-          <IconButton title="Delete" onClick={remove} className="hover:border-red-200 hover:text-red-600"><Trash2 size={15} /></IconButton>
+          <IconButton title="Edit" onClick={() => onEdit(type, item)} className="w-10 h-10 rounded-xl bg-white border border-[#DDE3F0] hover:bg-[#F8FAFF]"><Edit3 size={16} /></IconButton>
+          <IconButton title="Delete" onClick={remove} className="w-10 h-10 rounded-xl bg-white border border-[#DDE3F0] hover:text-red-600 hover:border-red-200"><Trash2 size={16} /></IconButton>
         </>
       )}
     </div>
@@ -844,6 +1308,7 @@ function PatientHistory() {
   const admissions = useSelector(selectAdmissions);
   const labResults = useSelector(selectLabResults);
   const documents = useSelector(selectDocuments);
+  const vitals = useSelector(selectVitals);
   const loading = useSelector(selectHistoryLoading);
   const error = useSelector(selectHistoryError);
   const currentPatientId = useSelector(selectCurrentPatientId);
@@ -871,7 +1336,8 @@ function PatientHistory() {
     labs: labResults.length,
     admissions: admissions.length,
     documents: documents.length,
-  }), [admissions.length, conditions, documents.length, encounters.length, labResults.length, medications.length]);
+    vitals: vitals.length,
+  }), [admissions.length, conditions, documents.length, encounters.length, labResults.length, medications.length, vitals.length]);
 
   const tabs = [
     ['overview', 'Overview', Activity],
@@ -880,21 +1346,26 @@ function PatientHistory() {
     ['encounters', 'Encounters', UserRound],
     ['admissions', 'Admissions', BedDouble],
     ['labResults', 'Labs', FlaskConical],
+    ['vitals', 'Vitals', Thermometer],
     ['documents', 'Documents', FileText],
     ['timeline', 'Timeline', Clock],
   ];
 
   const addButton = (type) => canEdit ? (
-    <button type="button" onClick={() => setModal({ type })} className="btn-primary px-4 py-2 text-xs">
-      <Plus size={15} /> Add
+    <button 
+      type="button" 
+      onClick={() => setModal({ type })} 
+      className="flex items-center gap-2 px-6 py-2.5 bg-[#C8102E] text-white rounded-xl text-sm font-black hover:bg-[#9B0A21] transition-all shadow-lg shadow-red-900/10"
+    >
+      <Plus size={18} /> Add
     </button>
   ) : null;
 
   const renderList = (type, items, render) => (
     items.length === 0 ? <Empty>No {FORM_CONFIG[type].title.toLowerCase()} records found.</Empty> : (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {items.map((item) => (
-          <div key={getId(item) || JSON.stringify(item)} className="flex items-start justify-between gap-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF] p-4">
+          <div key={getId(item) || JSON.stringify(item)} className="flex items-start justify-between gap-6 rounded-2xl border border-[#DDE3F0] bg-white p-6 shadow-sm hover:shadow-md transition-all">
             <div className="min-w-0 flex-1">{render(item)}</div>
             <RowActions type={type} item={item} patientId={patientId} canEdit={canEdit} onEdit={(t, i) => setModal({ type: t, item: i })} onView={(t, i) => setViewModal({ type: t, item: i })} />
           </div>
@@ -904,23 +1375,33 @@ function PatientHistory() {
   );
 
   return (
-    <div className="p-6 space-y-6" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="min-h-screen bg-[#F8FAFF] p-8 space-y-10 max-w-[1600px] mx-auto animate-fade-in" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <p className="section-label mb-1">Patient History</p>
-          <h1 className="text-2xl font-bold tracking-tight text-[#0F1A3A]">Complete Medical Record</h1>
-          <p className="mt-1 text-sm font-medium text-[#8A97B0]">
-            {patientId ? `Patient ID: ${patientId}` : 'Search for a patient to view their medical history.'}
+          <p className="text-[10px] font-black text-brand-blue uppercase tracking-[0.2em] mb-2">Patient History</p>
+          <h1 className="text-4xl font-black text-[#0F1A3A] tracking-tighter">Complete Medical Record</h1>
+          <p className="text-sm font-bold text-[#8A97B0] mt-2 flex items-center gap-2">
+            Patient ID: <span className="text-[#0F1A3A]">{patientId || 'Not Selected'}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-4">
           {patientId && (
-            <button type="button" onClick={() => dispatch(fetchAllPatientHistory(patientId))} className="btn-outline px-4 py-2">
+            <button 
+              type="button" 
+              onClick={() => dispatch(fetchAllPatientHistory(patientId))} 
+              className="flex items-center gap-2 px-6 py-3 bg-white border border-[#DDE3F0] rounded-xl text-sm font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
+            >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
           )}
           {canSearch && patientId && (
-            <button type="button" onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }} className="btn-ghost">
+            <button 
+              type="button" 
+              onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }} 
+              className="text-sm font-bold text-[#8A97B0] hover:text-brand-blue transition-colors"
+            >
               Change Patient
             </button>
           )}
@@ -938,35 +1419,64 @@ function PatientHistory() {
       )}
 
       {!patientId ? (
-        <Empty>👤 Select a patient to begin. Use the search above to find a patient by name, phone, or email, then view their complete medical record including conditions, medications, lab results, and documents.</Empty>
+        <div className="py-20 text-center card bg-[#F8FAFF] border-dashed border-2">
+          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-[#DDE3F0]">
+            <Search className="text-brand-blue" size={24} />
+          </div>
+          <h3 className="text-lg font-black text-[#0F1A3A] mb-2 uppercase">Identify Patient</h3>
+          <p className="text-sm font-semibold text-[#8A97B0] max-w-md mx-auto">
+            Use the search panel above to find a patient by name, phone, or email to view their complete clinical history.
+          </p>
+        </div>
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+        <div className="space-y-8">
+          {/* Summary Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
-              ['Active Conditions', counts.activeConditions, HeartPulse, 'text-red-600', 'bg-red-50'],
-              ['Current Meds', counts.medications, Pill, 'text-blue-600', 'bg-blue-50'],
-              ['Visits', counts.encounters, UserRound, 'text-violet-600', 'bg-violet-50'],
-              ['Admissions', counts.admissions, BedDouble, 'text-amber-600', 'bg-amber-50'],
-              ['Lab Results', counts.labs, FlaskConical, 'text-emerald-600', 'bg-emerald-50'],
-              ['Documents', counts.documents, FileText, 'text-brand-blue', 'bg-[#E8EEF8]'],
-            ].map(([label, value, Icon, color, bg]) => (
-              <div key={label} className="rounded-2xl border border-[#DDE3F0] bg-white p-4 shadow-sm">
-                <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}>
-                  <Icon size={18} className={color} />
+              { label: 'Active Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
+              { label: 'Current Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
+              { label: 'Visits', value: counts.encounters, icon: UserRound, color: 'text-purple-500', bg: 'bg-purple-50' },
+              { label: 'Admissions', value: counts.admissions, icon: BedDouble, color: 'text-orange-500', bg: 'bg-orange-50' },
+              { label: 'Lab Results', value: counts.labs, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
+              { label: 'Documents', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white p-6 rounded-2xl border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all group">
+                <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <stat.icon size={20} />
                 </div>
-                <p className={`text-2xl font-black ${color}`}>{value}</p>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#8A97B0]">{label}</p>
+                <p className="text-3xl font-black text-[#0F1A3A] mb-1">{stat.value}</p>
+                <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">{stat.label}</p>
               </div>
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          {/* Horizontal Navigation Tabs */}
+          <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-[#DDE3F0] rounded-2xl shadow-sm">
             {tabs.map(([id, label, Icon]) => (
-              <button key={id} type="button" onClick={() => setTab(id)} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === id ? 'bg-brand-blue text-white shadow-sm' : 'border border-[#DDE3F0] bg-white text-[#4B5A7A] hover:border-brand-blue hover:text-brand-blue'}`}>
-                <Icon size={15} /> {label}
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`flex items-center gap-2.5 px-6 py-3 rounded-xl transition-all text-sm font-bold ${
+                  tab === id 
+                    ? 'bg-[#C8102E] text-white shadow-lg shadow-red-900/30' 
+                    : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
+                }`}
+              >
+                <Icon size={16} />
+                {label}
               </button>
             ))}
           </div>
+
+          {/* Main Content Area */}
+          <div className="min-w-0">
+            {loading ? (
+               <div className="py-20 text-center card bg-white rounded-2xl border border-[#DDE3F0]">
+                  <RefreshCw className="animate-spin w-12 h-12 mx-auto mb-4 text-brand-blue/30" />
+                  <p className="text-sm font-bold text-[#8A97B0]">Loading record...</p>
+               </div>
+            ) : (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
 
           {tab === 'overview' && (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -1190,20 +1700,41 @@ function PatientHistory() {
           {tab === 'documents' && (
             <Section icon={FileText} title="Medical Documents" action={addButton('documents')}>
               {renderList('documents', documents, (item) => (
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center justify-between w-full">
                   <div>
-                    <p className="font-bold text-[#0F1A3A] text-base">{text(item.fileName || item.name, 'Document')}</p>
-                    <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{text(item.type, 'Document')} - {date(item.date || item.uploadedAt)}</p>
-                    {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
+                    <p className="text-lg font-black text-[#0F1A3A] tracking-tight mb-1">{text(item.fileName || item.name, 'Document')}</p>
+                    <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest flex items-center gap-2">
+                      {text(item.type, 'Document').replace(/_/g, ' ')} <span className="text-[#DDE3F0]">•</span> {date(item.date || item.uploadedAt)}
+                    </p>
+                    {item.notes && <p className="mt-3 text-sm font-semibold text-[#4B5A7A] leading-relaxed max-w-2xl">{item.notes}</p>}
                   </div>
                   {(item.fileUrl || item.url) && (
-                    <button type="button" onClick={() => viewSecureDocument(patientId, getId(item), item.fileName || item.name || item.fileUrl || item.url)} className="inline-flex items-center gap-1 text-xs font-black text-brand-blue hover:underline">
-                      View <ExternalLink size={13} />
+                    <button 
+                      type="button" 
+                      onClick={() => viewSecureDocument(dispatch, patientId, getId(item), item.fileName || item.name || item.fileUrl || item.url)} 
+                      className="mr-6 flex items-center gap-2 text-xs font-black text-brand-blue hover:underline"
+                    >
+                      View <ExternalLink size={14} />
                     </button>
                   )}
                 </div>
               ))}
             </Section>
+          )}
+
+          {tab === 'vitals' && (
+            <VitalsTab
+              vitals={vitals}
+              canEdit={canEdit}
+              onAdd={() => setModal({ type: 'vitals' })}
+              onEdit={(v) => setModal({ type: 'vitals', item: v })}
+              onView={(v) => setViewModal({ type: 'vitals', item: v })}
+              onDelete={async (v) => {
+                if (!window.confirm('Delete this vital reading?')) return;
+                const res = await dispatch(deleteVital({ patientId, id: v.id }));
+                if (!res.error) dispatch(addToast({ type: 'success', message: 'Vital reading deleted' }));
+              }}
+            />
           )}
 
           {tab === 'timeline' && (
@@ -1261,19 +1792,22 @@ function PatientHistory() {
               )}
             </Section>
           )}
-        </>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
-      {modal && patientId && (
-        <HistoryModal type={modal.type} item={modal.item} patientId={patientId} onClose={() => setModal(null)} />
-      )}
-      {viewModal && (
-        <ViewModal type={viewModal.type} item={viewModal.item} onClose={() => setViewModal(null)} />
-      )}
-      {timelineViewItem && (
-        <TimelineViewModal item={timelineViewItem} onClose={() => setTimelineViewItem(null)} />
-      )}
-    </div>
+  {modal && patientId && (
+    <HistoryModal type={modal.type} item={modal.item} patientId={patientId} onClose={() => setModal(null)} />
+  )}
+  {viewModal && (
+    <ViewModal type={viewModal.type} item={viewModal.item} onClose={() => setViewModal(null)} />
+  )}
+  {timelineViewItem && (
+    <TimelineViewModal item={timelineViewItem} onClose={() => setTimelineViewItem(null)} />
+  )}
+</div>
   );
 }
 

@@ -19,9 +19,10 @@ client.interceptors.request.use(
   (config) => {
     config.headers = config.headers || {};
 
-    // Add Bearer token if available (from in-memory Redux store)
+    // Add Bearer token only for internal API requests (to avoid sending it to Supabase/S3)
     const token = _store?.getState()?.auth?.user?.accessToken;
-    if (token && token !== "undefined" && token !== "null") {
+    const isInternal = config.url.startsWith('/') || config.url.startsWith(import.meta.env.VITE_API_BASE_URL);
+    if (token && isInternal && token !== "undefined" && token !== "null") {
       config.headers.Authorization = `Bearer ${token}`;
     }
 

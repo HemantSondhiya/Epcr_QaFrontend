@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  RefreshCw, X, Eye, FileEdit, Ban, History, User, 
-  AlertCircle, ChevronRight, Shield, Plus, Trash2, 
-  Clock, CheckCircle2, ShieldCheck, Fingerprint, 
+import {
+  RefreshCw, X, Eye, FileEdit, Ban, History, User,
+  AlertCircle, ChevronRight, Shield, Plus, Trash2,
+  Clock, CheckCircle2, ShieldCheck, Fingerprint, ShieldAlert,
   ArrowLeft, Activity, Heart, ClipboardCheck, Lock, FileText,
   ChevronDown, TrendingUp, Droplets, Thermometer, Wind, ClipboardList,
-  Pill, Stethoscope, Calendar, FlaskConical, HeartPulse, Check, BedDouble, Tag, CalendarDays
+  Pill, Stethoscope, Calendar, FlaskConical, HeartPulse, Check, BedDouble, Tag, CalendarDays, UserRound, ExternalLink, MapPin
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea
 } from 'recharts';
 import { addToast } from '../store/slices/uiSlice';
-import { 
+import {
   fetchPortalData, createAmendment, createRestriction,
   selectPortalRecords, selectPortalAmendments, selectPortalRestrictions,
   selectPortalDisclosures, selectPortalLoading
@@ -28,8 +28,11 @@ import {
   selectHistorySummary,
   selectLabResults,
   selectMedications,
-  selectTimeline
+  selectTimeline,
+  selectVitals
 } from '../store/slices/patientHistorySlice';
+import client from '../api/client';
+import AuditLogs from './AuditLogs';
 
 const asList = d => Array.isArray(d) ? d : (d?.content ?? []);
 
@@ -102,7 +105,7 @@ const makeTrend = vitals => {
 // Animated pulse indicator
 const PulseIndicator = ({ value, max, color = '#C8102E' }) => {
   const [pulse, setPulse] = useState(0);
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setPulse(prev => (prev + 1) % 100);
@@ -111,7 +114,7 @@ const PulseIndicator = ({ value, max, color = '#C8102E' }) => {
   }, []);
 
   const percentage = (value / max) * 100;
-  
+
   return (
     <div className="space-y-2">
       <div className="relative w-full h-8 bg-[#F0F4FC] rounded-full overflow-hidden border border-[#DDE3F0]">
@@ -140,7 +143,7 @@ const PulseIndicator = ({ value, max, color = '#C8102E' }) => {
 // Heartbeat pulse component
 const HeartbeatPulse = ({ bpm = 72 }) => {
   const [beat, setBeat] = useState(0);
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setBeat(prev => (prev + 1) % 100);
@@ -223,7 +226,327 @@ const VitalCard = ({ icon: Icon, label, value, unit, bgColor = '#EEF2FF', iconCo
   </div>
 );
 
+
+/* ────────────────── Vitals: constants & helpers ────────────────── */
+
+const VITAL_METRICS = [
+  { key: 'systolicBP', label: 'Systolic BP', short: 'BP Sys', unit: 'mmHg', color: '#C8102E', lo: 90, hi: 140 },
+  { key: 'diastolicBP', label: 'Diastolic BP', short: 'BP Dia', unit: 'mmHg', color: '#E8476E', lo: 60, hi: 90 },
+  { key: 'heartRate', label: 'Heart Rate', short: 'HR', unit: 'bpm', color: '#7C3AED', lo: 60, hi: 100 },
+  { key: 'oxygenSaturation', label: 'SpO₂', short: 'SpO₂', unit: '%', color: '#059669', lo: 95, hi: 100 },
+  { key: 'respiratoryRate', label: 'Resp Rate', short: 'RR', unit: '/min', color: '#0891B2', lo: 12, hi: 20 },
+  { key: 'temperature', label: 'Temperature', short: 'Temp', unit: '°C', color: '#EA580C', lo: 36.1, hi: 37.2 },
+  { key: 'bloodGlucose', label: 'Blood Glucose', short: 'Glucose', unit: 'mg/dL', color: '#CA8A04', lo: 70, hi: 100 },
+  { key: 'glasgowComaScale', label: 'GCS', short: 'GCS', unit: '/15', color: '#1A3C8F', lo: 14, hi: 15 },
+  { key: 'painScore', label: 'Pain Score', short: 'Pain', unit: '/10', color: '#DC2626', lo: 0, hi: 3 },
+];
+
+const metricByKey = Object.fromEntries(VITAL_METRICS.map((m) => [m.key, m]));
+
+const assessVitalStatus = (v) => {
+  const crit = [
+    v.systolicBP != null && (v.systolicBP > 180 || v.systolicBP < 80),
+    v.diastolicBP != null && (v.diastolicBP > 120 || v.diastolicBP < 50),
+    v.heartRate != null && (v.heartRate > 150 || v.heartRate < 40),
+    v.oxygenSaturation != null && v.oxygenSaturation < 88,
+    v.respiratoryRate != null && (v.respiratoryRate > 30 || v.respiratoryRate < 8),
+    v.temperature != null && (v.temperature > 39.5 || v.temperature < 35),
+  ];
+  if (crit.some(Boolean)) return { label: 'Critical', cls: 'bg-red-100 text-red-700 border-red-200' };
+  const warn = [
+    v.systolicBP != null && (v.systolicBP > 140 || v.systolicBP < 90),
+    v.diastolicBP != null && (v.diastolicBP > 90 || v.diastolicBP < 60),
+    v.heartRate != null && (v.heartRate > 100 || v.heartRate < 60),
+    v.oxygenSaturation != null && v.oxygenSaturation < 95,
+    v.respiratoryRate != null && (v.respiratoryRate > 20 || v.respiratoryRate < 12),
+    v.temperature != null && (v.temperature > 37.2 || v.temperature < 36.1),
+  ];
+  if (warn.some(Boolean)) return { label: 'Monitor', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
+  return { label: 'Normal', cls: 'bg-green-100 text-green-700 border-green-200' };
+};
+
+const vitalPill = (value, metric) => {
+  if (value == null || value === '') return null;
+  const m = typeof metric === 'string' ? metricByKey[metric] : metric;
+  if (!m) return null;
+  const num = Number(value);
+  const outOfRange = !isNaN(num) && (num < m.lo || num > m.hi);
+  return (
+    <span key={m.key} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${outOfRange ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+      <span className="text-[10px] font-black text-[#8A97B0] uppercase">{m.short}</span>
+      {value}{m.unit ? <span className="text-[10px] text-[#A0AECB] ml-0.5">{m.unit}</span> : null}
+    </span>
+  );
+};
+
+const TIME_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: '24h', label: '24 h', ms: 86400000 },
+  { key: '7d', label: '7 days', ms: 604800000 },
+  { key: '30d', label: '30 days', ms: 2592000000 },
+];
+
+const formatChartTime = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}\n${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+};
+
+/* ────────────────── VitalsPortalTab component ────────────────── */
+
+function VitalsPortalTab({ vitals }) {
+  const [subTab, setSubTab] = useState('chart');
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [primaryMetric, setPrimaryMetric] = useState('systolicBP');
+  const [compareMetrics, setCompareMetrics] = useState([]);
+  const [showCompare, setShowCompare] = useState(false);
+
+  const filtered = useMemo(() => {
+    let list = [...vitals];
+    if (timeFilter !== 'all') {
+      const cutoff = Date.now() - TIME_FILTERS.find((f) => f.key === timeFilter)?.ms;
+      list = list.filter((v) => new Date(v.recordedAt || v.createdAt).getTime() >= cutoff);
+    }
+    return list;
+  }, [vitals, timeFilter]);
+
+  const historyList = useMemo(() => [...filtered].sort((a, b) => new Date(b.recordedAt || b.createdAt) - new Date(a.recordedAt || a.createdAt)), [filtered]);
+  const chartData = useMemo(() => [...filtered].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt)).map((v) => ({
+    ...v,
+    time: new Date(v.recordedAt || v.createdAt).getTime(),
+    label: formatChartTime(v.recordedAt || v.createdAt),
+  })), [filtered]);
+
+  const toggleCompare = useCallback((key) => {
+    setCompareMetrics((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : prev.length < 3 ? [...prev, key] : prev);
+  }, []);
+
+  const activeChartMetrics = useMemo(() => {
+    const keys = [primaryMetric, ...(showCompare ? compareMetrics : [])];
+    return [...new Set(keys)].map((k) => metricByKey[k]).filter(Boolean);
+  }, [primaryMetric, compareMetrics, showCompare]);
+
+  const latest = chartData[chartData.length - 1] || {};
+
+  return (
+    <div className="space-y-6">
+      {/* Sub-tab toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="inline-flex rounded-xl border border-[#DDE3F0] bg-white overflow-hidden">
+          {[['history', 'Reading History', Clock], ['chart', 'Trend Chart', TrendingUp]].map(([id, label, Icon]) => (
+            <button key={id} type="button" onClick={() => setSubTab(id)} className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold transition ${subTab === id ? 'bg-brand-blue text-white' : 'text-[#4B5A7A] hover:bg-[#F8FAFF]'}`}>
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-xl border border-[#DDE3F0] bg-white overflow-hidden">
+          {TIME_FILTERS.map((f) => (
+            <button key={f.key} type="button" onClick={() => setTimeFilter(f.key)} className={`px-4 py-2 text-xs font-bold transition ${timeFilter === f.key ? 'bg-[#0F1A3A] text-white' : 'text-[#4B5A7A] hover:bg-[#F8FAFF]'}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="py-12 text-center bg-[#F8FAFF] rounded-2xl border border-dashed border-[#DDE3F0]">
+           <Activity className="w-12 h-12 mx-auto mb-3 text-[#DDE3F0]" />
+           <p className="text-sm font-bold text-[#8A97B0]">No vital readings recorded{timeFilter !== 'all' ? ` in the selected time range` : ''}.</p>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {/* Summary Metric Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MetricCard 
+              icon={HeartPulse} label="Heart Rate" 
+              value={latest.heartRate} unit="bpm" 
+              range="Latest Reading" color="#C8102E" bgColor="#FEE2E2"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="hrGradPortal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#C8102E" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#C8102E" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="heartRate" stroke="#C8102E" strokeWidth={2} fill="url(#hrGradPortal)" dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+            </MetricCard>
+
+            <MetricCard 
+              icon={Activity} label="Blood Pressure" 
+              value={latest.systolicBP ? `${latest.systolicBP}/${latest.diastolicBP}` : 'N/A'} unit="mmHg" 
+              range="Latest Reading" color="#1A3C8F" bgColor="#DBEAFE"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <Line type="monotone" dataKey="systolicBP" stroke="#1A3C8F" strokeWidth={2} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="diastolicBP" stroke="#60A5FA" strokeWidth={2} dot={false} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </MetricCard>
+
+            <MetricCard 
+              icon={Activity} label="SpO₂" 
+              value={latest.oxygenSaturation} unit="%" 
+              range="Latest Reading" color="#059669" bgColor="#D1FAE5"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="spo2GradPortal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="oxygenSaturation" stroke="#059669" strokeWidth={2} fill="url(#spo2GradPortal)" dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+            </MetricCard>
+          </div>
+
+          <div className="border-t border-[#F0F4FC] pt-8">
+            {subTab === 'history' ? (
+              /* ── Reading History ── */
+              <div className="grid grid-cols-1 gap-4">
+                {historyList.map((v, idx) => {
+                  const status = assessVitalStatus(v);
+                  const ts = v.recordedAt || v.createdAt;
+                  return (
+                    <div key={v.id || idx} className="group relative bg-white rounded-2xl border border-[#DDE3F0] p-6 hover:shadow-xl hover:shadow-brand-blue/5 hover:border-brand-blue/30 transition-all cursor-default">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="min-w-0 flex-1">
+                          {/* Time & status */}
+                          <div className="flex flex-wrap items-center gap-3 mb-4">
+                            <span className="text-sm font-black text-[#0F1A3A] bg-[#F8FAFF] px-3 py-1.5 rounded-lg border border-[#EEF2FF]">
+                              {ts ? new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                            </span>
+                            <span className="text-xs font-bold text-[#8A97B0]">{new Date(ts).toLocaleDateString()}</span>
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${status.cls}`}>{status.label}</span>
+                            {v.source && <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest bg-blue-50 px-2 py-1 rounded-md">{v.source}</span>}
+                          </div>
+                          {/* Primary vitals row */}
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {v.systolicBP != null && v.diastolicBP != null && (
+                              <span className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border ${(v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+                                <span className="text-[10px] font-black text-[#8A97B0] uppercase">Blood Pressure</span>
+                                <span className="text-sm">{v.systolicBP}/{v.diastolicBP}</span>
+                                <span className="text-[10px] text-[#A0AECB] ml-0.5">mmHg</span>
+                              </span>
+                            )}
+                            {vitalPill(v.heartRate, 'heartRate')}
+                            {vitalPill(v.oxygenSaturation, 'oxygenSaturation')}
+                            {vitalPill(v.respiratoryRate, 'respiratoryRate')}
+                            {vitalPill(v.temperature, 'temperature')}
+                          </div>
+                          {/* Secondary vitals row */}
+                          <div className="flex flex-wrap gap-2">
+                            {vitalPill(v.glasgowComaScale, 'glasgowComaScale')}
+                            {vitalPill(v.bloodGlucose, 'bloodGlucose')}
+                          </div>
+                        </div>
+                        <HistoryRowActions item={v} type="VITAL" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* ── Trend Chart ── */
+              <div className="bg-white rounded-3xl border border-[#DDE3F0] p-8 shadow-sm">
+                {/* Chart controls */}
+                <div className="flex flex-wrap items-end gap-6 mb-8">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-3 block">Primary Metric</label>
+                    <div className="flex flex-wrap gap-2">
+                      {VITAL_METRICS.map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setPrimaryMetric(m.key)}
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition-all border ${primaryMetric === m.key ? 'bg-brand-blue text-white border-brand-blue shadow-lg shadow-blue-900/20' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue/30'}`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowCompare(!showCompare)}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all border ${showCompare ? 'bg-[#0F1A3A] text-white border-[#0F1A3A]' : 'bg-white text-[#4B5A7A] border-[#DDE3F0]'}`}
+                    >
+                      <TrendingUp size={14} /> {showCompare ? 'Hide Comparison' : 'Compare Metrics'}
+                    </button>
+                  </div>
+                </div>
+
+                {showCompare && (
+                  <div className="mb-8 p-6 bg-[#F8FAFF] rounded-2xl border border-[#EEF2FF] animate-in zoom-in-95 duration-200">
+                    <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-4">Select up to 2 metrics to compare</p>
+                    <div className="flex flex-wrap gap-3">
+                      {VITAL_METRICS.filter((m) => m.key !== primaryMetric).map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => toggleCompare(m.key)}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${compareMetrics.includes(m.key) ? 'bg-white border-brand-blue text-brand-blue shadow-sm' : 'bg-white border-[#DDE3F0] text-[#8A97B0] hover:border-brand-blue/30'}`}
+                        >
+                          {compareMetrics.includes(m.key) && <Check size={12} className="inline mr-1" />}
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Main trend chart */}
+                <div className="h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        {activeChartMetrics.map((m) => (
+                          <linearGradient key={`grad-${m.key}`} id={`grad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={m.color} stopOpacity={0.15} />
+                            <stop offset="95%" stopColor={m.color} stopOpacity={0} />
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#A0AECB' }} height={50} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#A0AECB' }} />
+                      <Tooltip content={<VitalTooltip />} />
+                      {activeChartMetrics.map((m) => (
+                        <Area
+                          key={m.key}
+                          type="monotone"
+                          dataKey={m.key}
+                          name={m.label}
+                          stroke={m.color}
+                          strokeWidth={3}
+                          fill={`url(#grad-${m.key})`}
+                          dot={{ r: 4, fill: m.color, strokeWidth: 2, stroke: '#fff' }}
+                          activeDot={{ r: 6, strokeWidth: 0 }}
+                          connectNulls
+                        />
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const formatLabel = key => key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
 
 const isEmptyValue = value => value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
 
@@ -514,8 +837,20 @@ const OtherFieldsCard = ({ fields }) => {
 };
 
 const VitalSignsDashboard = ({ data }) => {
+  const [selectedMetrics, setSelectedMetrics] = useState(['heartRate', 'systolic', 'spo2']);
   const vitals = buildVitals(data);
   const trend = makeTrend(vitals);
+
+  const allMetrics = [
+    { key: 'heartRate', label: 'Heart Rate', color: '#C8102E' },
+    { key: 'systolic', label: 'Systolic BP', color: '#1A3C8F' },
+    { key: 'diastolic', label: 'Diastolic BP', color: '#60A5FA' },
+    { key: 'spo2', label: 'SpO2', color: '#059669' },
+    { key: 'respiratoryRate', label: 'Resp Rate', color: '#7C3AED' },
+    { key: 'temperature', label: 'Temp', color: '#EA580C' },
+    { key: 'bloodSugar', label: 'Glucose', color: '#D97706' },
+  ];
+
   const barData = [
     { name: 'Heart', value: vitals.heartRate, fill: '#C8102E' },
     { name: 'SpO2', value: vitals.spo2, fill: '#059669' },
@@ -525,6 +860,10 @@ const VitalSignsDashboard = ({ data }) => {
     ...(vitals.bloodSugar !== null ? [{ name: 'Sugar', value: vitals.bloodSugar, fill: '#D97706' }] : []),
     ...(vitals.gcs !== null ? [{ name: 'GCS', value: vitals.gcs, fill: '#475569' }] : []),
   ];
+
+  const toggleMetric = (key) => {
+    setSelectedMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
 
   return (
     <div className="space-y-4">
@@ -601,12 +940,25 @@ const VitalSignsDashboard = ({ data }) => {
       </div>
 
       <div className="card p-5 border border-[#DDE3F0]">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
             <h3 className="font-black text-[#0F1A3A] text-sm uppercase tracking-wider">Vitals Overview</h3>
-            <p className="text-xs text-[#8A97B0] mt-1">All current vital data from this clinical record</p>
+            <p className="text-xs text-[#8A97B0] mt-1">Select metrics to compare trends</p>
           </div>
-          <span className="badge badge-blue">Working Graph</span>
+          <div className="flex flex-wrap gap-2">
+            {allMetrics.map(m => (
+              <button
+                key={m.key}
+                onClick={() => toggleMetric(m.key)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${selectedMetrics.includes(m.key)
+                    ? 'bg-brand-blue text-white border-brand-blue shadow-sm'
+                    : 'bg-white text-[#8A97B0] border-[#DDE3F0] hover:border-[#8A97B0]'
+                  }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4">
           <div className="h-72">
@@ -616,10 +968,18 @@ const VitalSignsDashboard = ({ data }) => {
                 <XAxis dataKey="time" tick={{ fill: '#8A97B0', fontSize: 11, fontWeight: 700 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fill: '#8A97B0', fontSize: 11, fontWeight: 700 }} tickLine={false} axisLine={false} />
                 <Tooltip content={<VitalTooltip />} />
-                <Line type="monotone" dataKey="heartRate" name="Heart Rate" stroke="#C8102E" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="systolic" name="Systolic BP" stroke="#1A3C8F" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="spo2" name="O2 Saturation" stroke="#059669" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="respiratoryRate" name="Respiratory Rate" stroke="#7C3AED" strokeWidth={3} dot={{ r: 3 }} />
+                {allMetrics.filter(m => selectedMetrics.includes(m.key)).map(m => (
+                  <Line
+                    key={m.key}
+                    type="monotone"
+                    dataKey={m.key}
+                    name={m.label}
+                    stroke={m.color}
+                    strokeWidth={3}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -766,9 +1126,136 @@ const SECTION_CONFIG = {
   destination: { section: 'Care', icon: '🏥' },
 };
 
+const IncidentAnalytics = ({ records }) => {
+  const trendData = useMemo(() => {
+    const months = {};
+    [...records].sort((a, b) => new Date(a.incidentDateTime || a.createdAt) - new Date(b.incidentDateTime || b.createdAt))
+      .forEach(r => {
+        const date = new Date(r.incidentDateTime || r.createdAt);
+        const key = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+        months[key] = (months[key] || 0) + 1;
+      });
+    return Object.entries(months).map(([name, count]) => ({ name, count }));
+  }, [records]);
+
+  const typeData = useMemo(() => {
+    const types = {};
+    records.forEach(r => {
+      const type = r.incidentType || 'Other';
+      types[type] = (types[type] || 0) + 1;
+    });
+    return Object.entries(types).map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value).slice(0, 5);
+  }, [records]);
+
+  if (records.length < 2) return null;
+
+  return (
+    <div className="card p-5 border border-[#DDE3F0] mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="font-black text-[#0F1A3A] text-sm uppercase tracking-wider">Incident Trends</h3>
+          <p className="text-xs text-[#8A97B0] mt-1">Frequency of clinical incidents over time</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="badge badge-blue">Analytics</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trendData}>
+              <defs>
+                <linearGradient id="incidentGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#1A3C8F" stopOpacity={0.1} />
+                  <stop offset="95%" stopColor="#1A3C8F" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0F4FC" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#8A97B0' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#8A97B0' }} />
+              <Tooltip
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                labelStyle={{ fontWeight: '800', color: '#0F1A3A', marginBottom: '4px' }}
+              />
+              <Area type="monotone" dataKey="count" stroke="#1A3C8F" strokeWidth={3} fillOpacity={1} fill="url(#incidentGradient)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={typeData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F0F4FC" />
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#4B5A7A', fontWeight: '700' }} width={80} />
+              <Tooltip cursor={{ fill: 'transparent' }} />
+              <Bar dataKey="value" fill="#60A5FA" radius={[0, 4, 4, 0]} barSize={12} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ────────────────── Longitudinal Vitals: constants & helpers (matching Admin) ────────────────── */
+
+const PORTAL_VITAL_METRICS = [
+  { key: 'systolicBP', label: 'Systolic BP', short: 'BP Sys', unit: 'mmHg', color: '#C8102E', lo: 90, hi: 140 },
+  { key: 'diastolicBP', label: 'Diastolic BP', short: 'BP Dia', unit: 'mmHg', color: '#E8476E', lo: 60, hi: 90 },
+  { key: 'heartRate', label: 'Heart Rate', short: 'HR', unit: 'bpm', color: '#7C3AED', lo: 60, hi: 100 },
+  { key: 'oxygenSaturation', label: 'SpO₂', short: 'SpO₂', unit: '%', color: '#059669', lo: 95, hi: 100 },
+  { key: 'respiratoryRate', label: 'Resp Rate', short: 'RR', unit: '/min', color: '#0891B2', lo: 12, hi: 20 },
+  { key: 'temperature', label: 'Temperature', short: 'Temp', unit: '°C', color: '#EA580C', lo: 36.1, hi: 37.2 },
+  { key: 'bloodGlucose', label: 'Blood Glucose', short: 'Glucose', unit: 'mg/dL', color: '#CA8A04', lo: 70, hi: 100 },
+  { key: 'glasgowComaScale', label: 'GCS', short: 'GCS', unit: '/15', color: '#1A3C8F', lo: 14, hi: 15 },
+  { key: 'painScore', label: 'Pain Score', short: 'Pain', unit: '/10', color: '#DC2626', lo: 0, hi: 3 },
+];
+
+const portalMetricByKey = Object.fromEntries(PORTAL_VITAL_METRICS.map((m) => [m.key, m]));
+
+const assessPortalVitalStatus = (v) => {
+  const crit = [
+    v.systolicBP != null && (v.systolicBP > 180 || v.systolicBP < 80),
+    v.diastolicBP != null && (v.diastolicBP > 120 || v.diastolicBP < 50),
+    v.heartRate != null && (v.heartRate > 150 || v.heartRate < 40),
+    v.oxygenSaturation != null && v.oxygenSaturation < 88,
+    v.respiratoryRate != null && (v.respiratoryRate > 30 || v.respiratoryRate < 8),
+    v.temperature != null && (v.temperature > 39.5 || v.temperature < 35),
+  ];
+  if (crit.some(Boolean)) return { label: 'Critical', cls: 'bg-red-100 text-red-700 border-red-200' };
+  const warn = [
+    v.systolicBP != null && (v.systolicBP > 140 || v.systolicBP < 90),
+    v.diastolicBP != null && (v.diastolicBP > 90 || v.diastolicBP < 60),
+    v.heartRate != null && (v.heartRate > 100 || v.heartRate < 60),
+    v.oxygenSaturation != null && v.oxygenSaturation < 95,
+    v.respiratoryRate != null && (v.respiratoryRate > 20 || v.respiratoryRate < 12),
+    v.temperature != null && (v.temperature > 37.2 || v.temperature < 36.1),
+  ];
+  if (warn.some(Boolean)) return { label: 'Monitor', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
+  return { label: 'Normal', cls: 'bg-green-100 text-green-700 border-green-200' };
+};
+
+const portalVitalPill = (value, metric) => {
+  if (value == null || value === '') return null;
+  const m = typeof metric === 'string' ? portalMetricByKey[metric] : metric;
+  if (!m) return null;
+  const num = Number(value);
+  const outOfRange = !isNaN(num) && (num < m.lo || num > m.hi);
+  return (
+    <span key={m.key} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${outOfRange ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+      <span className="text-[10px] font-black text-[#8A97B0] uppercase">{m.short}</span>
+      {value}{m.unit ? <span className="text-[10px] text-[#A0AECB] ml-0.5">{m.unit}</span> : null}
+    </span>
+  );
+};
+
+
+
+
 const DataField = ({ label, value }) => {
   const isMasked = typeof value === 'string' && (value.includes('***') || value.includes('REDACTED') || value.includes('ANONYMIZED'));
-  
+
   return (
     <div className="py-1.5">
       <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-0.5 truncate">{label}</p>
@@ -796,7 +1283,7 @@ const DataField = ({ label, value }) => {
 
 const CollapsibleSection = ({ title, icon, children, defaultOpen = true }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  
+
   return (
     <div className="border border-[#DDE3F0] rounded-xl overflow-hidden flex flex-col h-full">
       <button
@@ -818,177 +1305,156 @@ const CollapsibleSection = ({ title, icon, children, defaultOpen = true }) => {
   );
 };
 
-const MedicalDocument = ({ data, isNested = false, rootData = null }) => {
-  if (!data || typeof data !== 'object') return null;
 
-  const entries = Object.entries(data).filter(([k]) => {
-    if (k === 'paramedicsName' || k === 'organizationName' || k === 'submittedByName' || k === 'qaApprovedByName') return false;
-    if (PRESENTED_RECORD_FIELDS.has(k)) return false;
-    return true;
-  });
+const RecordVitalsSnapshot = ({ data }) => {
+  const v = buildVitals(data);
+  const metrics = [
+    { label: 'Heart Rate', value: v.heartRate, unit: 'BPM', icon: Heart, color: '#C8102E', bg: '#FEE2E2' },
+    { label: 'Blood Pressure', value: v.label, unit: 'mmHg', icon: Activity, color: '#1A3C8F', bg: '#DBEAFE' },
+    { label: 'SpO2', value: v.spo2, unit: '%', icon: TrendingUp, color: '#059669', bg: '#D1FAE5' },
+    { label: 'Temp', value: v.temperature, unit: '°F', icon: Thermometer, color: '#EA580C', bg: '#FFEDD5' },
+  ];
 
-  if (isNested) return null;
+  if (!v.heartRate && !v.systolic) return null;
 
   return (
-    <div className="space-y-4">
-      <VitalSignsDashboard data={data} />
-      <RecordSummaryCards data={data} />
-      {/* Legacy static vitals kept disabled after replacing with record-driven charts. */}
-      <div className="hidden">
-        {/* Heart Rate Card */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-brand-red">
-              <Heart size={20} />
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {metrics.map((m, i) => (
+        <div key={i} className="bg-white rounded-2xl border border-[#DDE3F0] p-4 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: m.bg, color: m.color }}>
+              <m.icon size={16} />
             </div>
-            <div>
-              <p className="text-xs font-bold text-[#A0AECB] uppercase">Heart Rate</p>
-              <p className="text-2xl font-black text-[#0F1A3A]">72 <span className="text-sm text-[#8A97B0]">BPM</span></p>
-            </div>
+            <span className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">{m.label}</span>
           </div>
-          <PulseIndicator value={72} max={120} color="#C8102E" />
-          <p className="text-xs text-[#A0AECB]">Range: 60-100 BPM</p>
+          <p className="text-xl font-black text-[#0F1A3A] tabular-nums">
+            {m.value || '--'} <span className="text-xs text-[#8A97B0] font-bold">{m.unit}</span>
+          </p>
         </div>
-
-        {/* Blood Pressure Card */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-brand-blue">
-              <Activity size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-[#A0AECB] uppercase">Blood Pressure</p>
-              <p className="text-2xl font-black text-[#0F1A3A]">120/80 <span className="text-sm text-[#8A97B0]">mmHg</span></p>
-            </div>
-          </div>
-          <PulseIndicator value={120} max={150} color="#1A3C8F" />
-          <p className="text-xs text-[#A0AECB]">Normal: 90-120 mmHg</p>
-        </div>
-
-        {/* Temperature Card */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600">
-              <ClipboardCheck size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-[#A0AECB] uppercase">Temperature</p>
-              <p className="text-2xl font-black text-[#0F1A3A]">98.6 <span className="text-sm text-[#8A97B0]">°F</span></p>
-            </div>
-          </div>
-          <PulseIndicator value={98.6} max={104} color="#EA580C" />
-          <p className="text-xs text-[#A0AECB]">Normal: 97-99 °F</p>
-        </div>
-
-        {/* O2 Saturation Card */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
-              <TrendingUp size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-[#A0AECB] uppercase">O2 Saturation</p>
-              <p className="text-2xl font-black text-[#0F1A3A]">98 <span className="text-sm text-[#8A97B0]">%</span></p>
-            </div>
-          </div>
-          <PulseIndicator value={98} max={100} color="#059669" />
-          <p className="text-xs text-[#A0AECB]">Normal: 95-100%</p>
-        </div>
-
-        {/* Respiratory Rate Card */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
-              <Activity size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-[#A0AECB] uppercase">Respiratory Rate</p>
-              <p className="text-2xl font-black text-[#0F1A3A]">16 <span className="text-sm text-[#8A97B0]">bpm</span></p>
-            </div>
-          </div>
-          <PulseIndicator value={16} max={25} color="#7C3AED" />
-          <p className="text-xs text-[#A0AECB]">Normal: 12-20 bpm</p>
-        </div>
-
-        {/* Live Pulse Card */}
-        <div className="card p-5 flex flex-col items-center justify-center border-2 border-brand-red/20 space-y-4">
-          <p className="text-xs font-bold text-[#A0AECB] uppercase">Live Pulse</p>
-          <HeartbeatPulse />
-          <p className="text-xs text-center text-[#8A97B0]">Real-time monitoring active</p>
-        </div>
-      </div>
-
-      {/* Header */}
-      <div className="card p-6 bg-gradient-to-r from-[#F8FAFF] to-white">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-brand-blue flex items-center justify-center text-white">
-              <ShieldCheck size={24} />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-[#0F1A3A]">Clinical Record</h2>
-              <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-0.5">Secured & Encrypted</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-1">Record ID</p>
-            <p className="text-sm font-mono font-black text-brand-blue">#{data.id?.substring(0, 12)?.toUpperCase() || 'N/A'}</p>
-          </div>
-        </div>
-      </div>
-
-      <OtherFieldsCard fields={entries} />
-
-      {/* Footer */}
-      <div className="card p-4 bg-[#F8FAFF] border border-[#DDE3F0] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Fingerprint size={16} className="text-brand-blue" />
-          <span className="text-xs font-bold text-[#8A97B0] uppercase">Verified & Encrypted</span>
-        </div>
-        <span className="text-xs text-[#A0AECB]">{new Date().toLocaleDateString()}</span>
-      </div>
-
-      {/* Old grouped details are disabled; all record data is presented in cards above. */}
-      {false && Object.keys(grouped).length > 0 && (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max">
-        {Object.entries(grouped).map(([section, fields]) => {
-          const config = SECTION_CONFIG[fields[0][0]];
-          const icon = config?.icon || '📄';
-          const isOpen = ['Patient Info', 'Assessment', 'Incident'].includes(section);
-          
-          return (
-            <CollapsibleSection key={section} title={section} icon={icon} defaultOpen={isOpen}>
-              {fields.map(([k, v]) => {
-                const label = formatLabel(k);
-                return <DataField key={k} label={label} value={v} />;
-              })}
-            </CollapsibleSection>
-          );
-        })}
-        
-        {/* Footer */}
-        <div className="card p-4 bg-[#F8FAFF] border border-[#DDE3F0] flex items-center justify-between col-span-full">
-          <div className="flex items-center gap-3">
-            <Fingerprint size={16} className="text-brand-blue" />
-            <span className="text-xs font-bold text-[#8A97B0] uppercase">Verified & Encrypted</span>
-          </div>
-          <span className="text-xs text-[#A0AECB]">{new Date().toLocaleDateString()}</span>
-        </div>
-      </div>
-      )}
+      ))}
     </div>
   );
 };
 
+const MedicalDocument = ({ data }) => {
+  if (!data) return null;
+
+  const sections = [
+    {
+      title: 'Incident Information',
+      icon: <Activity size={18} className="text-brand-blue" />,
+      fields: [
+        { label: 'Diagnosis', value: data.diagnosis, full: true },
+        { label: 'Incident Date', value: data.incidentDateTime ? new Date(data.incidentDateTime).toLocaleString() : 'N/A' },
+        { label: 'Location', value: data.incidentLocation },
+        { label: 'Response Unit', value: data.responseUnit },
+        { label: 'Incident Type', value: data.incidentType },
+        { label: 'Disposition', value: data.disposition },
+      ]
+    },
+    {
+      title: 'Clinical Assessment',
+      icon: <ClipboardList size={18} className="text-blue-600" />,
+      fields: [
+        { label: 'Primary Impression', value: data.primaryImpression },
+        { label: 'Secondary Impression', value: data.secondaryImpression },
+        { label: 'Chief Complaint', value: data.chiefComplaint, full: true },
+        { label: 'Presenting Problem', value: data.presentingProblem, full: true },
+      ]
+    },
+    {
+      title: 'Patient Context',
+      icon: <User size={18} className="text-indigo-600" />,
+      fields: [
+        { label: 'Age/Gender', value: [data.patientAge, data.patientGender].filter(Boolean).join(' / ') },
+        { label: 'Medical History', value: data.medicalHistory, full: true },
+        { label: 'Allergies', value: data.allergies, full: true },
+        { label: 'Current Medications', value: data.currentMedications, full: true },
+      ]
+    }
+  ];
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-white rounded-3xl border border-[#DDE3F0] p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-brand-blue">
+              <ClipboardCheck size={32} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-[#0F1A3A] mb-1">{data.diagnosis || 'Clinical Record'}</h2>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-[#8A97B0] uppercase tracking-widest">{new Date(data.incidentDateTime || data.createdAt).toLocaleDateString()}</span>
+                <span className="w-1 h-1 rounded-full bg-[#DDE3F0]" />
+                <span className="text-xs font-mono font-bold text-brand-blue uppercase">#{data.id?.substring(0, 16).toUpperCase()}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="badge badge-blue px-4 py-2 text-xs">Official Record</span>
+            <div className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100">
+              <ShieldCheck size={14} />
+              <span>Verified</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <RecordVitalsSnapshot data={data} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {sections.map((section, idx) => (
+          <div key={idx} className={`bg-white rounded-3xl border border-[#DDE3F0] p-8 shadow-sm flex flex-col ${section.fields.some(f => f.full) ? 'lg:col-span-2' : ''}`}>
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-xl bg-[#F8FAFF] flex items-center justify-center">
+                {section.icon}
+              </div>
+              <h3 className="text-lg font-black text-[#0F1A3A] uppercase tracking-wider">{section.title}</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {section.fields.filter(f => f.value).map((field, fIdx) => (
+                <div key={fIdx} className={`space-y-1.5 ${field.full ? 'md:col-span-2' : ''}`}>
+                  <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">{field.label}</p>
+                  <p className="text-[15px] font-bold text-[#4B5A7A] leading-relaxed">
+                    {field.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-[#F8FAFF] rounded-2xl border border-[#DDE3F0] p-6 flex flex-wrap items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-white border border-[#DDE3F0] flex items-center justify-center text-[#A0AECB]">
+            <UserRound size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">Submitted By</p>
+            <p className="text-sm font-bold text-[#0F1A3A]">{data.submittedByName || 'Clinical Staff'}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold text-[#A0AECB]">{new Date(data.createdAt).toLocaleString()}</span>
+          <Fingerprint size={16} className="text-[#DDE3F0]" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const EVENT_TYPE_STYLES = {
   CONDITION_DIAGNOSED: { icon: HeartPulse, color: '#C8102E', bg: '#FEE2E2', label: 'Condition Diagnosed' },
-  CONDITION_RESOLVED:  { icon: Check,      color: '#059669', bg: '#D1FAE5', label: 'Condition Resolved' },
-  MEDICATION_STARTED:  { icon: Pill,        color: '#7C3AED', bg: '#F3E8FF', label: 'Medication Started' },
-  MEDICATION_STOPPED:  { icon: Pill,        color: '#6B7280', bg: '#F3F4F6', label: 'Medication Stopped' },
-  EPCR_ENCOUNTER:      { icon: Stethoscope, color: '#EA580C', bg: '#FFEDD5', label: 'ePCR Encounter' },
-  HOSPITAL_ADMISSION:  { icon: BedDouble,   color: '#0891B2', bg: '#CFFAFE', label: 'Hospital Admission' },
-  LAB_RESULT:          { icon: FlaskConical, color: '#1A3C8F', bg: '#DBEAFE', label: 'Lab Result' },
-  DOCUMENT:            { icon: FileText,    color: '#475569', bg: '#E2E8F0', label: 'Document' },
+  CONDITION_RESOLVED: { icon: Check, color: '#059669', bg: '#D1FAE5', label: 'Condition Resolved' },
+  MEDICATION_STARTED: { icon: Pill, color: '#7C3AED', bg: '#F3E8FF', label: 'Medication Started' },
+  MEDICATION_STOPPED: { icon: Pill, color: '#6B7280', bg: '#F3F4F6', label: 'Medication Stopped' },
+  EPCR_ENCOUNTER: { icon: Stethoscope, color: '#EA580C', bg: '#FFEDD5', label: 'ePCR Encounter' },
+  HOSPITAL_ADMISSION: { icon: BedDouble, color: '#0891B2', bg: '#CFFAFE', label: 'Hospital Admission' },
+  LAB_RESULT: { icon: FlaskConical, color: '#1A3C8F', bg: '#DBEAFE', label: 'Lab Result' },
+  DOCUMENT: { icon: FileText, color: '#475569', bg: '#E2E8F0', label: 'Document' },
 };
 const DEFAULT_EVENT_STYLE = { icon: Activity, color: '#4B5A7A', bg: '#E8EEF8', label: 'Event' };
 
@@ -1092,6 +1558,7 @@ const TimelineEvent = ({ item, index, isLast, onView }) => {
   );
 };
 
+
 function TimelineViewModal({ item, onClose }) {
   const eventType = item.eventType || item.type || '';
   const style = getEventStyle(eventType);
@@ -1115,39 +1582,37 @@ function TimelineViewModal({ item, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0F1A3A]/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[32px] bg-white shadow-2xl border border-[#DDE3F0] animate-in fade-in zoom-in-95 duration-300">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#DDE3F0] bg-white px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: style.bg, color: style.color }}>
-              <Icon size={20} />
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#F0F4FC] bg-white/80 backdrop-blur-md px-8 py-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: style.bg, color: style.color }}>
+              <Icon size={24} />
             </div>
             <div>
-              <h3 className="text-lg font-black text-[#0F1A3A]">Event Details</h3>
-              <span className="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[10px] font-black uppercase tracking-wider mt-0.5" style={{ background: style.bg, color: style.color }}>
+              <h3 className="text-xl font-black text-[#0F1A3A]">Event Details</h3>
+              <span className="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] mt-0.5" style={{ background: style.bg, color: style.color }}>
                 {style.label}
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-2 text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
-            <X size={20} />
+          <button onClick={onClose} className="rounded-2xl p-2.5 text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+            <X size={24} />
           </button>
         </div>
         {/* Content */}
-        <div className="p-6">
-          <div className="space-y-4">
-            {allFields.filter(([, val]) => val).map(([key, val]) => (
-              <div key={key} className="rounded-xl border border-[#DDE3F0] bg-[#F8FAFF] p-4">
-                <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#A0AECB]">{key}</p>
-                <p className="text-sm font-bold text-[#0F1A3A] break-words">{val}</p>
-              </div>
-            ))}
-          </div>
+        <div className="p-8 space-y-6">
+          {allFields.filter(([, val]) => val).map(([key, val]) => (
+            <div key={key} className="group rounded-2xl border border-[#DDE3F0] bg-[#F8FAFF] p-5 hover:border-brand-blue/30 transition-all">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#A0AECB] group-hover:text-brand-blue transition-colors">{key}</p>
+              <p className="text-sm font-bold text-[#4B5A7A] break-words leading-relaxed">{val}</p>
+            </div>
+          ))}
         </div>
         {/* Footer */}
-        <div className="sticky bottom-0 z-10 border-t border-[#DDE3F0] bg-white px-6 py-4 flex justify-end">
-          <button onClick={onClose} className="rounded-xl bg-[#F8FAFF] border border-[#DDE3F0] px-6 py-2.5 text-sm font-bold text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue transition-all">
+        <div className="sticky bottom-0 z-10 border-t border-[#F0F4FC] bg-white/80 backdrop-blur-md px-8 py-6 flex justify-end">
+          <button onClick={onClose} className="rounded-2xl bg-[#F8FAFF] border border-[#DDE3F0] px-8 py-3.5 text-xs font-black uppercase tracking-widest text-[#4B5A7A] hover:bg-white hover:border-brand-blue hover:text-brand-blue transition-all shadow-sm">
             Close Details
           </button>
         </div>
@@ -1155,6 +1620,7 @@ function TimelineViewModal({ item, onClose }) {
     </div>
   );
 }
+
 
 const RESTRICTION_TYPES = ['NO_MARKETING', 'NO_RESEARCH', 'NO_THIRD_PARTY', 'NO_INSURANCE', 'CUSTOM'];
 const DATA_CATEGORIES = ['ALL', 'PHI', 'DIAGNOSIS', 'MEDICATIONS', 'VITALS', 'DEMOGRAPHICS'];
@@ -1169,13 +1635,14 @@ export default function PatientPortal() {
 
   // Patient History state
   const historySummary = useSelector(selectHistorySummary);
-  const conditions  = asList(useSelector(selectConditions));
+  const conditions = asList(useSelector(selectConditions));
   const medications = asList(useSelector(selectMedications));
-  const encounters  = asList(useSelector(selectEncounters));
-  const admissions  = asList(useSelector(selectAdmissions));
-  const labResults  = asList(useSelector(selectLabResults));
-  const documents   = asList(useSelector(selectDocuments));
-  const timeline    = asList(useSelector(selectTimeline));
+  const encounters = asList(useSelector(selectEncounters));
+  const admissions = asList(useSelector(selectAdmissions));
+  const labResults = asList(useSelector(selectLabResults));
+  const documents = asList(useSelector(selectDocuments));
+  const timeline = asList(useSelector(selectTimeline));
+  const vitals = asList(useSelector(selectVitals));
   const historyLoading = useSelector(selectHistoryLoading);
 
   const [activeTab, setActiveTab] = useState('records');
@@ -1183,11 +1650,44 @@ export default function PatientPortal() {
   const [showAmendmentModal, setShowAmendmentModal] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [historySubTab, setHistorySubTab] = useState('overview');
   const [historyFetched, setHistoryFetched] = useState(false);
   const [timelineViewItem, setTimelineViewItem] = useState(null);
 
   const [amendmentForm, setAmendmentForm] = useState({ recordId: '', justification: '', dataCategory: 'ALL' });
   const [restrictionForm, setRestrictionForm] = useState({ restrictionType: 'NO_MARKETING', justification: '', dataCategory: 'PHI' });
+
+  // Aggregate vitals from clinical records for longitudinal view
+  const combinedVitals = useMemo(() => {
+    const extracted = records.map(r => {
+      // Check if the record actually contains any vital-related fields before processing
+      const hasVitalsData = VITAL_PRESENTED_FIELDS.some(f => {
+        const val = r[f];
+        return val !== undefined && val !== null && val !== '';
+      });
+
+      if (!hasVitalsData) return null;
+
+      const v = buildVitals(r);
+      return {
+        id: `record-vital-${r.id}`,
+        recordedAt: r.incidentDateTime || r.createdAt,
+        systolicBP: v.systolic,
+        diastolicBP: v.diastolic,
+        heartRate: v.heartRate,
+        oxygenSaturation: v.spo2,
+        respiratoryRate: v.respiratoryRate,
+        temperature: v.temperature,
+        bloodGlucose: v.bloodSugar,
+        glasgowComaScale: v.gcs,
+        source: 'Clinical Record',
+        recordId: r.id
+      };
+    }).filter(Boolean);
+
+    const all = [...vitals, ...extracted];
+    return all.sort((a, b) => new Date(b.recordedAt || b.createdAt || b.recordedAt) - new Date(a.recordedAt || a.createdAt || a.recordedAt));
+  }, [vitals, records]);
 
   useEffect(() => { dispatch(fetchPortalData()); }, [dispatch]);
 
@@ -1220,10 +1720,11 @@ export default function PatientPortal() {
   };
 
   const tabs = [
-    { id: 'records',     label: 'Clinical History', icon: History },
-    { id: 'history',     label: 'My History',        icon: ClipboardList },
-    { id: 'amendments', label: 'Amendments',         icon: FileEdit },
-    { id: 'restrictions', label: 'Privacy',          icon: Ban },
+    { id: 'records', label: 'Clinical History', icon: History },
+    { id: 'history', label: 'My History', icon: ClipboardList },
+    { id: 'amendments', label: 'Amendments', icon: FileEdit },
+    { id: 'restrictions', label: 'Privacy', icon: Ban },
+    { id: 'audit', label: 'Access Logs', icon: ShieldAlert },
   ];
 
   const historyCounts = [
@@ -1232,6 +1733,7 @@ export default function PatientPortal() {
     { label: 'Encounters', value: encounters.length },
     { label: 'Admissions', value: admissions.length },
     { label: 'Labs', value: labResults.length },
+    { label: 'Vitals', value: combinedVitals.length },
     { label: 'Documents', value: documents.length },
   ];
 
@@ -1245,7 +1747,7 @@ export default function PatientPortal() {
   );
 
   const historySectionHeader = (Icon, title, helper, colorClass = 'text-brand-blue', bgClass = 'bg-[#EEF2FF]') => (
-    <div className="flex items-start gap-3 mb-4">
+    <div className="flex items-start gap-3">
       <div className={`w-10 h-10 rounded-xl ${bgClass} flex items-center justify-center ${colorClass} shrink-0`}>
         <Icon size={19} />
       </div>
@@ -1256,371 +1758,606 @@ export default function PatientPortal() {
     </div>
   );
 
+  const Section = ({ icon: Icon, title, helper, children }) => (
+    <div className="bg-white border border-[#DDE3F0] rounded-[24px] overflow-hidden shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-[#DDE3F0] px-8 py-6">
+        {historySectionHeader(Icon, title, helper)}
+      </div>
+      <div className="p-8">{children}</div>
+    </div>
+  );
+
+  const viewSecureDocument = async (pid, docId) => {
+    if (!docId || !pid) return;
+    try {
+      const res = await client.get(
+        `/api/patients/${pid}/history/documents/${docId}/signed-url`,
+        { hideToast: true }
+      );
+      window.open(res.data.url, '_blank');
+    } catch (err) {
+      const status = err.response?.status;
+      const message = status === 404
+        ? 'This document was stored on a previous server and must be re-uploaded to be accessible.'
+        : (err.response?.data?.message || 'Unable to open document. Please try again or contact support.');
+      dispatch(addToast({ type: 'error', message }));
+    }
+  };
+
+  const handleViewHistoryItem = (item, type) => {
+    // Map history item to timeline format for the existing modal
+    const mapped = {
+      ...item,
+      eventType: type,
+      title: item.conditionName || item.medicationName || item.testName || item.encounterType || item.hospital || item.fileName || type,
+      description: item.notes || item.reason || item.description || '',
+      date: item.onsetDate || item.date || item.encounterDate || item.admissionDate || item.resultDate || item.timestamp || item.recordedAt || item.createdAt,
+      metadata: { ...item }
+    };
+    setTimelineViewItem(mapped);
+  };
+
+  const HistoryRowActions = ({ item, type }) => (
+    <div className="flex shrink-0 items-center gap-3">
+      <button
+        type="button"
+        onClick={() => handleViewHistoryItem(item, type)}
+        className="w-10 h-10 rounded-xl bg-white border border-[#DDE3F0] flex items-center justify-center text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-brand-red transition-all"
+      >
+        <Eye size={16} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-6 pb-10 animate-fade-in max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="flex items-center gap-4">
-           <div className="w-16 h-16 rounded-2xl bg-brand-blue flex items-center justify-center text-white shadow-lg shadow-brand-blue/20">
-              <User size={32} />
-           </div>
-           <div>
-              <p className="section-label mb-1">Patient Portal</p>
-              <h1 className="text-3xl font-black text-[#0F1A3A] tracking-tight">{user?.firstName} {user?.lastName}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                 <Shield className="text-green-500" size={14} />
-                 <p className="text-xs font-bold text-green-600 uppercase tracking-wider">Identity Verified</p>
+      {/* Main Header Card */}
+      <div className="bg-white rounded-[32px] border border-[#DDE3F0] p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-[24px] bg-brand-blue flex items-center justify-center text-white shadow-2xl shadow-brand-blue/30 overflow-hidden group">
+                <User size={40} className="group-hover:scale-110 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
-           </div>
-        </div>
+              <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-green-500 border-4 border-white flex items-center justify-center text-white shadow-lg">
+                <Check size={16} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-3 mb-1.5">
+                <span className="px-3 py-1 bg-blue-50 text-brand-blue text-[10px] font-black uppercase tracking-[0.2em] rounded-lg border border-blue-100 shadow-sm">Patient Portal</span>
+                <span className="w-1 h-1 rounded-full bg-[#DDE3F0]" />
+                <span className="text-[10px] font-bold text-[#8A97B0] uppercase tracking-widest">Active Session</span>
+              </div>
+              <h1 className="text-4xl font-black text-[#0F1A3A] tracking-tight leading-none mb-2">{user?.firstName} {user?.lastName}</h1>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Shield size={14} className="text-green-500" />
+                  <p className="text-xs font-bold text-green-600 uppercase tracking-widest">Identity Verified</p>
+                </div>
+                <div className="w-1 h-1 rounded-full bg-[#DDE3F0]" />
+                <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-widest">Patient ID: <span className="font-mono text-brand-blue">#{user?.id?.substring(0, 8).toUpperCase()}</span></p>
+              </div>
+            </div>
+          </div>
 
-        <div className="flex gap-3">
-           <button onClick={() => setShowAmendmentModal(true)} className="btn-ghost border border-[#DDE3F0] px-4 py-2.5 text-sm">
-              <FileEdit size={16} /> Request Amendment
-           </button>
-           <button onClick={() => setShowRestrictionModal(true)} className="btn-primary text-sm px-4 py-2.5">
-              <Ban size={16} /> Manage Privacy
-           </button>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => setShowAmendmentModal(true)} className="group flex items-center gap-3 bg-[#F8FAFF] border border-[#DDE3F0] px-6 py-4 rounded-[20px] text-xs font-black uppercase tracking-widest text-[#4B5A7A] hover:bg-white hover:border-brand-blue hover:text-brand-blue transition-all shadow-sm hover:shadow-md">
+              <FileEdit size={18} className="text-[#A0AECB] group-hover:text-brand-blue transition-colors" /> Request Amendment
+            </button>
+            <button onClick={() => setShowRestrictionModal(true)} className="group flex items-center gap-3 bg-brand-red text-white px-6 py-4 rounded-[20px] text-xs font-black uppercase tracking-widest hover:bg-red-800 transition-all shadow-xl shadow-red-900/10 hover:shadow-red-900/20">
+              <Ban size={18} /> Manage Privacy
+            </button>
+          </div>
         </div>
       </div>
 
+
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Nav */}
-        <div className="lg:w-64 shrink-0 space-y-4">
-           <div className="p-2 bg-white rounded-2xl border border-[#DDE3F0] space-y-1">
-              {tabs.map(t => (
-                <button key={t.id} onClick={() => { setActiveTab(t.id); setViewRecord(null); }}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${activeTab === t.id ? 'bg-[#EEF2FF] text-brand-blue font-bold' : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A] font-semibold'}`}>
-                   <div className="flex items-center gap-3">
-                      <t.icon size={18} className={activeTab === t.id ? 'text-brand-blue' : 'text-[#A0AECB]'} />
-                      <span className="text-sm">{t.label}</span>
-                   </div>
-                   {activeTab === t.id && <ChevronRight size={16} />}
-                </button>
-              ))}
-           </div>
+        <div className="lg:w-72 shrink-0 space-y-6">
+          <div className="bg-white rounded-[28px] border border-[#DDE3F0] p-3 shadow-sm space-y-1.5">
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => { setActiveTab(t.id); setViewRecord(null); }}
+                className={`group w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === t.id ? 'bg-[#EEF2FF] text-brand-blue' : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'}`}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeTab === t.id ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/30 scale-110' : 'bg-[#F8FAFF] text-[#A0AECB] group-hover:bg-blue-50 group-hover:text-brand-blue'}`}>
+                    <t.icon size={20} />
+                  </div>
+                  <span className={`text-sm tracking-tight ${activeTab === t.id ? 'font-black' : 'font-bold'}`}>{t.label}</span>
+                </div>
+                {activeTab === t.id ? (
+                  <div className="w-1.5 h-6 bg-brand-blue rounded-full shadow-sm" />
+                ) : (
+                  <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+              </button>
+            ))}
+          </div>
 
-           <div className="card p-5">
-              <div className="flex items-center gap-3 mb-4">
-                 <Heart className="text-brand-red" size={20} />
-                 <h4 className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">Status</h4>
+
+          <div className="card p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Heart className="text-brand-red" size={20} />
+              <h4 className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">Status</h4>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xl font-black text-[#0F1A3A]">{records.length}</p>
+                <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-0.5">Records</p>
               </div>
-              <div className="space-y-4">
-                 <div>
-                    <p className="text-xl font-black text-[#0F1A3A]">{records.length}</p>
-                    <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-0.5">Records</p>
-                 </div>
-                 <div className="pt-4 border-t border-[#F0F4FC] flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-bold text-[#8A97B0] uppercase tracking-wider">Synced</span>
-                 </div>
+              <div className="pt-4 border-t border-[#F0F4FC] flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs font-bold text-[#8A97B0] uppercase tracking-wider">Synced</span>
               </div>
-           </div>
+            </div>
+          </div>
         </div>
 
         {/* Content Area */}
         <div className="flex-1 min-w-0">
           {loading ? (
-             <div className="py-20 text-center">
-                <RefreshCw className="animate-spin w-10 h-10 mx-auto mb-4 text-[#A0AECB]" />
-                <p className="text-sm font-semibold text-[#8A97B0]">Loading records…</p>
-             </div>
+            <div className="py-20 text-center">
+              <RefreshCw className="animate-spin w-10 h-10 mx-auto mb-4 text-[#A0AECB]" />
+              <p className="text-sm font-semibold text-[#8A97B0]">Loading records…</p>
+            </div>
           ) : viewRecord ? (
-             <div className="space-y-4">
-                <button onClick={() => setViewRecord(null)} className="btn-ghost px-3 py-2 text-sm text-[#4B5A7A]">
-                   <ArrowLeft size={16} /> Back to Records
-                </button>
-                <MedicalDocument data={viewRecord} />
-             </div>
+            <div className="space-y-4">
+              <button onClick={() => setViewRecord(null)} className="btn-ghost px-3 py-2 text-sm text-[#4B5A7A]">
+                <ArrowLeft size={16} /> Back to Records
+              </button>
+              <MedicalDocument data={viewRecord} />
+            </div>
           ) : activeTab === 'records' ? (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {records.map(r => (
-                 <div key={r.id} onClick={() => setViewRecord(r)} className="card p-5 hover:-translate-y-1 cursor-pointer flex flex-col h-full">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="w-10 h-10 rounded-xl bg-[#EEF2FF] flex items-center justify-center text-brand-blue">
-                          <ClipboardCheck size={20} />
-                       </div>
-                       <span className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">{new Date(r.incidentDateTime || r.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <h3 className="text-lg font-black text-[#0F1A3A] mb-2 line-clamp-2">{r.diagnosis || 'Diagnosis Pending'}</h3>
-                    <p className="text-xs text-[#8A97B0] mb-6 line-clamp-1">{r.incidentLocation || 'N/A'}</p>
-                    <div className="mt-auto pt-4 border-t border-[#F0F4FC] flex items-center justify-between">
-                       <span className="text-xs font-mono text-[#A0AECB]">#{r.id?.substring(0,8).toUpperCase()}</span>
-                       <ChevronRight className="text-brand-blue" size={16} />
-                    </div>
-                 </div>
-               ))}
-               {records.length === 0 && (
-                 <div className="col-span-full card p-16 text-center">
+            <div className="space-y-4">
+              <IncidentAnalytics records={records} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {records.length === 0 ? (
+                  <div className="col-span-full py-20 text-center bg-[#F8FAFF] rounded-2xl border border-dashed border-[#DDE3F0]">
                     <Shield className="w-16 h-16 mx-auto mb-4 text-[#DDE3F0]" />
-                    <p className="text-sm font-semibold text-[#8A97B0]">No records found.</p>
-                 </div>
-               )}
-             </div>
+                    <p className="text-sm font-black text-[#8A97B0]">No clinical records found on file.</p>
+                  </div>
+                ) : records.map(r => (
+                  <div 
+                    key={r.id} 
+                    onClick={() => setViewRecord(r)} 
+                    className="group relative bg-white rounded-2xl border border-[#DDE3F0] p-6 hover:shadow-xl hover:shadow-brand-blue/5 hover:border-brand-blue/30 transition-all cursor-pointer flex flex-col h-full"
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                        <ClipboardCheck size={22} />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Date of Care</p>
+                        <span className="text-xs font-bold text-[#0F1A3A] bg-[#F8FAFF] px-3 py-1 rounded-lg border border-[#EEF2FF]">
+                          {new Date(r.incidentDateTime || r.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-xl font-black text-[#0F1A3A] mb-2 group-hover:text-brand-blue transition-colors line-clamp-2 leading-tight">
+                      {r.diagnosis || 'Diagnosis Pending'}
+                    </h3>
+                    
+                    <div className="flex items-center gap-2 mb-8 text-[#8A97B0]">
+                      <MapPin size={14} className="shrink-0" />
+                      <p className="text-xs font-bold truncate uppercase tracking-wider">
+                        {r.incidentLocation || 'Clinical Facility'}
+                      </p>
+                    </div>
+
+                    <div className="mt-auto pt-5 border-t border-[#F0F4FC] flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Incident Number</p>
+                        <span className="text-[10px] font-mono font-bold text-brand-blue">#{r.id?.substring(0, 12).toUpperCase()}</span>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] flex items-center justify-center text-brand-blue group-hover:bg-brand-blue group-hover:text-white transition-all">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           ) : activeTab === 'amendments' ? (
-             <div className="space-y-4">
-               {amendments.map(a => (
-                 <div key={a.id} className="card p-5">
-                    <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
-                       <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-[#EEF2FF] flex items-center justify-center text-brand-blue">
-                             <FileEdit size={20} />
-                          </div>
-                          <div>
-                             <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-0.5">Record Reference</p>
-                             <p className="text-sm font-mono text-[#0F1A3A] font-bold">#{a.recordId?.substring(0,16).toUpperCase()}</p>
-                          </div>
-                       </div>
-                       <div className="flex items-center gap-3">
-                          <span className={a.status === 'APPROVED' ? 'badge badge-green' : a.status === 'REJECTED' ? 'badge badge-red' : 'badge badge-orange'}>
-                             {a.status}
-                          </span>
-                          <span className="text-xs text-[#8A97B0]">{new Date(a.createdAt).toLocaleDateString()}</span>
-                       </div>
+            <div className="space-y-4">
+              {amendments.length === 0 ? (
+                <div className="py-20 text-center bg-[#F8FAFF] rounded-2xl border border-dashed border-[#DDE3F0]">
+                  <FileEdit className="w-16 h-16 mx-auto mb-4 text-[#DDE3F0]" />
+                  <p className="text-sm font-black text-[#8A97B0]">No amendment requests on file.</p>
+                </div>
+              ) : amendments.map(a => (
+                <div key={a.id} className="group bg-white rounded-2xl border border-[#DDE3F0] p-6 hover:shadow-xl hover:shadow-brand-blue/5 transition-all">
+                  <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue">
+                        <FileEdit size={22} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Record Reference</p>
+                        <p className="text-sm font-mono text-brand-blue font-bold">#{a.recordId?.substring(0, 16).toUpperCase()}</p>
+                      </div>
                     </div>
-                    <div className="bg-[#F8FAFF] p-4 rounded-xl border border-[#DDE3F0]">
-                       <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-2">Request Details</p>
-                       <p className="text-sm text-[#4B5A7A] italic">"{a.justification}"</p>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                        a.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : 
+                        a.status === 'REJECTED' ? 'bg-red-50 text-red-700 border-red-200' : 
+                        'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {a.status}
+                      </span>
+                      <span className="text-xs font-bold text-[#8A97B0]">{new Date(a.createdAt).toLocaleDateString()}</span>
                     </div>
-                 </div>
-               ))}
-               {amendments.length === 0 && (
-                 <div className="card p-16 text-center">
-                    <FileText className="w-16 h-16 mx-auto mb-4 text-[#DDE3F0]" />
-                    <p className="text-sm font-semibold text-[#8A97B0]">No amendment requests.</p>
-                 </div>
-               )}
-             </div>
+                  </div>
+                  <div className="bg-[#F8FAFF] p-5 rounded-2xl border border-[#EEF2FF]">
+                    <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-2">Request Justification</p>
+                    <p className="text-sm font-bold text-[#4B5A7A] italic leading-relaxed">"{a.justification}"</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : activeTab === 'history' ? (
-             <div className="space-y-6">
-               {historyLoading ? (
-                 <div className="py-20 text-center"><RefreshCw className="animate-spin w-10 h-10 mx-auto mb-4 text-[#A0AECB]" /><p className="text-sm font-semibold text-[#8A97B0]">Loading history...</p></div>
-               ) : (
-                 <>
-                   <div className="card p-5 border border-[#DDE3F0]">
-                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                       <div>
-                         <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-1">Patient History</p>
-                         <h2 className="text-xl font-black text-[#0F1A3A]">Longitudinal medical record</h2>
-                         <p className="mt-1 text-sm font-semibold text-[#8A97B0]">A read-only view of your conditions, medicines, visits, labs, admissions, and documents.</p>
-                       </div>
-                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                         {historyCounts.map(item => (
-                           <div key={item.label} className="rounded-xl border border-[#DDE3F0] bg-[#F8FAFF] px-3 py-2 text-center shadow-sm">
-                             <p className="text-base font-black text-[#0F1A3A]">{item.value}</p>
-                             <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97B0]">{item.label}</p>
-                           </div>
-                         ))}
-                       </div>
-                     </div>
-                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#F0F4FC] pt-4">
-                       <p className="text-xs font-semibold text-[#8A97B0]">
-                         Last updated {formatHistoryDate(historySummary?.lastUpdatedAt || historySummary?.updatedAt)}
-                       </p>
-                       <button type="button" onClick={() => { if (user?.id) dispatch(fetchAllPatientHistory(user.patientId || user.id)); }} className="btn-outline px-3 py-2 text-xs">
-                         <RefreshCw size={14} className={historyLoading ? 'animate-spin' : ''} /> Refresh
-                       </button>
-                     </div>
-                   </div>
+            <div className="space-y-8">
+              {historyLoading ? (
+                <div className="py-20 text-center card bg-white rounded-2xl border border-[#DDE3F0]">
+                  <RefreshCw className="animate-spin w-12 h-12 mx-auto mb-4 text-brand-blue/30" />
+                  <p className="text-sm font-bold text-[#8A97B0]">Loading history record...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Stats Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+                    {[
+                      { label: 'Conditions', value: conditions.length, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
+                      { label: 'Medications', value: medications.length, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
+                      { label: 'Visits', value: encounters.length, icon: UserRound, color: 'text-purple-500', bg: 'bg-purple-50' },
+                      { label: 'Admissions', value: admissions.length, icon: BedDouble, color: 'text-orange-500', bg: 'bg-orange-50' },
+                      { label: 'Lab Results', value: labResults.length, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
+                      { label: 'Documents', value: documents.length, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+                      { label: 'Vitals', value: combinedVitals.length, icon: Activity, color: 'text-rose-500', bg: 'bg-rose-50' },
+                    ].map((stat) => (
+                      <div key={stat.label} className="bg-white p-5 rounded-2xl border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all group">
+                        <div className={`w-9 h-9 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                          <stat.icon size={18} />
+                        </div>
+                        <p className="text-2xl font-black text-[#0F1A3A] mb-0.5">{stat.value}</p>
+                        <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
 
-                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  {/* Horizontal Navigation Tabs */}
+                  <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-[#DDE3F0] rounded-2xl shadow-sm">
+                    {[
+                      ['overview', 'Overview', History],
+                      ['conditions', 'Conditions', HeartPulse],
+                      ['medications', 'Medications', Pill],
+                      ['encounters', 'Encounters', UserRound],
+                      ['admissions', 'Admissions', BedDouble],
+                      ['labs', 'Labs', FlaskConical],
+                      ['vitals', 'Vitals', Activity],
+                      ['documents', 'Documents', FileText],
+                      ['timeline', 'Timeline', Clock],
+                    ].map(([id, label, Icon]) => (
+                      <button
+                        key={id}
+                        onClick={() => setHistorySubTab(id)}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all text-xs font-bold ${historySubTab === id
+                            ? 'bg-brand-red text-white shadow-lg shadow-red-900/20'
+                            : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
+                          }`}
+                      >
+                        <Icon size={14} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
 
-                   {/* Conditions */}
-                   <div className="card p-5 border border-[#DDE3F0]">
-                     {historySectionHeader(Stethoscope, 'Conditions', 'Diagnosed or ongoing medical conditions')}
-                     {conditions.length === 0 ? (
-                       historyEmpty('No conditions recorded.')
-                     ) : (
-                       <div className="space-y-3">
-                         {conditions.map((c, i) => (
-                           <div key={c.conditionId || i} className="flex items-center justify-between p-3 rounded-xl bg-[#F8FAFF] border border-[#EEF2FF]">
-                             <div>
-                               <p className="text-sm font-bold text-[#0F1A3A]">{c.conditionName || c.name || 'Unknown'}</p>
-                               <p className="text-xs text-[#8A97B0] mt-0.5">{c.icdCode || ''} {c.onsetDate ? `· Since ${new Date(c.onsetDate).toLocaleDateString()}` : ''}</p>
-                             </div>
-                             <span className={`text-xs font-bold px-3 py-1 rounded-full ${c.status === 'ACTIVE' ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700'}`}>
-                               {c.status || 'UNKNOWN'}
-                             </span>
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
+                  {/* History Content Sections */}
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    {historySubTab === 'overview' && (
+                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                        <div className="card p-8 border border-[#DDE3F0] bg-white rounded-[24px]">
+                          {historySectionHeader(History, 'Clinical Overview', 'Your complete longitudinal health summary')}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                            <div className="p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
+                              <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Last Update</p>
+                              <p className="text-sm font-bold text-[#0F1A3A]">{formatHistoryDate(historySummary?.lastUpdatedAt || new Date())}</p>
+                            </div>
+                            <div className="p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
+                              <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Record Status</p>
+                              <p className="text-sm font-bold text-green-600">Synced & Verified</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="card p-8 border border-[#DDE3F0] bg-white rounded-[24px]">
+                          {historySectionHeader(Activity, 'Recent Activity', 'Latest updates to your clinical file')}
+                          <div className="space-y-4 mt-4">
+                            {timeline.slice(0, 3).map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-4">
+                                <div className="w-2 h-2 rounded-full bg-brand-red" />
+                                <div>
+                                  <p className="text-sm font-bold text-[#0F1A3A]">{item.title || item.type}</p>
+                                  <p className="text-xs text-[#8A97B0]">{formatHistoryDate(item.date || item.timestamp)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                   {/* Medications */}
-                   <div className="card p-5 border border-[#DDE3F0]">
-                     {historySectionHeader(Pill, 'Medications', 'Current and previous medicines', 'text-purple-600', 'bg-purple-50')}
-                     {medications.length === 0 ? (
-                       historyEmpty('No medications on record.')
-                     ) : (
-                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                         {medications.map((m, i) => (
-                           <span key={m.medicationId || i} className="rounded-xl bg-purple-50 border border-purple-100 p-3 text-xs font-bold text-purple-700">
-                             {m.medicationName || m.name} {m.dosage ? `· ${m.dosage}` : ''}
-                           </span>
-                         ))}
-                       </div>
-                     )}
-                   </div>
+                    {historySubTab === 'conditions' && (
+                      <Section icon={HeartPulse} title="Medical Conditions" helper="Diagnosed or ongoing health issues">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {conditions.length === 0 ? historyEmpty('No conditions recorded.') : conditions.map((c, i) => (
+                            <div key={i} className="group relative bg-white rounded-2xl border border-[#DDE3F0] p-6 hover:shadow-xl hover:shadow-brand-blue/5 hover:border-brand-blue/30 transition-all cursor-default">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                                  <Stethoscope size={22} />
+                                </div>
+                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${c.status === 'ACTIVE' ? 'bg-red-50 text-brand-red' : 'bg-blue-50 text-brand-blue'}`}>
+                                  {c.status || 'Verified'}
+                                </span>
+                              </div>
+                              <h4 className="text-xl font-black text-[#0F1A3A] mb-2 group-hover:text-brand-blue transition-colors leading-tight">{c.conditionName || c.name}</h4>
+                              <div className="flex flex-wrap items-center gap-2 mb-6">
+                                <span className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">{c.icdCode || 'Clinical Diagnosis'}</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#DDE3F0]" />
+                                <span className="text-xs font-bold text-[#8A97B0] uppercase tracking-wider">Since {formatHistoryDate(c.onsetDate)}</span>
+                              </div>
+                              <div className="pt-5 border-t border-[#F0F4FC] flex items-center justify-between">
+                                <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">Medical Health Record</p>
+                                <HistoryRowActions item={c} type="CONDITION" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
 
-                   {/* Encounters */}
-                   <div className="card p-5 border border-[#DDE3F0] xl:col-span-2">
-                     {historySectionHeader(Calendar, 'Encounter History', 'Visits and clinical care encounters', 'text-orange-600', 'bg-orange-50')}
-                     {encounters.length === 0 ? (
-                       historyEmpty('No encounters recorded.')
-                     ) : (
-                       <div className="relative pl-6 space-y-4">
-                         <div className="absolute left-2 top-0 bottom-0 w-px bg-[#DDE3F0]" />
-                         {encounters.map((e, i) => (
-                           <div key={e.encounterId || i} className="relative">
-                             <div className="absolute -left-4 top-1 w-3 h-3 rounded-full border-2 border-brand-blue bg-white" />
-                             <div className="bg-[#F8FAFF] border border-[#EEF2FF] rounded-xl p-3">
-                               <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-1">{e.encounterDate ? new Date(e.encounterDate).toLocaleDateString() : 'Date N/A'}</p>
-                               <p className="text-sm font-bold text-[#0F1A3A]">{e.encounterType || e.reason || 'Encounter'}</p>
-                               {e.notes && <p className="text-xs text-[#8A97B0] mt-1 line-clamp-2">{e.notes}</p>}
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
+                    {historySubTab === 'medications' && (
+                      <Section icon={Pill} title="Current Medications" helper="Medicines currently in your treatment plan">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {medications.length === 0 ? historyEmpty('No medications recorded.') : medications.map((m, i) => (
+                            <div key={i} className="group relative bg-white rounded-2xl border border-[#DDE3F0] p-6 hover:shadow-xl hover:shadow-brand-blue/5 hover:border-brand-blue/30 transition-all cursor-default">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue group-hover:rotate-12 transition-transform">
+                                  <Pill size={22} />
+                                </div>
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-brand-blue">Active</span>
+                              </div>
+                              <h4 className="text-xl font-black text-[#0F1A3A] mb-2 group-hover:text-brand-blue transition-colors">{m.medicationName || m.name}</h4>
+                              <div className="p-3 rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] mb-6">
+                                <p className="text-sm font-black text-brand-blue">{m.dosage || 'Dosage N/A'}</p>
+                                <p className="text-[10px] font-bold text-[#8A97B0] uppercase tracking-widest mt-1">{m.frequency || 'Daily Intake'}</p>
+                              </div>
+                              <div className="pt-4 border-t border-[#F0F4FC] flex items-center justify-between">
+                                <p className="text-xs text-[#8A97B0] font-bold">Started: {formatHistoryDate(m.date || m.startDate)}</p>
+                                <HistoryRowActions item={m} type="MEDICATION" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
 
-                   {/* Timeline */}
-                   <div className="card p-5 border border-[#DDE3F0] xl:col-span-2">
-                     {historySectionHeader(Clock, 'Medical Timeline', 'Chronological clinical events from your record', 'text-slate-600', 'bg-slate-50')}
-                     {timeline.length === 0 ? (
-                       historyEmpty('No timeline events recorded.')
-                     ) : (
-                       <div className="space-y-6">
-                         {groupTimelineByMonth(timeline).map((group, gIdx) => (
-                           <div key={group.label || gIdx} className="mb-6">
-                             <div className="flex items-center gap-3 mb-4">
-                               <div className="h-px flex-1 bg-[#DDE3F0]" />
-                               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F4FC] border border-[#DDE3F0] px-4 py-1.5 text-xs font-black text-[#4B5A7A] uppercase tracking-wider">
-                                 <CalendarDays size={12} />
-                                 {group.label}
-                               </span>
-                               <div className="h-px flex-1 bg-[#DDE3F0]" />
-                             </div>
-                             {group.items.map((item, index) => (
-                               <TimelineEvent 
-                                 key={item.id || item.timelineId || index} 
-                                 item={item} 
-                                 index={index} 
-                                 isLast={index === group.items.length - 1} 
-                                 onView={setTimelineViewItem} 
-                               />
-                             ))}
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
+                    {historySubTab === 'vitals' && (
+                      <div className="space-y-6">
+                        <div className="bg-white border border-[#DDE3F0] rounded-[24px] p-8 shadow-sm">
+                          <div className="flex items-center justify-between mb-8">
+                            {historySectionHeader(Activity, 'Vital Signs Trending', 'Longitudinal tracking of clinical metrics')}
+                          </div>
+                          <VitalsPortalTab vitals={combinedVitals} />
+                        </div>
+                      </div>
+                    )}
 
-                   {/* Admissions */}
-                   <div className="card p-5 border border-[#DDE3F0]">
-                     {historySectionHeader(ClipboardCheck, 'Admissions', 'Hospital stays and discharge outcomes', 'text-brand-blue', 'bg-blue-50')}
-                     {admissions.length === 0 ? (
-                       historyEmpty('No hospital admissions recorded.')
-                     ) : (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                         {admissions.map((a, i) => (
-                           <div key={a.admissionId || a.id || i} className="rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] p-4">
-                             <p className="text-sm font-bold text-[#0F1A3A]">{a.hospital || a.facility || 'Hospital admission'}</p>
-                             <p className="text-xs text-[#8A97B0] mt-1">{formatHistoryDate(a.admitDate || a.admissionDate)} - {a.dischargeDate ? formatHistoryDate(a.dischargeDate) : 'Present'}</p>
-                             {a.reason && <p className="text-xs text-[#4B5A7A] mt-2">{a.reason}</p>}
-                             {a.outcome && <span className="mt-3 inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">{a.outcome}</span>}
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
+                    {historySubTab === 'documents' && (
+                      <Section icon={FileText} title="Medical Documents" helper="Clinical reports and discharge summaries">
+                        <div className="grid grid-cols-1 gap-4">
+                          {documents.length === 0 ? historyEmpty('No documents on file.') : documents.map((d, i) => (
+                            <div key={i} className="flex flex-col md:flex-row md:items-center justify-between p-6 rounded-2xl border border-[#DDE3F0] bg-white hover:shadow-xl hover:shadow-brand-blue/5 hover:border-brand-blue/20 transition-all group cursor-default">
+                              <div className="flex items-center gap-5 mb-4 md:mb-0">
+                                <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-brand-blue transition-all">
+                                  <FileText size={32} />
+                                </div>
+                                <div>
+                                  <p className="text-xl font-black text-[#0F1A3A] group-hover:text-brand-blue transition-colors leading-tight">{d.fileName || d.name}</p>
+                                  <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-[0.2em] mt-1">{d.type} • {formatHistoryDate(d.date || d.uploadedAt)}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4 border-t md:border-t-0 pt-4 md:pt-0">
+                                <button
+                                  type="button"
+                                  onClick={() => viewSecureDocument(user.patientId || user.id, d.documentId || d.id, d.fileName || d.name)}
+                                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white border border-[#DDE3F0] text-xs font-black text-brand-blue hover:border-brand-blue hover:bg-blue-50 transition-all shadow-sm hover:shadow-md"
+                                >
+                                  View Document <ExternalLink size={14} />
+                                </button>
+                                <HistoryRowActions item={d} type="DOCUMENT" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
 
-                   {/* Lab Results */}
-                   <div className="card p-5 border border-[#DDE3F0]">
-                     {historySectionHeader(FlaskConical, 'Lab Results', 'Tests, values, ranges, and interpretations', 'text-cyan-700', 'bg-cyan-50')}
-                     {labResults.length === 0 ? (
-                       historyEmpty('No lab results recorded.')
-                     ) : (
-                       <div className="space-y-3">
-                         {labResults.map((l, i) => (
-                           <div key={l.labResultId || l.id || i} className="flex flex-col gap-3 rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] p-4 sm:flex-row sm:items-center sm:justify-between">
-                             <div>
-                               <p className="text-sm font-bold text-[#0F1A3A]">{l.testName || 'Lab test'}</p>
-                               <p className="text-xs text-[#8A97B0] mt-1">{formatHistoryDate(l.date || l.resultDate)}{l.normalRange ? ` - Normal ${l.normalRange}` : ''}</p>
-                             </div>
-                             <div className="text-left sm:text-right">
-                               <p className="text-sm font-black text-[#0F1A3A]">{[l.value, l.unit].filter(Boolean).join(' ') || 'Result N/A'}</p>
-                               {l.interpretation && <p className="text-xs font-bold text-brand-blue mt-1">{l.interpretation}</p>}
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
+                    {historySubTab === 'encounters' && (
+                      <Section icon={UserRound} title="Clinical Visits" helper="History of encounters with healthcare providers">
+                        <div className="space-y-6">
+                          {encounters.length === 0 ? historyEmpty('No visits recorded.') : encounters.map((e, i) => (
+                            <div key={i} className="relative pl-10 border-l-4 border-blue-50 pb-10 last:pb-0 group">
+                              <div className="absolute -left-[14px] top-0 w-6 h-6 rounded-full bg-white border-4 border-brand-blue shadow-sm group-hover:scale-125 transition-transform" />
+                              <div className="p-8 rounded-2xl border border-[#DDE3F0] bg-white shadow-sm hover:shadow-xl hover:shadow-brand-blue/5 hover:border-brand-blue/30 transition-all">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-[10px] font-black text-brand-blue uppercase tracking-[0.2em] bg-blue-50 px-3 py-1.5 rounded-lg mb-3 inline-block shadow-sm">{formatHistoryDate(e.encounterDate || e.date)}</span>
+                                    <h4 className="text-2xl font-black text-[#0F1A3A] group-hover:text-brand-blue transition-colors leading-tight">{e.encounterType || e.reason || 'Clinical Consultation'}</h4>
+                                    <div className="flex items-center gap-3 mt-3">
+                                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#8A97B0] bg-[#F8FAFF] px-3 py-1.5 rounded-lg border border-[#EEF2FF]">
+                                        <MapPin size={14} className="text-brand-blue" />
+                                        {e.location || 'Outpatient Clinic'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-4 shrink-0">
+                                    <span className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 border border-green-100">Validated</span>
+                                    <HistoryRowActions item={e} type="ENCOUNTER" />
+                                  </div>
+                                </div>
+                                {e.notes && (
+                                  <div className="bg-[#F8FAFF] p-5 rounded-2xl border border-[#EEF2FF]">
+                                    <p className="text-xs font-black text-[#A0AECB] uppercase tracking-widest mb-2">Clinical Note</p>
+                                    <p className="text-sm text-[#4B5A7A] leading-relaxed italic">"{e.notes}"</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
 
-                   {/* Documents */}
-                   <div className="card p-5 border border-[#DDE3F0] xl:col-span-2">
-                     {historySectionHeader(FileText, 'Documents', 'Reports and uploaded medical files', 'text-slate-600', 'bg-slate-50')}
-                     {documents.length === 0 ? (
-                       historyEmpty('No documents recorded.')
-                     ) : (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                         {documents.map((d, i) => (
-                           <div key={d.documentId || d.id || i} className="rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] p-4">
-                             <div className="flex items-start justify-between gap-3">
-                               <div>
-                                 <p className="text-sm font-bold text-[#0F1A3A]">{d.fileName || d.name || 'Medical document'}</p>
-                                 <p className="text-xs text-[#8A97B0] mt-1">{d.type || 'DOCUMENT'} - {formatHistoryDate(d.date || d.createdAt)}</p>
-                               </div>
-                               {d.fileUrl && (
-                                 <a href={d.fileUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#DDE3F0] bg-white text-brand-blue hover:bg-[#EEF2FF]" title="Open document" aria-label="Open document">
-                                   <Eye size={16} />
-                                 </a>
-                               )}
-                             </div>
-                             {d.notes && <p className="text-xs text-[#4B5A7A] mt-3 line-clamp-2">{d.notes}</p>}
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
-                   </div>
-                 </>
-               )}
-             </div>
+                    {historySubTab === 'admissions' && (
+                      <Section icon={BedDouble} title="Hospital Admissions" helper="History of inpatient hospital stays">
+                        <div className="grid grid-cols-1 gap-4">
+                          {admissions.length === 0 ? historyEmpty('No admissions recorded.') : admissions.map((a, i) => (
+                            <div key={i} className="group p-8 rounded-2xl border border-[#DDE3F0] bg-white hover:border-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/5 transition-all">
+                              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                                <div className="flex items-center gap-6">
+                                  <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                                    <BedDouble size={32} />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-2xl font-black text-[#0F1A3A] leading-tight mb-1 group-hover:text-brand-blue transition-colors">{a.hospital || a.facility || 'General Hospital'}</h4>
+                                    <div className="flex items-center gap-3">
+                                      <p className="text-xs font-black text-brand-blue uppercase tracking-widest">{formatHistoryDate(a.admitDate || a.admissionDate)}</p>
+                                      <ChevronRight size={14} className="text-[#DDE3F0]" />
+                                      <p className="text-xs font-black text-[#8A97B0] uppercase tracking-widest">{a.dischargeDate ? formatHistoryDate(a.dischargeDate) : 'Ongoing'}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <span className="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-50 text-brand-blue border border-blue-100 shadow-sm">Discharged</span>
+                                  <HistoryRowActions item={a} type="ADMISSION" />
+                                </div>
+                              </div>
+                              {a.reason && (
+                                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="p-5 rounded-2xl bg-[#F8FAFF] border border-[#EEF2FF]">
+                                    <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Primary Diagnosis</p>
+                                    <p className="text-sm font-black text-[#0F1A3A]">{a.reason}</p>
+                                  </div>
+                                  {a.outcome && (
+                                    <div className="p-5 rounded-2xl bg-green-50 border border-green-100">
+                                      <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Outcome</p>
+                                      <p className="text-sm font-black text-green-700">{a.outcome}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
+
+                    {historySubTab === 'labs' && (
+                      <Section icon={FlaskConical} title="Laboratory Results" helper="Clinical test results and diagnostic findings">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {labResults.length === 0 ? historyEmpty('No lab results recorded.') : labResults.map((l, i) => (
+                            <div key={i} className="p-8 rounded-3xl border border-[#DDE3F0] bg-white shadow-sm hover:shadow-2xl hover:shadow-brand-blue/10 hover:border-brand-blue/40 transition-all group">
+                              <div className="flex items-start justify-between mb-8">
+                                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                                  <FlaskConical size={26} />
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-3xl font-black text-brand-blue tracking-tighter">{l.value} <span className="text-xs text-[#A0AECB] uppercase font-bold tracking-widest">{l.unit || 'units'}</span></p>
+                                  <span className={`inline-block mt-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${l.interpretation?.includes('NORMAL') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-brand-red'}`}>{l.interpretation || 'Stable'}</span>
+                                </div>
+                              </div>
+                              <h4 className="text-xl font-black text-[#0F1A3A] leading-tight mb-2 group-hover:text-brand-blue transition-colors line-clamp-2 min-h-[3rem]">{l.testName || l.name}</h4>
+                              <div className="flex items-center justify-between mt-6 pt-6 border-t border-[#F0F4FC]">
+                                <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-[0.2em]">{formatHistoryDate(l.date || l.resultDate)}</p>
+                                <HistoryRowActions item={l} type="LAB_RESULT" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
+
+                    {historySubTab === 'timeline' && (
+                      <div className="bg-white border border-[#DDE3F0] rounded-[24px] overflow-hidden shadow-sm">
+                        <div className="border-b border-[#DDE3F0] px-8 py-6">{historySectionHeader(Clock, 'Medical Timeline', 'Chronological list of all medical events')}</div>
+                        <div className="p-8">
+                          {timeline.length === 0 ? historyEmpty('No events recorded.') : (
+                            <div className="space-y-8">
+                              {groupTimelineByMonth(timeline).map((group, gIdx) => (
+                                <div key={gIdx}>
+                                  <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-px flex-1 bg-[#DDE3F0]" />
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A0AECB]">{group.label}</span>
+                                    <div className="h-px flex-1 bg-[#DDE3F0]" />
+                                  </div>
+                                  <div className="space-y-4">
+                                    {group.items.map((item, index) => (
+                                      <TimelineEvent key={index} item={item} index={index} isLast={index === group.items.length - 1} onView={setTimelineViewItem} />
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
           ) : activeTab === 'restrictions' ? (
-             <div className="space-y-4">
-               {restrictions.map(r => (
-                 <div key={r.id} className="card p-5">
-                    <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
-                       <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-brand-red">
-                             <Ban size={20} />
-                          </div>
-                          <div>
-                             <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-0.5">Restriction Type</p>
-                             <p className="text-sm font-bold text-[#0F1A3A]">{r.restrictionType?.replace(/_/g, ' ')}</p>
-                          </div>
-                       </div>
-                       <div className="flex items-center gap-3">
-                          <span className="badge badge-green">Active</span>
-                          <span className="text-xs text-[#8A97B0]">{new Date(r.createdAt).toLocaleDateString()}</span>
-                       </div>
+            <div className="space-y-4">
+              {restrictions.length === 0 ? (
+                <div className="py-20 text-center bg-[#F8FAFF] rounded-2xl border border-dashed border-[#DDE3F0]">
+                  <ShieldCheck className="w-16 h-16 mx-auto mb-4 text-[#DDE3F0]" />
+                  <p className="text-sm font-black text-[#8A97B0]">No active privacy restrictions.</p>
+                </div>
+              ) : restrictions.map(r => (
+                <div key={r.id} className="group bg-white rounded-2xl border border-[#DDE3F0] p-6 hover:shadow-xl hover:shadow-brand-red/5 transition-all">
+                  <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-brand-red">
+                        <Ban size={22} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Restriction Type</p>
+                        <p className="text-sm font-bold text-[#0F1A3A]">{r.restrictionType?.replace(/_/g, ' ')}</p>
+                      </div>
                     </div>
-                    <div className="bg-[#F8FAFF] p-4 rounded-xl border border-[#DDE3F0]">
-                       <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider mb-2">Justification</p>
-                       <p className="text-sm text-[#4B5A7A] italic">"{r.justification}"</p>
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 border border-green-200">
+                        Active
+                      </span>
+                      <span className="text-xs font-bold text-[#8A97B0]">{new Date(r.createdAt).toLocaleDateString()}</span>
                     </div>
-                 </div>
-               ))}
-               {restrictions.length === 0 && (
-                 <div className="card p-16 text-center">
-                    <ShieldCheck className="w-16 h-16 mx-auto mb-4 text-[#DDE3F0]" />
-                    <p className="text-sm font-semibold text-[#8A97B0]">No active privacy restrictions.</p>
-                 </div>
-               )}
-             </div>
+                  </div>
+                  <div className="bg-[#FFF8F8] p-5 rounded-2xl border border-[#FEE2E2]">
+                    <p className="text-[10px] font-black text-brand-red/60 uppercase tracking-widest mb-2">Policy Justification</p>
+                    <p className="text-sm font-bold text-[#4B5A7A] italic leading-relaxed">"{r.justification}"</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : activeTab === 'audit' ? (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <AuditLogs />
+            </div>
           ) : null}
         </div>
       </div>
@@ -1628,39 +2365,44 @@ export default function PatientPortal() {
       {/* Amendment Modal */}
       {showAmendmentModal && (
         <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-[#DDE3F0]">
-            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center text-brand-blue">
-                   <FileEdit size={20} />
+          <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl border border-[#DDE3F0] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between p-8 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-brand-blue">
+                  <FileEdit size={24} />
                 </div>
-                <h2 className="font-black text-[#0F1A3A] text-lg">Request Amendment</h2>
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-xl">Request Amendment</h2>
+                  <p className="text-xs font-bold text-[#8A97B0] uppercase tracking-widest mt-0.5">Clinical Record Correction</p>
+                </div>
               </div>
-              <button onClick={() => setShowAmendmentModal(false)} className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all"><X size={20} /></button>
+              <button onClick={() => setShowAmendmentModal(false)} className="p-2.5 rounded-2xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={24} />
+              </button>
             </div>
-            <form onSubmit={handleCreateAmendment} className="p-6 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Record *</label>
-                <select required value={amendmentForm.recordId} onChange={e => setAmendmentForm({ ...amendmentForm, recordId: e.target.value })} className="input py-2.5 text-sm">
-                   <option value="">Select Record</option>
-                   {records.map(r => <option key={r.id} value={r.id}>{r.diagnosis || 'Unknown'} - {new Date(r.incidentDateTime || r.createdAt).toLocaleDateString()}</option>)}
+            <form onSubmit={handleCreateAmendment} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#4B5A7A] uppercase tracking-[0.2em] ml-1">Select Clinical Record *</label>
+                <select required value={amendmentForm.recordId} onChange={e => setAmendmentForm({ ...amendmentForm, recordId: e.target.value })} className="w-full bg-[#F8FAFF] border border-[#DDE3F0] rounded-2xl px-5 py-4 text-sm font-bold text-[#0F1A3A] focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none">
+                  <option value="">Select Record</option>
+                  {records.map(r => <option key={r.id} value={r.id}>{r.diagnosis || 'Clinical Case'} - {new Date(r.incidentDateTime || r.createdAt).toLocaleDateString()}</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Data Category</label>
-                <select value={amendmentForm.dataCategory} onChange={e => setAmendmentForm({ ...amendmentForm, dataCategory: e.target.value })} className="input py-2.5 text-sm">
-                   {DATA_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#4B5A7A] uppercase tracking-[0.2em] ml-1">Data Category</label>
+                <select value={amendmentForm.dataCategory} onChange={e => setAmendmentForm({ ...amendmentForm, dataCategory: e.target.value })} className="w-full bg-[#F8FAFF] border border-[#DDE3F0] rounded-2xl px-5 py-4 text-sm font-bold text-[#0F1A3A] focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none">
+                  {DATA_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Justification / Details *</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#4B5A7A] uppercase tracking-[0.2em] ml-1">Justification & Details *</label>
                 <textarea required rows={4} value={amendmentForm.justification} onChange={e => setAmendmentForm({ ...amendmentForm, justification: e.target.value })}
-                  placeholder="Explain the needed correction…" className="input py-2.5 text-sm resize-none" />
+                  placeholder="Clearly explain the required correction or missing information…" className="w-full bg-[#F8FAFF] border border-[#DDE3F0] rounded-2xl px-5 py-4 text-sm font-bold text-[#4B5A7A] focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all resize-none" />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowAmendmentModal(false)} className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="btn-primary flex-1 justify-center py-2.5 text-sm">
-                  {isSubmitting ? <RefreshCw size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowAmendmentModal(false)} className="flex-1 bg-white border border-[#DDE3F0] text-[#4B5A7A] font-black uppercase tracking-widest text-xs py-4 rounded-2xl hover:bg-[#F8FAFF] transition-all">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 bg-brand-blue text-white font-black uppercase tracking-widest text-xs py-4 rounded-2xl hover:bg-[#1A3C8F] shadow-lg shadow-brand-blue/20 transition-all flex items-center justify-center gap-2">
+                  {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                   {isSubmitting ? 'Submitting…' : 'Submit Request'}
                 </button>
               </div>
@@ -1672,45 +2414,51 @@ export default function PatientPortal() {
       {/* Restriction Modal */}
       {showRestrictionModal && (
         <div className="fixed inset-0 bg-[#0F1A3A]/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-[#DDE3F0]">
-            <div className="flex items-center justify-between p-6 border-b border-[#F0F4FC]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-brand-red">
-                   <Ban size={20} />
+          <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl border border-[#DDE3F0] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between p-8 border-b border-[#F0F4FC]">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-brand-red">
+                  <Ban size={24} />
                 </div>
-                <h2 className="font-black text-[#0F1A3A] text-lg">Manage Privacy</h2>
+                <div>
+                  <h2 className="font-black text-[#0F1A3A] text-xl">Privacy Controls</h2>
+                  <p className="text-xs font-bold text-[#8A97B0] uppercase tracking-widest mt-0.5">Restrict Data Disclosure</p>
+                </div>
               </div>
-              <button onClick={() => setShowRestrictionModal(false)} className="p-2 rounded-xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all"><X size={20} /></button>
+              <button onClick={() => setShowRestrictionModal(false)} className="p-2.5 rounded-2xl text-[#8A97B0] hover:bg-[#F0F4FC] hover:text-brand-red transition-all">
+                <X size={24} />
+              </button>
             </div>
-            <form onSubmit={handleCreateRestriction} className="p-6 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Restriction Type</label>
-                <select value={restrictionForm.restrictionType} onChange={e => setRestrictionForm({ ...restrictionForm, restrictionType: e.target.value })} className="input py-2.5 text-sm">
-                   {RESTRICTION_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+            <form onSubmit={handleCreateRestriction} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#4B5A7A] uppercase tracking-[0.2em] ml-1">Restriction Type</label>
+                <select value={restrictionForm.restrictionType} onChange={e => setRestrictionForm({ ...restrictionForm, restrictionType: e.target.value })} className="w-full bg-[#F8FAFF] border border-[#DDE3F0] rounded-2xl px-5 py-4 text-sm font-bold text-[#0F1A3A] focus:ring-2 focus:ring-brand-red/20 outline-none transition-all appearance-none">
+                  {RESTRICTION_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Data Category</label>
-                <select value={restrictionForm.dataCategory} onChange={e => setRestrictionForm({ ...restrictionForm, dataCategory: e.target.value })} className="input py-2.5 text-sm">
-                   {DATA_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#4B5A7A] uppercase tracking-[0.2em] ml-1">Data Category</label>
+                <select value={restrictionForm.dataCategory} onChange={e => setRestrictionForm({ ...restrictionForm, dataCategory: e.target.value })} className="w-full bg-[#F8FAFF] border border-[#DDE3F0] rounded-2xl px-5 py-4 text-sm font-bold text-[#0F1A3A] focus:ring-2 focus:ring-brand-red/20 outline-none transition-all appearance-none">
+                  {DATA_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Reason *</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#4B5A7A] uppercase tracking-[0.2em] ml-1">Reason for Restriction *</label>
                 <textarea required rows={4} value={restrictionForm.justification} onChange={e => setRestrictionForm({ ...restrictionForm, justification: e.target.value })}
-                  placeholder="Provide reason for this restriction…" className="input py-2.5 text-sm resize-none" />
+                  placeholder="Provide a clinical or personal justification for this restriction…" className="w-full bg-[#F8FAFF] border border-[#DDE3F0] rounded-2xl px-5 py-4 text-sm font-bold text-[#4B5A7A] focus:ring-2 focus:ring-brand-red/20 outline-none transition-all resize-none" />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowRestrictionModal(false)} className="btn-ghost flex-1 justify-center border border-[#DDE3F0] rounded-xl py-2.5">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="btn-danger flex-1 justify-center py-2.5 text-sm">
-                  {isSubmitting ? <RefreshCw size={15} className="animate-spin" /> : <Ban size={15} />}
-                  {isSubmitting ? 'Saving…' : 'Apply Restriction'}
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowRestrictionModal(false)} className="flex-1 bg-white border border-[#DDE3F0] text-[#4B5A7A] font-black uppercase tracking-widest text-xs py-4 rounded-2xl hover:bg-[#F8FAFF] transition-all">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 bg-brand-red text-white font-black uppercase tracking-widest text-xs py-4 rounded-2xl hover:bg-red-800 shadow-lg shadow-brand-red/20 transition-all flex items-center justify-center gap-2">
+                  {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <Ban size={16} />}
+                  {isSubmitting ? 'Processing…' : 'Apply Restriction'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
 
       {/* Timeline View Modal */}
       {timelineViewItem && (
