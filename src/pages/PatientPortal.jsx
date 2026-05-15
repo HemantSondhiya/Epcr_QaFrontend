@@ -295,7 +295,7 @@ const formatChartTime = (ts) => {
 
 /* ────────────────── VitalsPortalTab component ────────────────── */
 
-function VitalsPortalTab({ vitals }) {
+function VitalsPortalTab({ vitals, onView }) {
   const [subTab, setSubTab] = useState('chart');
   const [timeFilter, setTimeFilter] = useState('all');
   const [primaryMetric, setPrimaryMetric] = useState('systolicBP');
@@ -448,7 +448,15 @@ function VitalsPortalTab({ vitals }) {
                             {vitalPill(v.bloodGlucose, 'bloodGlucose')}
                           </div>
                         </div>
-                        <HistoryRowActions item={v} type="VITAL" />
+                        <div className="flex shrink-0 items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => onView?.(v, 'VITAL')}
+                            className="w-10 h-10 rounded-xl bg-white border border-[#DDE3F0] flex items-center justify-center text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-brand-red transition-all"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2363,7 +2371,7 @@ export default function PatientPortal() {
                           <div className="flex items-center justify-between mb-8">
                             {historySectionHeader(Activity, 'Vital Signs Trending', 'Longitudinal tracking of clinical metrics')}
                           </div>
-                          <VitalsPortalTab vitals={combinedVitals} />
+                          <VitalsPortalTab vitals={combinedVitals} onView={handleViewHistoryItem} />
                         </div>
                       </div>
                     )}
