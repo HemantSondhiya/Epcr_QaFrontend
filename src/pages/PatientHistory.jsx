@@ -722,9 +722,9 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
         <div className="space-y-6">
           {/* Summary Metric Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <MetricCard 
-              icon={HeartPulse} label="Heart Rate" 
-              value={latest.heartRate} unit="bpm" 
+            <MetricCard
+              icon={HeartPulse} label="Heart Rate"
+              value={latest.heartRate} unit="bpm"
               range="Latest Reading" color="#C8102E" bgColor="#FEE2E2"
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -740,9 +740,9 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
               </ResponsiveContainer>
             </MetricCard>
 
-            <MetricCard 
-              icon={Activity} label="Blood Pressure" 
-              value={latest.systolicBP ? `${latest.systolicBP}/${latest.diastolicBP}` : 'N/A'} unit="mmHg" 
+            <MetricCard
+              icon={Activity} label="Blood Pressure"
+              value={latest.systolicBP ? `${latest.systolicBP}/${latest.diastolicBP}` : 'N/A'} unit="mmHg"
               range="Latest Reading" color="#1A3C8F" bgColor="#DBEAFE"
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -753,9 +753,9 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
               </ResponsiveContainer>
             </MetricCard>
 
-            <MetricCard 
-              icon={Activity} label="SpO₂" 
-              value={latest.oxygenSaturation} unit="%" 
+            <MetricCard
+              icon={Activity} label="SpO₂"
+              value={latest.oxygenSaturation} unit="%"
               range="Latest Reading" color="#059669" bgColor="#D1FAE5"
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -776,187 +776,187 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
             {subTab === 'history' ? (
               /* ── Reading History ── */
               <div className="space-y-3">
-          {historyList.map((v) => {
-            const status = assessVitalStatus(v);
-            const ts = v.recordedAt || v.createdAt;
-            return (
-              <div key={v.id || JSON.stringify(v)} className="rounded-xl border border-[#DDE3F0] bg-white p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    {/* Time & status */}
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <span className="text-sm font-black text-[#0F1A3A]">
-                        {ts ? new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                      </span>
-                      <span className="text-xs font-bold text-[#8A97B0]">{date(ts)}</span>
-                      <Badge className={status.cls}>{status.label}</Badge>
-                    </div>
-                    {/* Primary vitals row */}
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {v.systolicBP != null && v.diastolicBP != null && (
-                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${(v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
-                          <span className="text-[10px] font-black text-[#8A97B0] uppercase">BP</span>
-                          {v.systolicBP}/{v.diastolicBP} <span className="text-[10px] text-[#A0AECB] ml-0.5">mmHg</span>
-                        </span>
-                      )}
-                      {vitalPill(v.heartRate, 'heartRate')}
-                      {vitalPill(v.oxygenSaturation, 'oxygenSaturation')}
-                      {vitalPill(v.respiratoryRate, 'respiratoryRate')}
-                      {vitalPill(v.temperature, 'temperature')}
-                    </div>
-                    {/* Secondary vitals row */}
-                    <div className="flex flex-wrap gap-2">
-                      {vitalPill(v.glasgowComaScale, 'glasgowComaScale')}
-                      {vitalPill(v.painScore, 'painScore')}
-                      {vitalPill(v.bloodGlucose, 'bloodGlucose')}
-                      {v.avpu && <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]"><span className="text-[10px] font-black text-[#8A97B0]">AVPU</span> {v.avpu}</span>}
-                    </div>
-                    {/* Recorded by */}
-                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-bold text-[#A0AECB] uppercase tracking-wider">
-                      {v.recordedByName && <span>👤 Recorded by {v.recordedByName}</span>}
-                      {v.oxygenDeliveryMethod && <span>· {v.oxygenDeliveryMethod}</span>}
-                      {v.linkedEpcrId && <span className="text-brand-blue">ePCR {v.linkedEpcrId}</span>}
-                    </div>
-                  </div>
-                  {/* Actions */}
-                  <div className="flex shrink-0 gap-2">
-                    <IconButton title="View Details" onClick={() => onView(v)}><Eye size={15} /></IconButton>
-                    {canEdit && (
-                      <>
-                        <IconButton title="Edit" onClick={() => onEdit(v)}><Edit3 size={15} /></IconButton>
-                        <IconButton title="Delete" onClick={() => onDelete(v)} className="hover:border-red-200 hover:text-red-600"><Trash2 size={15} /></IconButton>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* ── Trend Chart ── */
-        <div>
-          {/* Chart controls */}
-          <div className="flex flex-wrap items-end gap-4 mb-5">
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest mb-2 block">Primary Metric</label>
-              <select value={primaryMetric} onChange={(e) => setPrimaryMetric(e.target.value)} className="input py-2.5 text-sm font-bold">
-                {VITAL_METRICS.map((m) => <option key={m.key} value={m.key}>{m.label} ({m.unit})</option>)}
-              </select>
-            </div>
-            <button type="button" onClick={() => setShowCompare(!showCompare)} className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition ${showCompare ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue'}`}>
-              <BarChart3 size={14} /> Compare
-            </button>
-          </div>
-
-          {/* Compare selector */}
-          {showCompare && (
-            <div className="mb-5 p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
-              <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest mb-3">Select up to 3 metrics to compare</p>
-              <div className="flex flex-wrap gap-2">
-                {VITAL_METRICS.filter((m) => m.key !== primaryMetric).map((m) => {
-                  const active = compareMetrics.includes(m.key);
+                {historyList.map((v) => {
+                  const status = assessVitalStatus(v);
+                  const ts = v.recordedAt || v.createdAt;
                   return (
-                    <button key={m.key} type="button" onClick={() => toggleCompare(m.key)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold border transition ${active ? 'text-white border-transparent' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue'}`}
-                      style={active ? { background: m.color, borderColor: m.color } : undefined}>
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: m.color }} /> {m.short}
-                    </button>
+                    <div key={v.id || JSON.stringify(v)} className="rounded-xl border border-[#DDE3F0] bg-white p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          {/* Time & status */}
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <span className="text-sm font-black text-[#0F1A3A]">
+                              {ts ? new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                            </span>
+                            <span className="text-xs font-bold text-[#8A97B0]">{date(ts)}</span>
+                            <Badge className={status.cls}>{status.label}</Badge>
+                          </div>
+                          {/* Primary vitals row */}
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {v.systolicBP != null && v.diastolicBP != null && (
+                              <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${(v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+                                <span className="text-[10px] font-black text-[#8A97B0] uppercase">BP</span>
+                                {v.systolicBP}/{v.diastolicBP} <span className="text-[10px] text-[#A0AECB] ml-0.5">mmHg</span>
+                              </span>
+                            )}
+                            {vitalPill(v.heartRate, 'heartRate')}
+                            {vitalPill(v.oxygenSaturation, 'oxygenSaturation')}
+                            {vitalPill(v.respiratoryRate, 'respiratoryRate')}
+                            {vitalPill(v.temperature, 'temperature')}
+                          </div>
+                          {/* Secondary vitals row */}
+                          <div className="flex flex-wrap gap-2">
+                            {vitalPill(v.glasgowComaScale, 'glasgowComaScale')}
+                            {vitalPill(v.painScore, 'painScore')}
+                            {vitalPill(v.bloodGlucose, 'bloodGlucose')}
+                            {v.avpu && <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]"><span className="text-[10px] font-black text-[#8A97B0]">AVPU</span> {v.avpu}</span>}
+                          </div>
+                          {/* Recorded by */}
+                          <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-bold text-[#A0AECB] uppercase tracking-wider">
+                            {v.recordedByName && <span>👤 Recorded by {v.recordedByName}</span>}
+                            {v.oxygenDeliveryMethod && <span>· {v.oxygenDeliveryMethod}</span>}
+                            {v.linkedEpcrId && <span className="text-brand-blue">ePCR {v.linkedEpcrId}</span>}
+                          </div>
+                        </div>
+                        {/* Actions */}
+                        <div className="flex shrink-0 gap-2">
+                          <IconButton title="View Details" onClick={() => onView(v)}><Eye size={15} /></IconButton>
+                          {canEdit && (
+                            <>
+                              <IconButton title="Edit" onClick={() => onEdit(v)}><Edit3 size={15} /></IconButton>
+                              <IconButton title="Delete" onClick={() => onDelete(v)} className="hover:border-red-200 hover:text-red-600"><Trash2 size={15} /></IconButton>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            ) : (
+              /* ── Trend Chart ── */
+              <div>
+                {/* Chart controls */}
+                <div className="flex flex-wrap items-end gap-4 mb-5">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest mb-2 block">Primary Metric</label>
+                    <select value={primaryMetric} onChange={(e) => setPrimaryMetric(e.target.value)} className="input py-2.5 text-sm font-bold">
+                      {VITAL_METRICS.map((m) => <option key={m.key} value={m.key}>{m.label} ({m.unit})</option>)}
+                    </select>
+                  </div>
+                  <button type="button" onClick={() => setShowCompare(!showCompare)} className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition ${showCompare ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue'}`}>
+                    <BarChart3 size={14} /> Compare
+                  </button>
+                </div>
 
-          {/* Chart */}
-          <div className="rounded-xl border border-[#DDE3F0] bg-white p-5 shadow-sm">
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
+                {/* Compare selector */}
+                {showCompare && (
+                  <div className="mb-5 p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
+                    <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest mb-3">Select up to 3 metrics to compare</p>
+                    <div className="flex flex-wrap gap-2">
+                      {VITAL_METRICS.filter((m) => m.key !== primaryMetric).map((m) => {
+                        const active = compareMetrics.includes(m.key);
+                        return (
+                          <button key={m.key} type="button" onClick={() => toggleCompare(m.key)}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold border transition ${active ? 'text-white border-transparent' : 'bg-white text-[#4B5A7A] border-[#DDE3F0] hover:border-brand-blue'}`}
+                            style={active ? { background: m.color, borderColor: m.color } : undefined}>
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: m.color }} /> {m.short}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chart */}
+                <div className="rounded-xl border border-[#DDE3F0] bg-white p-5 shadow-sm">
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                        <defs>
+                          {activeChartMetrics.map((m) => (
+                            <linearGradient key={`clin-grad-${m.key}`} id={`clin-grad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={m.color} stopOpacity={0.25} />
+                              <stop offset="95%" stopColor={m.color} stopOpacity={0} />
+                            </linearGradient>
+                          ))}
+                        </defs>
+                        <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#F0F4FC" />
+                        <XAxis
+                          dataKey="time"
+                          type="number"
+                          domain={['auto', 'auto']}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 10, fill: '#8A97B0', fontWeight: 600 }}
+                          tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                          minTickGap={30}
+                        />
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#4B5A7A', fontWeight: 700 }}
+                          domain={['auto', 'auto']}
+                        />
+                        <RechartsTooltip content={<VitalTooltip />} />
+                        <Legend
+                          wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 'bold' }}
+                          iconType="circle"
+                        />
+                        {activeChartMetrics.length === 1 && activeChartMetrics[0].lo != null && (
+                          <ReferenceArea
+                            y1={activeChartMetrics[0].lo}
+                            y2={activeChartMetrics[0].hi}
+                            fill={activeChartMetrics[0].color}
+                            fillOpacity={0.06}
+                            stroke="none"
+                          />
+                        )}
+                        {activeChartMetrics.map((m, i) => i === 0 ? (
+                          <Area
+                            key={m.key}
+                            type="monotone"
+                            dataKey={m.key}
+                            name={m.label}
+                            stroke={m.color}
+                            strokeWidth={4}
+                            fill={`url(#clin-grad-${m.key})`}
+                            dot={{ r: 4, fill: '#fff', strokeWidth: 3, stroke: m.color }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                            connectNulls
+                            animationDuration={1500}
+                          />
+                        ) : (
+                          <Line
+                            key={m.key}
+                            type="monotone"
+                            dataKey={m.key}
+                            name={m.label}
+                            stroke={m.color}
+                            strokeWidth={3}
+                            strokeDasharray="5 5"
+                            dot={{ r: 3, fill: '#fff', strokeWidth: 2, stroke: m.color }}
+                            activeDot={{ r: 5, strokeWidth: 0 }}
+                            connectNulls
+                          />
+                        ))}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {/* Legend with normal ranges */}
+                  <div className="mt-4 pt-3 border-t border-[#F0F4FC] flex flex-wrap gap-3">
                     {activeChartMetrics.map((m) => (
-                      <linearGradient key={`clin-grad-${m.key}`} id={`clin-grad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={m.color} stopOpacity={0.25} />
-                        <stop offset="95%" stopColor={m.color} stopOpacity={0} />
-                      </linearGradient>
+                      <span key={m.key} className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#4B5A7A]">
+                        <span className="w-3 h-1 rounded-full" style={{ background: m.color }} />
+                        {m.label}: Normal {m.lo}–{m.hi} {m.unit}
+                      </span>
                     ))}
-                  </defs>
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#F0F4FC" />
-                  <XAxis 
-                    dataKey="time" 
-                    type="number"
-                    domain={['auto', 'auto']}
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#8A97B0', fontWeight: 600 }}
-                    tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
-                    minTickGap={30}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#4B5A7A', fontWeight: 700 }}
-                    domain={['auto', 'auto']}
-                  />
-                  <RechartsTooltip content={<VitalTooltip />} />
-                  <Legend 
-                    wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 'bold' }}
-                    iconType="circle"
-                  />
-                  {activeChartMetrics.length === 1 && activeChartMetrics[0].lo != null && (
-                    <ReferenceArea 
-                      y1={activeChartMetrics[0].lo} 
-                      y2={activeChartMetrics[0].hi} 
-                      fill={activeChartMetrics[0].color} 
-                      fillOpacity={0.06} 
-                      stroke="none"
-                    />
-                  )}
-                  {activeChartMetrics.map((m, i) => i === 0 ? (
-                    <Area 
-                      key={m.key} 
-                      type="monotone" 
-                      dataKey={m.key} 
-                      name={m.label} 
-                      stroke={m.color} 
-                      strokeWidth={4} 
-                      fill={`url(#clin-grad-${m.key})`}
-                      dot={{ r: 4, fill: '#fff', strokeWidth: 3, stroke: m.color }}
-                      activeDot={{ r: 6, strokeWidth: 0 }}
-                      connectNulls 
-                      animationDuration={1500}
-                    />
-                  ) : (
-                    <Line 
-                      key={m.key} 
-                      type="monotone" 
-                      dataKey={m.key} 
-                      name={m.label} 
-                      stroke={m.color} 
-                      strokeWidth={3} 
-                      strokeDasharray="5 5"
-                      dot={{ r: 3, fill: '#fff', strokeWidth: 2, stroke: m.color }}
-                      activeDot={{ r: 5, strokeWidth: 0 }}
-                      connectNulls 
-                    />
-                  ))}
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Legend with normal ranges */}
-            <div className="mt-4 pt-3 border-t border-[#F0F4FC] flex flex-wrap gap-3">
-              {activeChartMetrics.map((m) => (
-                <span key={m.key} className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#4B5A7A]">
-                  <span className="w-3 h-1 rounded-full" style={{ background: m.color }} />
-                  {m.label}: Normal {m.lo}–{m.hi} {m.unit}
-                </span>
-              ))}
-            </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
-      </div>
-      </div>
       )}
     </Section>
   );
@@ -1427,9 +1427,9 @@ function PatientHistory() {
   ];
 
   const addButton = (type) => canEdit ? (
-    <button 
-      type="button" 
-      onClick={() => setModal({ type })} 
+    <button
+      type="button"
+      onClick={() => setModal({ type })}
       className="flex items-center gap-2 px-6 py-2.5 bg-[#C8102E] text-white rounded-xl text-sm font-black hover:bg-[#9B0A21] transition-all shadow-lg shadow-red-900/10"
     >
       <Plus size={18} /> Add
@@ -1463,18 +1463,18 @@ function PatientHistory() {
 
         <div className="flex items-center gap-4">
           {patientId && (
-            <button 
-              type="button" 
-              onClick={() => dispatch(fetchAllPatientHistory(patientId))} 
+            <button
+              type="button"
+              onClick={() => dispatch(fetchAllPatientHistory(patientId))}
               className="flex items-center gap-2 px-6 py-3 bg-white border border-[#DDE3F0] rounded-xl text-sm font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
           )}
           {canSearch && patientId && (
-            <button 
-              type="button" 
-              onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }} 
+            <button
+              type="button"
+              onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }}
               className="text-sm font-bold text-[#8A97B0] hover:text-brand-blue transition-colors"
             >
               Change Patient
@@ -1531,11 +1531,10 @@ function PatientHistory() {
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`flex items-center gap-2.5 px-6 py-3 rounded-xl transition-all text-sm font-bold ${
-                  tab === id 
-                    ? 'bg-[#C8102E] text-white shadow-lg shadow-red-900/30' 
-                    : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
-                }`}
+                className={`flex items-center gap-2.5 px-6 py-3 rounded-xl transition-all text-sm font-bold ${tab === id
+                  ? 'bg-[#C8102E] text-white shadow-lg shadow-red-900/30'
+                  : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
+                  }`}
               >
                 <Icon size={16} />
                 {label}
@@ -1546,346 +1545,519 @@ function PatientHistory() {
           {/* Main Content Area */}
           <div className="min-w-0">
             {loading ? (
-               <div className="py-20 text-center card bg-white rounded-2xl border border-[#DDE3F0]">
-                  <RefreshCw className="animate-spin w-12 h-12 mx-auto mb-4 text-brand-blue/30" />
-                  <p className="text-sm font-bold text-[#8A97B0]">Loading record...</p>
-               </div>
+              <div className="py-20 text-center card bg-white rounded-2xl border border-[#DDE3F0]">
+                <RefreshCw className="animate-spin w-12 h-12 mx-auto mb-4 text-brand-blue/30" />
+                <p className="text-sm font-bold text-[#8A97B0]">Loading record...</p>
+              </div>
             ) : (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-          {tab === 'overview' && (
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <Section icon={Shield} title="Patient Summary">
-                {(() => {
-                  const activeConditions = conditions.filter(c => c.status === 'ACTIVE');
-                  const resolvedConditions = conditions.filter(c => c.status === 'RESOLVED');
-                  const activeMeds = medications.filter(m => !m.status || m.status === 'ACTIVE');
-                  const latestLab = labResults[0];
-                  const latestEncounter = encounters[0];
-                  const latestAdmission = admissions[0];
-                  const totalRecords = conditions.length + medications.length + encounters.length + admissions.length + labResults.length + documents.length;
+                {tab === 'overview' && (
+                  <div className="space-y-6">
 
-                  return (
-                    <div className="space-y-4">
-                      {/* Top row — ID & Records */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="rounded-xl bg-[#F8FAFF] border border-[#DDE3F0] p-4">
-                          <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider mb-1">Patient ID</p>
-                          <p className="text-sm font-black text-[#0F1A3A] break-all">{patientId}</p>
+                    {/* ── Risk Banner ── */}
+                    {(() => {
+                      const crit = conditions.filter(c => c.status === 'ACTIVE' && String(c.severity || '').toUpperCase() === 'SEVERE');
+                      const latestV = [...vitals].sort((a, b) => new Date(b.recordedAt || b.createdAt) - new Date(a.recordedAt || a.createdAt))[0];
+                      const vStatus = latestV ? assessVitalStatus(latestV) : null;
+                      const hasAlert = crit.length > 0 || vStatus?.label === 'Critical';
+                      if (!hasAlert) return null;
+                      return (
+                        <div className="flex items-center gap-4 rounded-2xl border border-red-200 bg-red-50 px-6 py-4">
+                          <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0"><AlertCircle size={20} className="text-red-600" /></div>
+                          <div>
+                            <p className="text-sm font-black text-red-700 uppercase tracking-wide">Clinical Alert</p>
+                            <p className="text-xs font-semibold text-red-600 mt-0.5">
+                              {crit.length > 0 && `${crit.length} severe active condition${crit.length > 1 ? 's' : ''}`}
+                              {crit.length > 0 && vStatus?.label === 'Critical' && ' · '}
+                              {vStatus?.label === 'Critical' && 'Critical vitals on latest reading'}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-xl bg-[#F8FAFF] border border-[#DDE3F0] p-4">
-                          <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider mb-1">Total Records</p>
-                          <p className="text-2xl font-black text-[#0F1A3A]">{totalRecords}</p>
-                          <p className="text-xs text-[#8A97B0] font-semibold mt-1">Last updated {date(summary?.updatedAt || summary?.lastUpdatedAt)}</p>
-                        </div>
-                      </div>
+                      );
+                    })()}
 
+                    {/* ── Row 1: Conditions + Medications ── */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Active Conditions */}
-                      <div className="rounded-xl border border-[#DDE3F0] bg-white p-4">
-                        <div className="flex items-center justify-between mb-3">
+                      <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-red-50 flex items-center justify-center"><HeartPulse size={18} className="text-red-600" /></div>
+                            <h2 className="text-base font-black text-[#0F1A3A]">Conditions</h2>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><HeartPulse size={14} className="text-red-600" /></div>
-                            <p className="text-xs font-black text-[#0F1A3A] uppercase tracking-wider">Active Conditions</p>
+                            <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">{conditions.filter(c => c.status === 'ACTIVE').length} active</span>
+                            {canEdit && <button type="button" onClick={() => setModal({ type: 'conditions' })} className="btn-primary px-3 py-1.5 text-xs"><Plus size={13} /></button>}
                           </div>
-                          <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">{activeConditions.length}</span>
                         </div>
-                        {activeConditions.length === 0 ? (
-                          <p className="text-xs text-[#A0AECB] italic font-semibold">No active conditions — looking good!</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {activeConditions.slice(0, 6).map((c, i) => (
-                              <span key={getId(c) || i} className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 border border-red-100 px-2.5 py-1.5 text-xs font-bold text-red-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                {c.name || 'Unknown'}
-                                {c.severity && <span className="text-red-400 text-[10px]">· {c.severity}</span>}
-                              </span>
-                            ))}
-                            {activeConditions.length > 6 && <span className="text-xs font-bold text-[#A0AECB] self-center">+{activeConditions.length - 6} more</span>}
-                          </div>
-                        )}
-                        {resolvedConditions.length > 0 && (
-                          <p className="mt-2 text-[10px] font-bold text-green-600">{resolvedConditions.length} resolved condition{resolvedConditions.length > 1 ? 's' : ''}</p>
-                        )}
-                      </div>
+                        <div className="p-5 space-y-2">
+                          {conditions.length === 0 ? <Empty>No conditions on record.</Empty> : conditions.map((c, i) => (
+                            <div key={getId(c) || i} className="flex items-center justify-between rounded-xl border border-[#DDE3F0] px-4 py-2.5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`} />
+                                <p className="text-sm font-bold text-[#0F1A3A] truncate">{c.name}</p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {c.severity && <span className="text-[10px] font-black text-[#8A97B0]">{c.severity}</span>}
+                                <Badge className={statusClass(c.status)}>{c.status}</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
 
                       {/* Current Medications */}
-                      <div className="rounded-xl border border-[#DDE3F0] bg-white p-4">
-                        <div className="flex items-center justify-between mb-3">
+                      <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-purple-50 flex items-center justify-center"><Pill size={18} className="text-purple-600" /></div>
+                            <h2 className="text-base font-black text-[#0F1A3A]">Medications</h2>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center"><Pill size={14} className="text-purple-600" /></div>
-                            <p className="text-xs font-black text-[#0F1A3A] uppercase tracking-wider">Current Medications</p>
+                            <span className="text-xs font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg">{medications.filter(m => !m.status || m.status === 'ACTIVE').length} active</span>
+                            {canEdit && <button type="button" onClick={() => setModal({ type: 'medications' })} className="btn-primary px-3 py-1.5 text-xs"><Plus size={13} /></button>}
                           </div>
-                          <span className="text-xs font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg">{activeMeds.length}</span>
                         </div>
-                        {activeMeds.length === 0 ? (
-                          <p className="text-xs text-[#A0AECB] italic font-semibold">No active medications on record.</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {activeMeds.slice(0, 6).map((m, i) => (
-                              <span key={getId(m) || i} className="inline-flex items-center gap-1 rounded-lg bg-purple-50 border border-purple-100 px-2.5 py-1.5 text-xs font-bold text-purple-700">
-                                {m.name || m.medicationName || 'Unknown'}
-                                {m.dosage && <span className="text-purple-400 text-[10px]">· {m.dosage}</span>}
-                              </span>
-                            ))}
-                            {activeMeds.length > 6 && <span className="text-xs font-bold text-[#A0AECB] self-center">+{activeMeds.length - 6} more</span>}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bottom row — Latest Lab, Encounter, Admission */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="rounded-xl border border-[#DDE3F0] bg-white p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center"><FlaskConical size={12} className="text-blue-600" /></div>
-                            <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider">Latest Lab</p>
-                          </div>
-                          {latestLab ? (
-                            <>
-                              <p className="text-sm font-bold text-[#0F1A3A] truncate">{latestLab.testName || latestLab.name}</p>
-                              <p className="text-xs font-black text-brand-blue mt-0.5">{text(latestLab.value)} {latestLab.unit || ''}</p>
-                              <p className="text-[10px] text-[#8A97B0] font-semibold mt-1">{date(latestLab.date)}</p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-[#A0AECB] italic font-semibold">No lab results</p>
-                          )}
+                        <div className="p-5 space-y-2">
+                          {medications.length === 0 ? <Empty>No medications on record.</Empty> : medications.map((m, i) => (
+                            <div key={getId(m) || i} className="flex items-center justify-between rounded-xl border border-[#DDE3F0] px-4 py-2.5">
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-[#0F1A3A] truncate">{m.name || m.medicationName}</p>
+                                {(m.dosage || m.frequency) && <p className="text-[10px] font-bold text-[#8A97B0]">{[m.dosage, m.frequency].filter(Boolean).join(' · ')}</p>}
+                              </div>
+                              <Badge className={statusClass(m.status)}>{m.status || 'ACTIVE'}</Badge>
+                            </div>
+                          ))}
                         </div>
-                        <div className="rounded-xl border border-[#DDE3F0] bg-white p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-md bg-orange-50 flex items-center justify-center"><UserRound size={12} className="text-orange-600" /></div>
-                            <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider">Latest Visit</p>
-                          </div>
-                          {latestEncounter ? (
-                            <>
-                              <p className="text-sm font-bold text-[#0F1A3A] truncate">{latestEncounter.chiefComplaint || latestEncounter.type || 'Visit'}</p>
-                              {latestEncounter.outcome && <Badge className="mt-1 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px]">{latestEncounter.outcome}</Badge>}
-                              <p className="text-[10px] text-[#8A97B0] font-semibold mt-1">{date(latestEncounter.date)}</p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-[#A0AECB] italic font-semibold">No encounters</p>
-                          )}
-                        </div>
-                        <div className="rounded-xl border border-[#DDE3F0] bg-white p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center"><BedDouble size={12} className="text-amber-600" /></div>
-                            <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider">Last Admission</p>
-                          </div>
-                          {latestAdmission ? (
-                            <>
-                              <p className="text-sm font-bold text-[#0F1A3A] truncate">{latestAdmission.hospital || 'Hospital'}</p>
-                              <p className="text-xs text-[#4B5A7A] font-semibold mt-0.5">{latestAdmission.dischargeDate ? 'Discharged' : 'Currently admitted'}</p>
-                              <p className="text-[10px] text-[#8A97B0] font-semibold mt-1">{date(latestAdmission.admitDate)}</p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-[#A0AECB] italic font-semibold">No admissions</p>
-                          )}
-                        </div>
-                      </div>
+                      </section>
                     </div>
-                  );
-                })()}
-              </Section>
-              <Section icon={Clock} title="Recent Activity">
-                {timeline.length === 0 ? <Empty>No activity recorded yet.</Empty> : (
-                  <div>
-                    {timeline.slice(0, 5).map((item, index) => (
-                      <TimelineEvent key={timelineKey(item, index)} item={item} index={index} isLast={index === Math.min(timeline.length, 5) - 1} onView={setTimelineViewItem} />
-                    ))}
-                    {timeline.length > 5 && (
-                      <button type="button" onClick={() => setTab('timeline')} className="mt-2 flex items-center gap-1.5 text-xs font-bold text-brand-blue hover:underline">
-                        View all {timeline.length} events <ChevronDown size={13} />
-                      </button>
-                    )}
+
+                    {/* ── Clinical Workflow: Pre-Vitals → Pre-Docs → Post-Docs+Post-Vitals → Procedures → Timeline ── */}
+                    {(() => {
+                      const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
+                      const POST_KEYS = ['POST', 'DISCHARGE', 'FOLLOW', 'RESULT', 'REPORT', 'PRESCRIPTION'];
+                      const isPre = (d) => PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k));
+                      const isPost = (d) => POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k));
+                      const preDocs = documents.filter(isPre);
+                      const postDocs = documents.filter(isPost);
+                      const otherDocs = documents.filter(d => !isPre(d) && !isPost(d));
+                      // If no classification available, split in half
+                      const finalPre = preDocs.length ? preDocs : otherDocs.slice(0, Math.ceil(otherDocs.length / 2));
+                      const finalPost = postDocs.length ? postDocs : otherDocs.slice(Math.ceil(otherDocs.length / 2));
+
+                      const isImageFile = (doc) => {
+                        const name = (doc.fileName || doc.name || '').toLowerCase();
+                        return /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/.test(name);
+                      };
+
+                      const DocBox = ({ label, color, accent, docs }) => (
+                        <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden`}>
+                          <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
+                                <FileText size={18} />
+                              </div>
+                              <div>
+                                <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
+                                <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="divide-y divide-[#F0F4FC]">
+                            {docs.length === 0 ? (
+                              <div className="px-5 py-6 text-center">
+                                <p className="text-xs text-[#A0AECB] italic font-semibold">No {label.toLowerCase()} documents yet.</p>
+                              </div>
+                            ) : docs.map(doc => {
+                              const imgSrc = (doc.fileUrl || doc.url) || null;
+                              const isImg = isImageFile(doc) && imgSrc;
+                              return (
+                                <div key={getId(doc)} className="px-5 py-3">
+                                  {/* ── Image preview (X-rays, scans, photos) ── */}
+                                  {isImg && (
+                                    <div className="relative mb-3 rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group">
+                                      <img
+                                        src={imgSrc}
+                                        alt={doc.fileName || doc.name || 'Medical image'}
+                                        className="w-full max-h-52 object-contain"
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                                      />
+                                      {/* fallback shown on img error */}
+                                      <div className="hidden w-full h-24 items-center justify-center text-[#A0AECB]">
+                                        <FileText size={32} />
+                                      </div>
+                                      {/* expand overlay on hover */}
+                                      <button
+                                        type="button"
+                                        onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
+                                        className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
+                                        title="Open full size"
+                                      >
+                                        <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/90 text-[#0F1A3A] text-xs font-black px-3 py-1.5 rounded-full shadow">
+                                          <ExternalLink size={13} /> Open full size
+                                        </span>
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* ── Metadata row ── */}
+                                  <div className="flex items-start gap-3">
+                                    {!isImg && (
+                                      <div className="h-8 w-8 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
+                                        <FileText size={13} className="text-[#475569]" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-xs font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
+                                        {!isImg && imgSrc && (
+                                          <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[10px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
+                                            View <ExternalLink size={11} />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">
+                                        {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
+                                      </p>
+                                      {doc.notes && (
+                                        <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{doc.notes}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+
+                      const VitalsBox = ({ label, v, accentCls, borderCls }) => {
+                        if (!v) return null;
+                        const st = assessVitalStatus(v);
+                        return (
+                          <section className={`bg-white border-2 ${borderCls} rounded-[24px] shadow-sm overflow-hidden`}>
+                            <div className={`flex items-center justify-between border-b ${borderCls} px-5 py-4 ${accentCls}`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accentCls}`}><Thermometer size={18} /></div>
+                                <div>
+                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Vitals</h2>
+                                  <p className="text-[10px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</p>
+                                </div>
+                              </div>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                            </div>
+                            <div className="p-4 space-y-2">
+                              {[
+                                { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
+                                { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
+                                { k: 'SpO₂', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
+                                { k: 'Temp', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
+                                { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
+                                { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
+                              ].filter(x => x.val != null && x.val !== '').map(x => (
+                                <div key={x.k} className={`flex items-center justify-between rounded-lg px-3 py-2 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
+                                  <span className="text-[10px] font-black text-[#A0AECB] uppercase">{x.k}</span>
+                                  <span className={`text-sm font-black tabular-nums ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val} <span className="text-[10px] text-[#8A97B0] font-bold">{x.u}</span></span>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        );
+                      };
+
+                      const sortedV = [...vitals].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
+                      const preVital = sortedV[0] || null;
+                      const postVital = sortedV.length > 1 ? sortedV[sortedV.length - 1] : null;
+
+                      return (
+                        <>
+                          {/* ── DIVIDED UI: PRE VS POST TREATMENT ── */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                            {/* ── LEFT COLUMN: PRE-TREATMENT ── */}
+                            <div className="space-y-6">
+                              <div className="flex items-center gap-3 border-b-2 border-brand-blue pb-2 mb-2">
+                                <div className="w-2 h-2 rounded-full bg-brand-blue" />
+                                <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Phase</h3>
+                              </div>
+
+                              <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
+
+                              <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
+                                    <h2 className="text-sm font-black text-[#0F1A3A]">Lab Results</h2>
+                                  </div>
+                                </div>
+                                <div className="divide-y divide-[#F0F4FC]">
+                                  {labResults.length === 0 ? <div className="p-4"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
+                                    <div key={getId(lab)} className="flex items-center justify-between px-5 py-3">
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
+                                        <p className="text-[10px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
+                                      </div>
+                                      <div className="text-right shrink-0 ml-2">
+                                        <p className="text-sm font-black text-brand-blue">{text(lab.value)} <span className="text-[10px] text-[#8A97B0]">{lab.unit}</span></p>
+                                        {lab.interpretation && <Badge className={`text-[10px] ${statusClass(lab.interpretation)}`}>{lab.interpretation}</Badge>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </section>
+
+                              <DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={finalPre} />
+                            </div>
+
+                            {/* ── RIGHT COLUMN: POST-TREATMENT ── */}
+                            <div className="space-y-6">
+                              <div className="flex items-center gap-3 border-b-2 border-green-500 pb-2 mb-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Phase</h3>
+                              </div>
+
+                              <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
+
+                              {encounters.length > 0 && (
+                                <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
+                                  <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
+                                      <h2 className="text-sm font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
+                                    </div>
+                                  </div>
+                                  <div className="divide-y divide-[#F0F4FC]">
+                                    {encounters.map(enc => (
+                                      <div key={getId(enc)} className="px-5 py-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-sm font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || enc.encounterType || 'Visit'}</p>
+                                          {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px] shrink-0">{enc.outcome}</Badge>}
+                                        </div>
+                                        <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">{date(enc.date || enc.encounterDate)}{enc.epcrRecordId ? ` · EPCR ${enc.epcrRecordId}` : ''}</p>
+                                        {enc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{enc.notes}</p>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </section>
+                              )}
+
+                              <DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={finalPost} />
+                            </div>
+
+                          </div>
+                          {/* ── Recent Activity ── */}
+                          <Section icon={Clock} title="Recent Activity">
+                            {timeline.length === 0 ? <Empty>No activity recorded yet.</Empty> : (
+                              <div>
+                                {timeline.map((item, index) => (
+                                  <TimelineEvent key={timelineKey(item, index)} item={item} index={index} isLast={index === timeline.length - 1} onView={setTimelineViewItem} />
+                                ))}
+                              </div>
+                            )}
+                          </Section>
+                        </>
+                      );
+                    })()}
+
                   </div>
                 )}
-              </Section>
-            </div>
-          )}
 
-          {tab === 'conditions' && (
-            <Section icon={HeartPulse} title="Medical Conditions" action={addButton('conditions')}>
-              {renderList('conditions', conditions, (item) => (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-bold text-[#0F1A3A] text-base">{text(item.name)}</p>
-                    <Badge className={statusClass(item.status)}>{text(item.status, 'Status')}</Badge>
-                    {item.severity && <Badge className={statusClass(item.severity)}>{item.severity}</Badge>}
-                  </div>
-                  <p className="mt-1 text-xs font-semibold text-[#8A97B0]">Diagnosed {date(item.dateDiagnosed)} {item.dateResolved ? `- Resolved ${date(item.dateResolved)}` : ''}</p>
-                  {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
-                </>
-              ))}
-            </Section>
-          )}
 
-          {tab === 'medications' && (
-            <Section icon={Pill} title="Current Medications" action={addButton('medications')}>
-              {renderList('medications', medications, (item) => (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-bold text-[#0F1A3A] text-base">{text(item.name || item.medicationName)}</p>
-                    <Badge className={statusClass(item.status)}>{text(item.status, 'ACTIVE')}</Badge>
-                  </div>
-                  <p className="mt-1 text-sm font-semibold text-[#4B5A7A]">{[item.dosage, item.frequency].filter(Boolean).join(' - ') || 'Dose not recorded'}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#8A97B0]">Started {date(item.startDate)} {item.endDate ? `- Ended ${date(item.endDate)}` : ''}</p>
-                  {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
-                </>
-              ))}
-            </Section>
-          )}
 
-          {tab === 'encounters' && (
-            <div className="space-y-6">
-              <EncounterAnalytics encounters={encounters} />
-              <Section icon={UserRound} title="Patient Visits" action={addButton('encounters')}>
-                {renderList('encounters', encounters, (item) => (
-                  <>
-                    <p className="font-bold text-[#0F1A3A] text-base">{text(item.chiefComplaint || item.type || item.encounterType, 'Visit')}</p>
-                    <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.encounterDate)} {item.epcrRecordId ? `- EPCR ${item.epcrRecordId}` : ''}</p>
-                    {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
-                    {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
-                  </>
-                ))}
-              </Section>
-            </div>
-          )}
 
-          {tab === 'admissions' && (
-            <Section icon={BedDouble} title="Hospital Admissions" action={addButton('admissions')}>
-              {renderList('admissions', admissions, (item) => (
-                <>
-                  <p className="font-bold text-[#0F1A3A] text-base">{text(item.hospital || item.facility, 'Hospital admission')}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#8A97B0]"><CalendarDays size={13} className="mr-1 inline" />{date(item.admitDate || item.admissionDate)} - {item.dischargeDate ? date(item.dischargeDate) : 'Ongoing'}</p>
-                  {item.reason && <p className="mt-2 text-sm text-[#4B5A7A]">{item.reason}</p>}
-                  {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
-                </>
-              ))}
-            </Section>
-          )}
-
-          {tab === 'labResults' && (
-            <Section icon={FlaskConical} title="Laboratory Results" action={addButton('labResults')}>
-              {renderList('labResults', labResults, (item) => (
-                <>
-                  <p className="font-bold text-[#0F1A3A] text-base">{text(item.testName || item.name)}</p>
-                  <p className="mt-1 text-sm font-black text-brand-blue">{text(item.value || item.result)} <span className="text-xs font-semibold text-[#8A97B0]">{item.unit}</span></p>
-                  <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.resultDate)} {item.normalRange ? `- Normal ${item.normalRange}` : ''}</p>
-                  {item.interpretation && <Badge className={`mt-2 ${statusClass(item.interpretation)}`}>{item.interpretation}</Badge>}
-                </>
-              ))}
-            </Section>
-          )}
-
-          {tab === 'documents' && (
-            <Section icon={FileText} title="Medical Documents" action={addButton('documents')}>
-              {renderList('documents', documents, (item) => (
-                <div className="flex items-center justify-between w-full">
-                  <div>
-                    <p className="text-lg font-black text-[#0F1A3A] tracking-tight mb-1">{text(item.fileName || item.name, 'Document')}</p>
-                    <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest flex items-center gap-2">
-                      {text(item.type, 'Document').replace(/_/g, ' ')} <span className="text-[#DDE3F0]">•</span> {date(item.date || item.uploadedAt)}
-                    </p>
-                    {item.notes && <p className="mt-3 text-sm font-semibold text-[#4B5A7A] leading-relaxed max-w-2xl">{item.notes}</p>}
-                  </div>
-                  {(item.fileUrl || item.url) && (
-                    <button 
-                      type="button" 
-                      onClick={() => viewSecureDocument(dispatch, patientId, getId(item), item.fileName || item.name || item.fileUrl || item.url)} 
-                      className="mr-6 flex items-center gap-2 text-xs font-black text-brand-blue hover:underline"
-                    >
-                      View <ExternalLink size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </Section>
-          )}
-
-          {tab === 'vitals' && (
-            <VitalsTab
-              vitals={vitals}
-              canEdit={canEdit}
-              onAdd={() => setModal({ type: 'vitals' })}
-              onEdit={(v) => setModal({ type: 'vitals', item: v })}
-              onView={(v) => setViewModal({ type: 'vitals', item: v })}
-              onDelete={async (v) => {
-                if (!window.confirm('Delete this vital reading?')) return;
-                const res = await dispatch(deleteVital({ patientId, id: v.id }));
-                if (!res.error) dispatch(addToast({ type: 'success', message: 'Vital reading deleted' }));
-              }}
-            />
-          )}
-
-          {tab === 'timeline' && (
-            <Section icon={Clock} title="Complete Medical Timeline">
-              {timeline.length === 0 ? <Empty>No medical events recorded yet.</Empty> : (
-                <div>
-                  {/* Event type legend */}
-                  <div className="mb-6 flex flex-wrap gap-2">
-                    {Object.entries(EVENT_TYPE_STYLES).map(([key, s]) => {
-                      const LIcon = s.icon;
-                      return (
-                        <span key={key} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider border" style={{ background: s.bg, color: s.color, borderColor: `${s.color}30` }}>
-                          <LIcon size={11} />
-                          {s.label}
-                        </span>
-                      );
-                    })}
-                  </div>
-                  {/* Summary stats bar */}
-                  <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      ['Total Events', timeline.length, Activity, '#1A3C8F', '#DBEAFE'],
-                      ['Conditions', timeline.filter(e => String(e.eventType || e.type || '').toUpperCase().includes('CONDITION')).length, HeartPulse, '#C8102E', '#FEE2E2'],
-                      ['Medications', timeline.filter(e => String(e.eventType || e.type || '').toUpperCase().includes('MEDICATION')).length, Pill, '#7C3AED', '#F3E8FF'],
-                      ['Labs & Docs', timeline.filter(e => { const t = String(e.eventType || e.type || '').toUpperCase(); return t.includes('LAB') || t.includes('DOCUMENT'); }).length, FlaskConical, '#059669', '#D1FAE5'],
-                    ].map(([label, count, SIcon, color, bg]) => (
-                      <div key={label} className="rounded-xl border border-[#DDE3F0] bg-white p-3 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: bg, color }}>
-                          <SIcon size={16} />
+                {tab === 'conditions' && (
+                  <Section icon={HeartPulse} title="Medical Conditions" action={addButton('conditions')}>
+                    {renderList('conditions', conditions, (item) => (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-[#0F1A3A] text-base">{text(item.name)}</p>
+                          <Badge className={statusClass(item.status)}>{text(item.status, 'Status')}</Badge>
+                          {item.severity && <Badge className={statusClass(item.severity)}>{item.severity}</Badge>}
                         </div>
+                        <p className="mt-1 text-xs font-semibold text-[#8A97B0]">Diagnosed {date(item.dateDiagnosed)} {item.dateResolved ? `- Resolved ${date(item.dateResolved)}` : ''}</p>
+                        {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
+                      </>
+                    ))}
+                  </Section>
+                )}
+
+                {tab === 'medications' && (
+                  <Section icon={Pill} title="Current Medications" action={addButton('medications')}>
+                    {renderList('medications', medications, (item) => (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-[#0F1A3A] text-base">{text(item.name || item.medicationName)}</p>
+                          <Badge className={statusClass(item.status)}>{text(item.status, 'ACTIVE')}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm font-semibold text-[#4B5A7A]">{[item.dosage, item.frequency].filter(Boolean).join(' - ') || 'Dose not recorded'}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#8A97B0]">Started {date(item.startDate)} {item.endDate ? `- Ended ${date(item.endDate)}` : ''}</p>
+                        {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
+                      </>
+                    ))}
+                  </Section>
+                )}
+
+                {tab === 'encounters' && (
+                  <div className="space-y-6">
+                    <EncounterAnalytics encounters={encounters} />
+                    <Section icon={UserRound} title="Patient Visits" action={addButton('encounters')}>
+                      {renderList('encounters', encounters, (item) => (
+                        <>
+                          <p className="font-bold text-[#0F1A3A] text-base">{text(item.chiefComplaint || item.type || item.encounterType, 'Visit')}</p>
+                          <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.encounterDate)} {item.epcrRecordId ? `- EPCR ${item.epcrRecordId}` : ''}</p>
+                          {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
+                          {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
+                        </>
+                      ))}
+                    </Section>
+                  </div>
+                )}
+
+                {tab === 'admissions' && (
+                  <Section icon={BedDouble} title="Hospital Admissions" action={addButton('admissions')}>
+                    {renderList('admissions', admissions, (item) => (
+                      <>
+                        <p className="font-bold text-[#0F1A3A] text-base">{text(item.hospital || item.facility, 'Hospital admission')}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#8A97B0]"><CalendarDays size={13} className="mr-1 inline" />{date(item.admitDate || item.admissionDate)} - {item.dischargeDate ? date(item.dischargeDate) : 'Ongoing'}</p>
+                        {item.reason && <p className="mt-2 text-sm text-[#4B5A7A]">{item.reason}</p>}
+                        {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
+                      </>
+                    ))}
+                  </Section>
+                )}
+
+                {tab === 'labResults' && (
+                  <Section icon={FlaskConical} title="Laboratory Results" action={addButton('labResults')}>
+                    {renderList('labResults', labResults, (item) => (
+                      <>
+                        <p className="font-bold text-[#0F1A3A] text-base">{text(item.testName || item.name)}</p>
+                        <p className="mt-1 text-sm font-black text-brand-blue">{text(item.value || item.result)} <span className="text-xs font-semibold text-[#8A97B0]">{item.unit}</span></p>
+                        <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.resultDate)} {item.normalRange ? `- Normal ${item.normalRange}` : ''}</p>
+                        {item.interpretation && <Badge className={`mt-2 ${statusClass(item.interpretation)}`}>{item.interpretation}</Badge>}
+                      </>
+                    ))}
+                  </Section>
+                )}
+
+                {tab === 'documents' && (
+                  <Section icon={FileText} title="Medical Documents" action={addButton('documents')}>
+                    {renderList('documents', documents, (item) => (
+                      <div className="flex items-center justify-between w-full">
                         <div>
-                          <p className="text-lg font-black leading-none" style={{ color }}>{count}</p>
-                          <p className="text-[10px] font-bold text-[#A0AECB] uppercase tracking-wider mt-0.5">{label}</p>
+                          <p className="text-lg font-black text-[#0F1A3A] tracking-tight mb-1">{text(item.fileName || item.name, 'Document')}</p>
+                          <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest flex items-center gap-2">
+                            {text(item.type, 'Document').replace(/_/g, ' ')} <span className="text-[#DDE3F0]">•</span> {date(item.date || item.uploadedAt)}
+                          </p>
+                          {item.notes && <p className="mt-3 text-sm font-semibold text-[#4B5A7A] leading-relaxed max-w-2xl">{item.notes}</p>}
                         </div>
+                        {(item.fileUrl || item.url) && (
+                          <button
+                            type="button"
+                            onClick={() => viewSecureDocument(dispatch, patientId, getId(item), item.fileName || item.name || item.fileUrl || item.url)}
+                            className="mr-6 flex items-center gap-2 text-xs font-black text-brand-blue hover:underline"
+                          >
+                            View <ExternalLink size={14} />
+                          </button>
+                        )}
                       </div>
                     ))}
-                  </div>
-                  {/* Grouped timeline */}
-                  {groupTimelineByMonth(timeline).map((group) => (
-                    <div key={group.label} className="mb-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="h-px flex-1 bg-[#DDE3F0]" />
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F4FC] border border-[#DDE3F0] px-4 py-1.5 text-xs font-black text-[#4B5A7A] uppercase tracking-wider">
-                          <CalendarDays size={12} />
-                          {group.label}
-                        </span>
-                        <div className="h-px flex-1 bg-[#DDE3F0]" />
+                  </Section>
+                )}
+
+                {tab === 'vitals' && (
+                  <VitalsTab
+                    vitals={vitals}
+                    canEdit={canEdit}
+                    onAdd={() => setModal({ type: 'vitals' })}
+                    onEdit={(v) => setModal({ type: 'vitals', item: v })}
+                    onView={(v) => setViewModal({ type: 'vitals', item: v })}
+                    onDelete={async (v) => {
+                      if (!window.confirm('Delete this vital reading?')) return;
+                      const res = await dispatch(deleteVital({ patientId, id: v.id }));
+                      if (!res.error) dispatch(addToast({ type: 'success', message: 'Vital reading deleted' }));
+                    }}
+                  />
+                )}
+
+                {tab === 'timeline' && (
+                  <Section icon={Clock} title="Complete Medical Timeline">
+                    {timeline.length === 0 ? <Empty>No medical events recorded yet.</Empty> : (
+                      <div>
+                        {/* Event type legend */}
+                        <div className="mb-6 flex flex-wrap gap-2">
+                          {Object.entries(EVENT_TYPE_STYLES).map(([key, s]) => {
+                            const LIcon = s.icon;
+                            return (
+                              <span key={key} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider border" style={{ background: s.bg, color: s.color, borderColor: `${s.color}30` }}>
+                                <LIcon size={11} />
+                                {s.label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        {/* Summary stats bar */}
+                        <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {[
+                            ['Total Events', timeline.length, Activity, '#1A3C8F', '#DBEAFE'],
+                            ['Conditions', timeline.filter(e => String(e.eventType || e.type || '').toUpperCase().includes('CONDITION')).length, HeartPulse, '#C8102E', '#FEE2E2'],
+                            ['Medications', timeline.filter(e => String(e.eventType || e.type || '').toUpperCase().includes('MEDICATION')).length, Pill, '#7C3AED', '#F3E8FF'],
+                            ['Labs & Docs', timeline.filter(e => { const t = String(e.eventType || e.type || '').toUpperCase(); return t.includes('LAB') || t.includes('DOCUMENT'); }).length, FlaskConical, '#059669', '#D1FAE5'],
+                          ].map(([label, count, SIcon, color, bg]) => (
+                            <div key={label} className="rounded-xl border border-[#DDE3F0] bg-white p-3 flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: bg, color }}>
+                                <SIcon size={16} />
+                              </div>
+                              <div>
+                                <p className="text-lg font-black leading-none" style={{ color }}>{count}</p>
+                                <p className="text-[10px] font-bold text-[#A0AECB] uppercase tracking-wider mt-0.5">{label}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Grouped timeline */}
+                        {groupTimelineByMonth(timeline).map((group) => (
+                          <div key={group.label} className="mb-6">
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="h-px flex-1 bg-[#DDE3F0]" />
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F4FC] border border-[#DDE3F0] px-4 py-1.5 text-xs font-black text-[#4B5A7A] uppercase tracking-wider">
+                                <CalendarDays size={12} />
+                                {group.label}
+                              </span>
+                              <div className="h-px flex-1 bg-[#DDE3F0]" />
+                            </div>
+                            {group.items.map((item, index) => (
+                              <TimelineEvent key={timelineKey(item, index)} item={item} index={index} isLast={index === group.items.length - 1} onView={setTimelineViewItem} />
+                            ))}
+                          </div>
+                        ))}
                       </div>
-                      {group.items.map((item, index) => (
-                        <TimelineEvent key={timelineKey(item, index)} item={item} index={index} isLast={index === group.items.length - 1} onView={setTimelineViewItem} />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-          )}
+                    )}
+                  </Section>
+                )}
               </div>
             )}
           </div>
         </div>
-      )}
+      )
+      }
 
-  {modal && patientId && (
-    <HistoryModal type={modal.type} item={modal.item} patientId={patientId} onClose={() => setModal(null)} />
-  )}
-  {viewModal && (
-    <ViewModal type={viewModal.type} item={viewModal.item} onClose={() => setViewModal(null)} />
-  )}
-  {timelineViewItem && (
-    <TimelineViewModal item={timelineViewItem} onClose={() => setTimelineViewItem(null)} />
-  )}
-</div>
+      {
+        modal && patientId && (
+          <HistoryModal type={modal.type} item={modal.item} patientId={patientId} onClose={() => setModal(null)} />
+        )
+      }
+      {
+        viewModal && (
+          <ViewModal type={viewModal.type} item={viewModal.item} onClose={() => setViewModal(null)} />
+        )
+      }
+      {
+        timelineViewItem && (
+          <TimelineViewModal item={timelineViewItem} onClose={() => setTimelineViewItem(null)} />
+        )
+      }
+    </div >
   );
 }
 
