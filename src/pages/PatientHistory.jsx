@@ -1610,28 +1610,28 @@ function PatientHistory() {
                     })()}
 
                     {/* ── Row 1: Conditions + Medications ── */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Active Conditions */}
-                      <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
-                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-xl bg-red-50 flex items-center justify-center"><HeartPulse size={18} className="text-red-600" /></div>
-                            <h2 className="text-base font-black text-[#0F1A3A]">Conditions</h2>
+                      <section className="bg-white border border-[#DDE3F0] rounded-2xl shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-lg bg-red-50 flex items-center justify-center"><HeartPulse size={13} className="text-red-600" /></div>
+                            <h2 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wide">Conditions</h2>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">{conditions.filter(c => c.status === 'ACTIVE').length} active</span>
-                            {canEdit && <button type="button" onClick={() => setModal({ type: 'conditions' })} className="btn-primary px-3 py-1.5 text-xs"><Plus size={13} /></button>}
+                            <span className="text-[10px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md">{conditions.filter(c => c.status === 'ACTIVE').length} active</span>
+                            {canEdit && <button type="button" onClick={() => setModal({ type: 'conditions' })} className="btn-primary px-2 py-0.5 text-[10px]"><Plus size={10} /></button>}
                           </div>
                         </div>
-                        <div className="p-5 space-y-2">
+                        <div className="p-2 space-y-1 overflow-y-auto max-h-[100px] custom-scrollbar">
                           {conditions.length === 0 ? <Empty>No conditions on record.</Empty> : conditions.map((c, i) => (
-                            <div key={getId(c) || i} className="flex items-center justify-between rounded-xl border border-[#DDE3F0] px-4 py-2.5">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`} />
-                                <p className="text-sm font-bold text-[#0F1A3A] truncate">{c.name}</p>
+                            <div key={getId(c) || i} className="flex items-center justify-between rounded-lg border border-[#DDE3F0] px-3 py-1.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`} />
+                                <p className="text-xs font-bold text-[#0F1A3A] truncate">{c.name}</p>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {c.severity && <span className="text-[10px] font-black text-[#8A97B0]">{c.severity}</span>}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {c.severity && <span className="text-[9px] font-black text-[#8A97B0]">{c.severity}</span>}
                                 <Badge className={statusClass(c.status)}>{c.status}</Badge>
                               </div>
                             </div>
@@ -1640,23 +1640,23 @@ function PatientHistory() {
                       </section>
 
                       {/* Current Medications */}
-                      <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
-                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-xl bg-purple-50 flex items-center justify-center"><Pill size={18} className="text-purple-600" /></div>
-                            <h2 className="text-base font-black text-[#0F1A3A]">Medications</h2>
+                      <section className="bg-white border border-[#DDE3F0] rounded-2xl shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-lg bg-purple-50 flex items-center justify-center"><Pill size={13} className="text-purple-600" /></div>
+                            <h2 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wide">Medications</h2>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg">{medications.filter(m => !m.status || m.status === 'ACTIVE').length} active</span>
-                            {canEdit && <button type="button" onClick={() => setModal({ type: 'medications' })} className="btn-primary px-3 py-1.5 text-xs"><Plus size={13} /></button>}
+                            <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">{medications.filter(m => !m.status || m.status === 'ACTIVE').length} active</span>
+                            {canEdit && <button type="button" onClick={() => setModal({ type: 'medications' })} className="btn-primary px-2 py-0.5 text-[10px]"><Plus size={10} /></button>}
                           </div>
                         </div>
-                        <div className="p-5 space-y-2">
+                        <div className="p-2 space-y-1 overflow-y-auto max-h-[100px] custom-scrollbar">
                           {medications.length === 0 ? <Empty>No medications on record.</Empty> : medications.map((m, i) => (
-                            <div key={getId(m) || i} className="flex items-center justify-between rounded-xl border border-[#DDE3F0] px-4 py-2.5">
+                            <div key={getId(m) || i} className="flex items-center justify-between rounded-lg border border-[#DDE3F0] px-3 py-1.5">
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-[#0F1A3A] truncate">{m.name || m.medicationName}</p>
-                                {(m.dosage || m.frequency) && <p className="text-[10px] font-bold text-[#8A97B0]">{[m.dosage, m.frequency].filter(Boolean).join(' · ')}</p>}
+                                <p className="text-xs font-bold text-[#0F1A3A] truncate">{m.name || m.medicationName}</p>
+                                {(m.dosage || m.frequency) && <p className="text-[9px] font-bold text-[#8A97B0]">{[m.dosage, m.frequency].filter(Boolean).join(' · ')}</p>}
                               </div>
                               <Badge className={statusClass(m.status)}>{m.status || 'ACTIVE'}</Badge>
                             </div>
@@ -1688,99 +1688,90 @@ function PatientHistory() {
                       const postImages = finalPost.filter(isImageFile);
                       const postDocsOnly = finalPost.filter(d => !isImageFile(d));
 
-                      const ImgBox = ({ label, color, accent, docs }) => {
-                        if (docs.length === 0) return null;
+                      const QuickDocBox = ({ label, color, accent, docs, imgs }) => {
+                        if (docs.length === 0 && imgs.length === 0) return null;
                         return (
                           <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full`}>
-                            <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
-                              <div className="flex items-center gap-3">
-                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
-                                  <FileText size={18} />
-                                </div>
-                                <div>
-                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Images</h2>
-                                  <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
-                                </div>
+                            <div className={`flex items-center gap-3 border-b ${color} px-5 py-4 ${accent}`}>
+                              <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}><FileText size={18} /></div>
+                              <div>
+                                <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
+                                <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length + imgs.length} file{docs.length + imgs.length !== 1 ? 's' : ''}</p>
                               </div>
                             </div>
-                            <div className="p-5 space-y-6">
-                              {docs.slice(0, 2).map(doc => (
-                                <div key={getId(doc)}>
-                                  <div className="relative mb-3 rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group">
-                                    <SecureInlineImage
-                                      patientId={patientId}
-                                      doc={doc}
-                                      className="w-full max-h-52 object-contain"
-                                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                                    />
-                                    <div className="hidden w-full h-24 items-center justify-center text-[#A0AECB]">
-                                      <FileText size={32} />
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
-                                      className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
-                                      title="Open full size"
-                                    >
-                                      <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/90 text-[#0F1A3A] text-xs font-black px-3 py-1.5 rounded-full shadow">
-                                        <ExternalLink size={13} /> Open full size
-                                      </span>
-                                    </button>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-2 px-1">
-                                    <p className="text-xs font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Medical Image'}</p>
-                                    <p className="text-[10px] font-bold text-[#A0AECB] shrink-0">{date(doc.date || doc.uploadedAt)}</p>
-                                  </div>
-                                  {doc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{doc.notes}</p>}
-                                </div>
-                              ))}
-                              {docs.length > 2 && (
-                                <p className="text-center text-xs font-bold text-[#A0AECB]">+ {docs.length - 2} more {docs.length - 2 === 1 ? 'image' : 'images'} (view in Documents tab)</p>
-                              )}
-                            </div>
-                          </section>
-                        );
-                      };
-
-                      const DocBox = ({ label, color, accent, docs }) => {
-                        if (docs.length === 0) return null;
-                        return (
-                          <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full`}>
-                            <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
-                              <div className="flex items-center gap-3">
-                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
-                                  <FileText size={18} />
-                                </div>
-                                <div>
-                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
-                                  <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="divide-y divide-[#F0F4FC]">
-                              {docs.map(doc => (
-                                <div key={getId(doc)} className="px-5 py-5">
-                                  <div className="flex items-start gap-4">
-                                    <div className="h-10 w-10 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
-                                      <FileText size={20} className="text-[#475569]" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className="text-sm font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
-                                        <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[11px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
-                                          View <ExternalLink size={12} />
+                            <div className="overflow-y-auto max-h-[400px] custom-scrollbar bg-white">
+                              {imgs.length > 0 && (() => {
+                                const visibleImgs = imgs.slice(0, 2);
+                                return (
+                                  <div className={`grid gap-3 p-4 border-b border-[#F0F4FC] ${visibleImgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                    {visibleImgs.map(doc => (
+                                      <div key={getId(doc)} className="relative rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group shadow-sm">
+                                        <SecureInlineImage
+                                          patientId={patientId}
+                                          doc={doc}
+                                          className="w-full h-56 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                                          onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                                        />
+                                        <div className="hidden w-full h-56 items-center justify-center text-[#A0AECB]">
+                                          <FileText size={36} />
+                                        </div>
+                                        <div className="absolute top-0 left-0 right-0 p-2.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+                                          <p className="text-xs font-bold text-white truncate">{doc.fileName || doc.name || 'Image'}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
+                                          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
+                                          title="Open full size"
+                                        >
+                                          <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/95 text-[#0F1A3A] text-xs font-black px-4 py-2 rounded-full shadow-md">
+                                            <ExternalLink size={14} /> View Full Size
+                                          </span>
                                         </button>
                                       </div>
-                                      <p className="text-xs font-bold text-[#A0AECB] mt-1">
-                                        {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
-                                      </p>
-                                      {doc.notes && (
-                                        <p className="mt-2 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2.5">{doc.notes}</p>
-                                      )}
-                                    </div>
+                                    ))}
+                                    {imgs.length > 2 && (
+                                      <p className="col-span-full text-center text-xs font-bold text-[#A0AECB] py-1">+ {imgs.length - 2} more image{imgs.length - 2 > 1 ? 's' : ''} in Documents tab</p>
+                                    )}
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })()}
+                              {docs.length > 0 && (() => {
+                                const sortedDocs = [...docs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
+                                const topDocs = sortedDocs.slice(0, 2);
+                                return (
+                                  <div className="divide-y divide-[#F0F4FC]">
+                                    {topDocs.map(doc => (
+                                      <div key={getId(doc)} className="px-5 py-5 hover:bg-[#F8FAFF] transition-colors">
+                                        <div className="flex items-start gap-4">
+                                          <div className="h-10 w-10 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
+                                            <FileText size={20} className="text-[#475569]" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <p className="text-sm font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
+                                              <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[11px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
+                                                View <ExternalLink size={12} />
+                                              </button>
+                                            </div>
+                                            <p className="text-xs font-bold text-[#A0AECB] mt-1">
+                                              {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
+                                            </p>
+                                            {doc.notes && (
+                                              <p className="mt-2 text-sm text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2.5">{doc.notes}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {docs.length > 2 && (
+                                      <div className="px-5 py-3 bg-[#F8FAFF] border-t border-[#F0F4FC]">
+                                        <p className="text-center text-xs font-bold text-[#A0AECB]">+ {docs.length - 2} more {docs.length - 2 === 1 ? 'document' : 'documents'} (view in Documents tab)</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </section>
                         );
@@ -1790,18 +1781,18 @@ function PatientHistory() {
                         if (!v) return null;
                         const st = assessVitalStatus(v);
                         return (
-                          <section className={`bg-white border-2 ${borderCls} rounded-[24px] shadow-sm overflow-hidden h-full`}>
-                            <div className={`flex items-center justify-between border-b ${borderCls} px-5 py-4 ${accentCls}`}>
-                              <div className="flex items-center gap-3">
-                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accentCls}`}><Thermometer size={18} /></div>
+                          <section className={`bg-white border-2 ${borderCls} rounded-2xl shadow-sm overflow-hidden h-full`}>
+                            <div className={`flex items-center justify-between border-b ${borderCls} px-4 py-2 ${accentCls}`}>
+                              <div className="flex items-center gap-2">
+                                <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${accentCls}`}><Thermometer size={13} /></div>
                                 <div>
-                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Vitals</h2>
-                                  <p className="text-[10px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</p>
+                                  <h2 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wide">{label} Vitals</h2>
+                                  <p className="text-[9px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</p>
                                 </div>
                               </div>
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
                             </div>
-                            <div className="p-4 space-y-2">
+                            <div className="p-3 grid grid-cols-2 gap-2">
                               {[
                                 { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
                                 { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
@@ -1810,9 +1801,9 @@ function PatientHistory() {
                                 { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
                                 { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
                               ].filter(x => x.val != null && x.val !== '').map(x => (
-                                <div key={x.k} className={`flex items-center justify-between rounded-lg px-3 py-2 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
-                                  <span className="text-[10px] font-black text-[#A0AECB] uppercase">{x.k}</span>
-                                  <span className={`text-sm font-black tabular-nums ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val} <span className="text-[10px] text-[#8A97B0] font-bold">{x.u}</span></span>
+                                <div key={x.k} className={`flex items-center justify-between rounded-lg px-2 py-1.5 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
+                                  <span className="text-[9px] font-black text-[#A0AECB] uppercase">{x.k}</span>
+                                  <span className={`text-xs font-black tabular-nums ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val} <span className="text-[9px] text-[#8A97B0] font-bold">{x.u}</span></span>
                                 </div>
                               ))}
                             </div>
@@ -1826,8 +1817,20 @@ function PatientHistory() {
 
                       return (
                         <>
-                          <div className="space-y-8">
+                          <div className="space-y-4">
                             
+                            {/* ── Pre/Post Documents ── */}
+                            {(preImages.length > 0 || postImages.length > 0 || preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                  <QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} />
+                                </div>
+                                <div>
+                                  <QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} />
+                                </div>
+                              </div>
+                            )}
+
                             {/* ── ROW 1: DETAILS (Vitals & Procedures/Labs) ── */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
                               {/* Pre-Treatment Details */}
@@ -1920,58 +1923,6 @@ function PatientHistory() {
                                 )}
                               </div>
                             </div>
-
-                            {/* ── ROW 2: IMAGES ── */}
-                            {(preImages.length > 0 || postImages.length > 0) && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                                <div className="h-full">
-                                  {preImages.length > 0 ? (
-                                    <ImgBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preImages} />
-                                  ) : (
-                                    <div className="h-full flex flex-col items-center justify-center bg-[#F8FAFF] border-2 border-dashed border-[#DBEAFE] rounded-[24px] p-6 text-center min-h-[120px]">
-                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                      <p className="text-xs font-bold text-[#1A3C8F] uppercase tracking-wide mb-1">No Pre-Treatment Images</p>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="h-full">
-                                  {postImages.length > 0 ? (
-                                    <ImgBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postImages} />
-                                  ) : (
-                                    <div className="h-full flex flex-col items-center justify-center bg-[#F0FDF4]/30 border-2 border-dashed border-[#DCFCE7] rounded-[24px] p-6 text-center min-h-[120px]">
-                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                      <p className="text-xs font-bold text-[#16A34A] uppercase tracking-wide mb-1">No Post-Treatment Images</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* ── ROW 3: DOCUMENTS ── */}
-                            {(preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                                <div className="h-full">
-                                  {preDocsOnly.length > 0 ? (
-                                    <DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} />
-                                  ) : (
-                                    <div className="h-full flex flex-col items-center justify-center bg-[#F8FAFF] border-2 border-dashed border-[#DBEAFE] rounded-[24px] p-6 text-center min-h-[120px]">
-                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                      <p className="text-xs font-bold text-[#1A3C8F] uppercase tracking-wide mb-1">No Pre-Treatment Documents</p>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="h-full">
-                                  {postDocsOnly.length > 0 ? (
-                                    <DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} />
-                                  ) : (
-                                    <div className="h-full flex flex-col items-center justify-center bg-[#F0FDF4]/30 border-2 border-dashed border-[#DCFCE7] rounded-[24px] p-6 text-center min-h-[120px]">
-                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                      <p className="text-xs font-bold text-[#16A34A] uppercase tracking-wide mb-1">No Post-Treatment Documents</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
 
                           </div>
                           {/* ── Recent Activity ── */}
