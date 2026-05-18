@@ -1694,17 +1694,29 @@ function PatientHistory() {
                       const postDocsOnly = finalPost.filter(d => !isImageFile(d));
 
                       const QuickDocBox = ({ label, color, accent, docs, imgs }) => {
-                        if (docs.length === 0 && imgs.length === 0) return null;
                         return (
-                          <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full`}>
-                            <div className={`flex items-center gap-3 border-b ${color} px-5 py-4 ${accent}`}>
-                              <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}><FileText size={18} /></div>
-                              <div>
-                                <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
-                                <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length + imgs.length} file{docs.length + imgs.length !== 1 ? 's' : ''}</p>
+                          <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full flex flex-col`}>
+                            <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}><FileText size={18} /></div>
+                                <div>
+                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
+                                  <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length + imgs.length} file{docs.length + imgs.length !== 1 ? 's' : ''}</p>
+                                </div>
                               </div>
+                              {canEdit && (
+                                <button type="button" onClick={() => setModal({ type: 'documents' })} className="btn-primary px-2 py-0.5 text-[10px]">
+                                  <Plus size={10} />
+                                </button>
+                              )}
                             </div>
-                            <div className="overflow-y-auto max-h-[400px] custom-scrollbar bg-white">
+                            <div className="overflow-y-auto max-h-[400px] custom-scrollbar bg-white flex-1">
+                              {docs.length === 0 && imgs.length === 0 ? (
+                                <div className="p-6 text-center">
+                                  <FileText className="mx-auto text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                  <p className="text-xs font-bold text-[#0F1A3A]">No {label.toLowerCase()} documents.</p>
+                                </div>
+                              ) : null}
                               {imgs.length > 0 && (() => {
                                 const visibleImgs = imgs.slice(0, 2);
                                 return (
@@ -1838,7 +1850,7 @@ function PatientHistory() {
                           <div className="space-y-4">
                             
                             {/* ── Pre/Post Documents ── */}
-                            {(preImages.length > 0 || postImages.length > 0 || preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
+                            {(canEdit || preImages.length > 0 || postImages.length > 0 || preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                   <QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} />
