@@ -376,21 +376,21 @@ const Empty = ({ children }) => (
 );
 
 const MetricCard = ({ icon: Icon, label, value, unit, range, color, bgColor, children }) => (
-  <div className="card p-5 space-y-4 border border-[#DDE3F0] bg-white rounded-2xl shadow-sm">
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bgColor, color }}>
-          <Icon size={20} />
+  <div className="card p-4 space-y-2 border border-[#DDE3F0] bg-white rounded-2xl shadow-sm">
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: bgColor, color }}>
+          <Icon size={16} />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider truncate">{label}</p>
-          <p className="text-2xl font-black text-[#0F1A3A] tabular-nums">
-            {value ?? 'N/A'} <span className="text-sm text-[#8A97B0] font-bold">{unit}</span>
+          <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-wider truncate">{label}</p>
+          <p className="text-lg font-black text-[#0F1A3A] tabular-nums leading-none">
+            {value ?? 'N/A'} <span className="text-xs text-[#8A97B0] font-bold">{unit}</span>
           </p>
         </div>
       </div>
     </div>
-    <div className="h-24">
+    <div className="h-12">
       {children}
     </div>
     <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#F0F4FC]">
@@ -902,7 +902,7 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
 
                 {/* Chart */}
                 <div className="rounded-xl border border-[#DDE3F0] bg-white p-5 shadow-sm">
-                  <div className="h-[400px]">
+                  <div className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                         <defs>
@@ -1792,7 +1792,7 @@ function PatientHistory() {
                               </div>
                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
                             </div>
-                            <div className="p-3 grid grid-cols-2 gap-2">
+                            <div className="p-2 grid grid-cols-2 gap-1.5">
                               {[
                                 { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
                                 { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
@@ -1801,9 +1801,9 @@ function PatientHistory() {
                                 { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
                                 { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
                               ].filter(x => x.val != null && x.val !== '').map(x => (
-                                <div key={x.k} className={`flex items-center justify-between rounded-lg px-2 py-1.5 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
+                                <div key={x.k} className={`flex items-center justify-between rounded-md px-1.5 py-1 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
                                   <span className="text-[9px] font-black text-[#A0AECB] uppercase">{x.k}</span>
-                                  <span className={`text-xs font-black tabular-nums ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val} <span className="text-[9px] text-[#8A97B0] font-bold">{x.u}</span></span>
+                                  <span className={`text-[11px] font-black tabular-nums leading-none ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val} <span className="text-[8px] text-[#8A97B0] font-bold ml-0.5">{x.u}</span></span>
                                 </div>
                               ))}
                             </div>
