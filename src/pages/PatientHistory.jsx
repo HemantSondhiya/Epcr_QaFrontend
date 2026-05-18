@@ -670,9 +670,11 @@ const vitalPill = (value, metric) => {
   const num = Number(value);
   const outOfRange = !isNaN(num) && (num < m.lo || num > m.hi);
   return (
-    <span key={m.key} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${outOfRange ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
-      <span className="text-[10px] font-black text-[#8A97B0] uppercase">{m.short}</span>
-      {value}{m.unit ? <span className="text-[10px] text-[#A0AECB] ml-0.5">{m.unit}</span> : null}
+    <span key={m.key} className={`inline-flex flex-col justify-center rounded-lg px-2.5 py-1 text-xs font-bold border ${outOfRange ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+      <span className="text-[8px] font-black text-[#8A97B0] uppercase leading-none">{m.label}</span>
+      <span className="mt-0.5 leading-none">
+        {value}{m.unit ? <span className="text-[9px] text-[#A0AECB] ml-0.5 font-bold">{m.unit}</span> : null}
+      </span>
     </span>
   );
 };
@@ -826,9 +828,11 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
                           {/* Primary vitals row */}
                           <div className="flex flex-wrap gap-2 mb-2">
                             {v.systolicBP != null && v.diastolicBP != null && (
-                              <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold border ${(v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
-                                <span className="text-[10px] font-black text-[#8A97B0] uppercase">BP</span>
-                                {v.systolicBP}/{v.diastolicBP} <span className="text-[10px] text-[#A0AECB] ml-0.5">mmHg</span>
+                              <span className={`inline-flex flex-col justify-center rounded-lg px-2.5 py-1 text-xs font-bold border ${(v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#F0F4FC] text-[#0F1A3A] border-[#DDE3F0]'}`}>
+                                <span className="text-[8px] font-black text-[#8A97B0] uppercase leading-none">Blood Pressure</span>
+                                <span className="mt-0.5 leading-none">
+                                  {v.systolicBP}/{v.diastolicBP} <span className="text-[9px] text-[#A0AECB] ml-0.5 font-bold">mmHg</span>
+                                </span>
                               </span>
                             )}
                             {vitalPill(v.heartRate, 'heartRate')}
@@ -1538,7 +1542,7 @@ function PatientHistory() {
       ) : (
         <div className="space-y-8">
           {/* Summary Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
             {[
               { label: 'Active Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
               { label: 'Current Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -1546,6 +1550,7 @@ function PatientHistory() {
               { label: 'Admissions', value: counts.admissions, icon: BedDouble, color: 'text-orange-500', bg: 'bg-orange-50' },
               { label: 'Lab Results', value: counts.labs, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
               { label: 'Documents', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { label: 'Vitals', value: counts.vitals, icon: Thermometer, color: 'text-teal-500', bg: 'bg-teal-50' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white p-6 rounded-2xl border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all group">
                 <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
@@ -1705,29 +1710,36 @@ function PatientHistory() {
                                 return (
                                   <div className={`grid gap-3 p-4 border-b border-[#F0F4FC] ${visibleImgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                     {visibleImgs.map(doc => (
-                                      <div key={getId(doc)} className="relative rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group shadow-sm">
-                                        <SecureInlineImage
-                                          patientId={patientId}
-                                          doc={doc}
-                                          className="w-full h-56 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                                          onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                                        />
-                                        <div className="hidden w-full h-56 items-center justify-center text-[#A0AECB]">
-                                          <FileText size={36} />
+                                      <div key={getId(doc)} className="flex flex-col rounded-xl overflow-hidden bg-white border border-[#DDE3F0] shadow-sm">
+                                        <div className="relative group bg-[#0F1A3A]">
+                                          <SecureInlineImage
+                                            patientId={patientId}
+                                            doc={doc}
+                                            className="w-full h-48 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                                            onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                                          />
+                                          <div className="hidden w-full h-48 items-center justify-center text-[#A0AECB]">
+                                            <FileText size={36} />
+                                          </div>
+                                          <div className="absolute top-0 left-0 right-0 p-2.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+                                            <p className="text-xs font-bold text-white truncate">{doc.fileName || doc.name || 'Image'}</p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
+                                            className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
+                                            title="Open full size"
+                                          >
+                                            <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/95 text-[#0F1A3A] text-xs font-black px-4 py-2 rounded-full shadow-md">
+                                              <ExternalLink size={14} /> View Full Size
+                                            </span>
+                                          </button>
                                         </div>
-                                        <div className="absolute top-0 left-0 right-0 p-2.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
-                                          <p className="text-xs font-bold text-white truncate">{doc.fileName || doc.name || 'Image'}</p>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
-                                          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
-                                          title="Open full size"
-                                        >
-                                          <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/95 text-[#0F1A3A] text-xs font-black px-4 py-2 rounded-full shadow-md">
-                                            <ExternalLink size={14} /> View Full Size
-                                          </span>
-                                        </button>
+                                        {doc.notes && (
+                                          <div className="p-3 bg-white border-t border-[#F0F4FC]">
+                                            <p className="text-[11px] text-[#4B5A7A] font-semibold leading-snug">{doc.notes}</p>
+                                          </div>
+                                        )}
                                       </div>
                                     ))}
                                     {imgs.length > 2 && (
@@ -1794,16 +1806,22 @@ function PatientHistory() {
                             </div>
                             <div className="p-2 grid grid-cols-2 gap-1.5">
                               {[
-                                { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
-                                { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
-                                { k: 'SpO₂', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
-                                { k: 'Temp', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
-                                { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
-                                { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
+                                { k: 'BP', desc: 'Blood Pressure', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
+                                { k: 'HR', desc: 'Heart Rate', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
+                                { k: 'SpO₂', desc: 'Oxygen Sat.', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
+                                { k: 'Temp', desc: 'Temperature', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
+                                { k: 'RR', desc: 'Resp Rate', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
+                                { k: 'GCS', desc: 'Coma Scale', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
                               ].filter(x => x.val != null && x.val !== '').map(x => (
                                 <div key={x.k} className={`flex items-center justify-between rounded-md px-1.5 py-1 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
-                                  <span className="text-[9px] font-black text-[#A0AECB] uppercase">{x.k}</span>
-                                  <span className={`text-[11px] font-black tabular-nums leading-none ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val} <span className="text-[8px] text-[#8A97B0] font-bold ml-0.5">{x.u}</span></span>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-[#A0AECB] uppercase leading-none">{x.k}</span>
+                                    <span className="text-[7px] font-bold text-[#8A97B0] leading-tight mt-0.5">{x.desc}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-[11px] font-black tabular-nums leading-none ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val}</span>
+                                    <span className="text-[8px] text-[#8A97B0] font-bold ml-0.5">{x.u}</span>
+                                  </div>
                                 </div>
                               ))}
                             </div>
