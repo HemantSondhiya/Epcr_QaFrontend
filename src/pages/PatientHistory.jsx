@@ -534,7 +534,7 @@ const FORM_CONFIG = {
     subtitle: 'Complete all required fields to save the document',
     create: createDocument,
     update: updateDocument,
-    defaults: { conditionId: '', encounterId: '', admissionId: '', type: 'LAB_REPORT', fileName: '', fileUrl: '', date: isoToday(), notes: '', file: null },
+    defaults: { conditionId: '', encounterId: '', admissionId: '', type: 'LAB_REPORT', documentPhase: 'PRE', fileName: '', fileUrl: '', date: isoToday(), notes: '', file: null },
     isDocument: true,
     transform: (data, isUpdate) => {
       if (data.file instanceof File) {
@@ -542,6 +542,7 @@ const FORM_CONFIG = {
         const fd = new FormData();
         fd.append('file', data.file);
         if (data.type) fd.append('type', data.type);
+        if (data.documentPhase) fd.append('documentPhase', data.documentPhase);
         if (data.date) fd.append('date', data.date);
         if (data.conditionId) fd.append('conditionId', data.conditionId);
         if (data.encounterId) fd.append('encounterId', data.encounterId);
@@ -561,6 +562,7 @@ const FORM_CONFIG = {
     },
     fields: [
       field('type', 'Document Type', 'select', { options: ['LAB_REPORT', 'DISCHARGE_SUMMARY', 'IMAGING', 'OTHER'], required: true }),
+      field('documentPhase', 'Treatment Phase', 'select', { options: ['PRE', 'POST'], required: true }),
       field('date', 'Document Date', 'date', { required: true }),
       field('notes', 'Summary or Notes', 'textarea', { placeholder: 'Key findings, recommendations, or important details...' }),
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID' }),
@@ -568,7 +570,7 @@ const FORM_CONFIG = {
       field('admissionId', 'Related Admission (Optional)', 'text', { placeholder: 'Admission ID' }),
     ],
     sections: [
-      { title: 'Document Details', fieldNames: ['type', 'date'] },
+      { title: 'Document Details', fieldNames: ['type', 'documentPhase', 'date'] },
       { title: 'Summary', fieldNames: ['notes'] },
       { title: 'Linked Records', fieldNames: ['conditionId', 'encounterId', 'admissionId'] },
     ],
@@ -1667,8 +1669,8 @@ function PatientHistory() {
                     {(() => {
                       const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
                       const POST_KEYS = ['POST', 'DISCHARGE', 'FOLLOW', 'RESULT', 'REPORT', 'PRESCRIPTION'];
-                      const isPre = (d) => PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k));
-                      const isPost = (d) => POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k));
+                      const isPre = (d) => d.documentPhase === 'PRE' || (!d.documentPhase && PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
+                      const isPost = (d) => d.documentPhase === 'POST' || (!d.documentPhase && POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
                       const preDocs = documents.filter(isPre);
                       const postDocs = documents.filter(isPost);
                       const otherDocs = documents.filter(d => !isPre(d) && !isPost(d));
