@@ -1704,7 +1704,7 @@ function PatientHistory() {
                               </div>
                             </div>
                             <div className="p-5 space-y-6">
-                              {docs.map(doc => (
+                              {docs.slice(0, 2).map(doc => (
                                 <div key={getId(doc)}>
                                   <div className="relative mb-3 rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group">
                                     <SecureInlineImage
@@ -1734,6 +1734,9 @@ function PatientHistory() {
                                   {doc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{doc.notes}</p>}
                                 </div>
                               ))}
+                              {docs.length > 2 && (
+                                <p className="text-center text-xs font-bold text-[#A0AECB]">+ {docs.length - 2} more {docs.length - 2 === 1 ? 'image' : 'images'} (view in Documents tab)</p>
+                              )}
                             </div>
                           </section>
                         );
@@ -1756,23 +1759,23 @@ function PatientHistory() {
                             </div>
                             <div className="divide-y divide-[#F0F4FC]">
                               {docs.map(doc => (
-                                <div key={getId(doc)} className="px-5 py-4">
-                                  <div className="flex items-start gap-3">
-                                    <div className="h-8 w-8 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
-                                      <FileText size={13} className="text-[#475569]" />
+                                <div key={getId(doc)} className="px-5 py-5">
+                                  <div className="flex items-start gap-4">
+                                    <div className="h-10 w-10 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
+                                      <FileText size={20} className="text-[#475569]" />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center justify-between gap-2">
-                                        <p className="text-xs font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
-                                        <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[10px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
-                                          View <ExternalLink size={11} />
+                                        <p className="text-sm font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
+                                        <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[11px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
+                                          View <ExternalLink size={12} />
                                         </button>
                                       </div>
-                                      <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">
+                                      <p className="text-xs font-bold text-[#A0AECB] mt-1">
                                         {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
                                       </p>
                                       {doc.notes && (
-                                        <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{doc.notes}</p>
+                                        <p className="mt-2 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2.5">{doc.notes}</p>
                                       )}
                                     </div>
                                   </div>
