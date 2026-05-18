@@ -91,6 +91,7 @@ const notificationSlice = createSlice({
        s.currentPage = a.payload?.page ?? 0;
        s.totalPages = a.payload?.totalPages ?? 0;
        s.totalElements = a.payload?.totalElements ?? 0;
+       s.pageSize = a.payload?.size ?? 20;
      })
      .addCase(fetchNotifications.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
      .addCase(fetchUnreadNotifications.pending, (s) => { s.loading = true; })
@@ -123,5 +124,6 @@ export const selectNotifPagination = (s) => ({
   currentPage: s.notifications.currentPage,
   totalPages: s.notifications.totalPages,
   totalElements: s.notifications.totalElements,
+  pageSize: s.notifications.pageSize,
 });
 export default notificationSlice.reducer;

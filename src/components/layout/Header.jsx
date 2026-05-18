@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { selectUser, selectRole } from '../../store/slices/authSlice';
-import { selectUnreadCount, selectUnreadItems, markNotificationRead, markAllRead } from '../../store/slices/notificationSlice';
+import { selectUnreadCount, selectUnreadItems, fetchUnreadNotifications, markNotificationRead, markAllRead } from '../../store/slices/notificationSlice';
+import { ROLE_MENU } from '../../constants/permissions';
 import { Bell, Search, Menu, ChevronRight, CheckCircle, AlertTriangle, XCircle, Info, Clock, Check, CheckCheck } from 'lucide-react';
 
 const BREADCRUMBS = {
@@ -59,6 +60,13 @@ const Header = ({ setIsMobileMenuOpen }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Fetch unread notifications on mount if user has permission
+  useEffect(() => {
+    if (user && role && ROLE_MENU[role]?.includes('Notifications')) {
+      dispatch(fetchUnreadNotifications());
+    }
+  }, [dispatch, user, role]);
 
   const crumbs = BREADCRUMBS[location.pathname] || ['Platform'];
   const pageTitle = crumbs[crumbs.length - 1];

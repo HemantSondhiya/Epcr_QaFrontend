@@ -21,10 +21,10 @@ const CARE_LEVELS = ['ALS', 'BLS', 'CCT', 'SCT', 'MFR', 'EMT', 'PARAMEDIC'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const TRIAGE_TAGS = ['RED', 'YELLOW', 'GREEN', 'BLACK'];
 
-const inputCls = 'w-full bg-slate-50 border-2 border-slate-200 px-5 py-4 text-sm text-brand-blue focus:border-brand-blue outline-none transition-all font-black uppercase';
-const inputReqCls = 'w-full bg-white border-2 border-brand-blue/30 px-5 py-4 text-sm text-brand-blue focus:border-brand-blue outline-none transition-all font-black uppercase';
-const labelCls = 'text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1';
-const labelReqCls = 'text-[9px] font-black text-brand-blue uppercase tracking-widest mb-2 block ml-1 after:content-["*"] after:ml-1 after:text-brand-red';
+const inputCls = 'w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all';
+const inputReqCls = 'w-full bg-white border border-brand-blue/40 rounded-lg px-4 py-3 text-sm text-slate-800 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all';
+const labelCls = 'text-xs font-semibold text-slate-600 mb-1.5 block';
+const labelReqCls = 'text-xs font-semibold text-slate-800 mb-1.5 block after:content-["*"] after:ml-1 after:text-brand-red';
 
 const CreateRecord = () => {
    const navigate = useNavigate();
@@ -470,7 +470,7 @@ const CreateRecord = () => {
          }
          
          const generatedId = created?.incidentNumber || created?.patientId || created?.id;
-         dispatch(addToast({ type: 'success', message: generatedId ? `Manifest ${recordId ? 'Updated' : 'Committed'}: ${generatedId}` : `Manifest ${recordId ? 'Updated' : 'Committed'}` }));
+         dispatch(addToast({ type: 'success', message: generatedId ? `Record ${recordId ? 'Updated' : 'Saved'}: ${generatedId}` : `Record ${recordId ? 'Updated' : 'Saved'}` }));
          navigate('/epcr');
       } catch (err) {
          const msg = typeof err === 'string' ? err : (err?.message || 'Transmission Interrupted');
@@ -482,12 +482,12 @@ const CreateRecord = () => {
    };
 
    const StepIndicator = ({ step, label, icon }) => (
-      <div className={`flex flex-col items-center gap-4 transition-all duration-500 relative group ${currentStep === step ? 'scale-110' : 'opacity-30'}`}>
-         <div className={`w-14 h-14 flex items-center justify-center border-2 transition-all ${currentStep === step ? 'bg-brand-blue border-brand-blue text-white shadow-xl' : 'bg-white border-slate-200 text-slate-400'}`}>
+      <div className={`flex flex-col items-center gap-3 transition-all duration-300 relative group ${currentStep === step ? 'scale-105' : 'opacity-50 hover:opacity-100'}`}>
+         <div className={`w-12 h-12 flex items-center justify-center rounded-full border-2 transition-all ${currentStep === step ? 'bg-brand-blue border-brand-blue text-white shadow-md' : 'bg-white border-slate-300 text-slate-400'}`}>
             {icon}
-            {currentStep > step && <div className="absolute -top-1 -right-1 bg-brand-red text-white p-1"><CheckCircle2 size={14} /></div>}
+            {currentStep > step && <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full text-white p-0.5"><CheckCircle2 size={16} /></div>}
          </div>
-         <span className={`text-[9px] font-black uppercase tracking-widest text-center ${currentStep === step ? 'text-brand-blue' : 'text-slate-400'}`}>{label}</span>
+         <span className={`text-xs font-bold text-center ${currentStep === step ? 'text-brand-blue' : 'text-slate-500'}`}>{label}</span>
       </div>
    );
 
@@ -495,31 +495,31 @@ const CreateRecord = () => {
       <div className="max-w-7xl mx-auto pb-24 space-y-12">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
             <div>
-               <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-brand-red mb-6 transition-colors">
+               <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-brand-blue mb-6 transition-colors font-medium text-sm">
                   <ArrowLeft size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Abort Synthesis</span>
+                  <span>Back to Records</span>
                </button>
                <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-brand-blue flex items-center justify-center text-white">
-                     <FilePlus2 size={32} />
+                  <div className="w-14 h-14 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue">
+                     <FilePlus2 size={28} />
                   </div>
                   <div>
-                     <h1 className="text-4xl font-black text-brand-blue tracking-tighter uppercase leading-none">
-                        {recordId ? 'UPDATE' : 'INITIALIZE'} <span className="text-brand-red">MANIFEST</span>
+                     <h1 className="text-3xl font-bold text-slate-800 leading-none">
+                        {recordId ? 'Update' : 'New'} <span className="text-brand-blue">ePCR Record</span>
                      </h1>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Clinical Neural Link Engine</p>
+                     <p className="text-sm font-medium text-slate-500 mt-2">Electronic Patient Care Reporting</p>
                   </div>
                </div>
             </div>
-            <button onClick={handleSubmit} disabled={isSubmitting} className="bg-brand-red text-white px-10 py-5 font-black text-[12px] uppercase tracking-widest flex items-center gap-3 hover:bg-brand-blue transition-all disabled:opacity-50 shadow-2xl">
-               {isSubmitting ? <RefreshCw className="animate-spin" size={20} /> : <Zap size={20} />}
-               <span>{isSubmitting ? 'Transmitting...' : (recordId ? 'Update Manifest' : 'Commit Manifest')}</span>
+            <button onClick={handleSubmit} disabled={isSubmitting} className="bg-brand-blue text-white px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md">
+               {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
+               <span>{isSubmitting ? 'Saving...' : (recordId ? 'Update Record' : 'Save Record')}</span>
             </button>
          </div>
 
          {/* Workflow Selector */}
-         <div className="brochure-card p-8 flex flex-col md:flex-row items-center gap-8">
-            <div className="px-4 py-2 bg-brand-blue text-white text-[9px] font-black uppercase tracking-widest shrink-0">PROTOCOL MATRIX</div>
+         <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">CLINICAL WORKFLOW</div>
             <div className="flex-1 flex flex-wrap gap-3">
                {workflows.map(wf => (
                   <button key={wf.id} onClick={() => handleWorkflowChange(wf.id)} className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest border-2 transition-all ${selectedWorkflow?.id === wf.id ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-slate-400 border-slate-100 hover:border-brand-blue hover:text-brand-blue'}`}>
@@ -550,43 +550,43 @@ const CreateRecord = () => {
                   <div className="space-y-12">
 
                      {/* Basic Info */}
-                     <SectionTitle title="Subject Specification" />
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                        <Field label="Subject Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required />
+                     <SectionTitle title="Patient Information" />
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <Field label="Patient Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required />
                         <Field label="Patient ID" field="patientId" value={formData.patientId} update={updateField} disabled placeholder="Auto-generated on save" />
-                        <Field label="Activation Date (DOB)" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required />
-                        <div className="space-y-2">
-                           <label className={fieldErrors.patientGender ? 'text-[9px] font-black text-brand-red uppercase tracking-widest mb-2 block ml-1' : labelReqCls}>Gender</label>
-                           <select value={formData.patientGender} onChange={e => updateField('patientGender', e.target.value)} className={fieldErrors.patientGender ? 'w-full bg-white border-2 border-brand-red px-5 py-4 text-sm text-brand-red focus:border-brand-red outline-none transition-all font-black uppercase' : inputReqCls}>
-                              <option value="">SELECT</option>
-                              <option value="MALE">MALE</option>
-                              <option value="FEMALE">FEMALE</option>
-                              <option value="OTHER">OTHER</option>
+                        <Field label="Date of Birth" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required />
+                        <div className="space-y-1.5">
+                           <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Gender</label>
+                           <select value={formData.patientGender} onChange={e => updateField('patientGender', e.target.value)} className={fieldErrors.patientGender ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
+                              <option value="">Select Gender</option>
+                              <option value="MALE">Male</option>
+                              <option value="FEMALE">Female</option>
+                              <option value="OTHER">Other</option>
                            </select>
-                           {fieldErrors.patientGender && <p className="text-[8px] font-black text-brand-red uppercase tracking-tighter ml-1">{fieldErrors.patientGender}</p>}
+                           {fieldErrors.patientGender && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.patientGender}</p>}
                         </div>
                         <Field label="Age" field="age" value={formData.age} update={updateField} type="number" />
-                        <Field label="Vector (Email)" field="email" value={formData.email} update={updateField} type="email" />
-                        <Field label="Contact (Phone)" field="patientPhone" value={formData.patientPhone} update={updateField} />
+                        <Field label="Email Address" field="email" value={formData.email} update={updateField} type="email" />
+                        <Field label="Phone Number" field="patientPhone" value={formData.patientPhone} update={updateField} />
                         <Field label="SSN Last 4" field="patientSSNLast4" value={formData.patientSSNLast4} update={updateField} maxLength={4} />
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                            <label className={labelCls}>Blood Group</label>
                            <select value={formData.bloodGroup} onChange={e => updateField('bloodGroup', e.target.value)} className={inputCls}>
-                              <option value="">SELECT</option>
+                              <option value="">Select Blood Group</option>
                               {BLOOD_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                            </select>
                         </div>
                         <Field label="Height (cm)" field="height" value={formData.height} update={updateField} type="number" />
                         <Field label="Weight (kg)" field="weight" value={formData.weight} update={updateField} type="number" />
                      </div>
-                     <div className="space-y-2">
-                        <label className={labelCls}>Physical Sector (Address)</label>
+                     <div className="space-y-1.5 mt-6">
+                        <label className={labelCls}>Address</label>
                         <textarea rows={2} value={formData.patientAddress} onChange={e => updateField('patientAddress', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
 
                      {/* Medical History */}
                      <SectionTitle title="Medical History" />
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Field label="Comorbidity" field="medicalHistory.comorbidity" value={formData.medicalHistory.comorbidity} update={updateField} />
                         <Field label="Current Medicines" field="medicalHistory.currentMedicines" value={formData.medicalHistory.currentMedicines} update={updateField} />
                         <Field label="Allergy" field="medicalHistory.allergy" value={formData.medicalHistory.allergy} update={updateField} />
@@ -600,7 +600,7 @@ const CreateRecord = () => {
 
                      {/* Pregnancy */}
                      {formData.patientGender === 'FEMALE' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                            <ToggleField label="Pregnant" field="medicalHistory.pregnant" value={formData.medicalHistory.pregnant} update={updateField} />
                            {formData.medicalHistory.pregnant && (
                               <Field label="Gestational Week" field="medicalHistory.gestationalWeekIfPregnant" value={formData.medicalHistory.gestationalWeekIfPregnant} update={updateField} type="number" />
@@ -621,7 +621,7 @@ const CreateRecord = () => {
                      )}
 
                      {/* Last Known */}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                         <Field label="Last Known Well" field="medicalHistory.lastKnownWellDateTime" value={formData.medicalHistory.lastKnownWellDateTime} update={updateField} type="datetime-local" />
                         <Field label="Last Oral Intake" field="medicalHistory.lastOralIntake" value={formData.medicalHistory.lastOralIntake} update={updateField} type="datetime-local" />
                      </div>
@@ -632,17 +632,17 @@ const CreateRecord = () => {
                {currentStep === 2 && (
                   <div className="space-y-12">
 
-                     <SectionTitle title="Incident Vector" />
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                        <Field label="Timestamp" field="incidentDateTime" value={formData.incidentDateTime} update={updateField} type="datetime-local" error={fieldErrors.incidentDateTime} required />
-                        <Field label="Coordinates (Location)" field="incidentLocation" value={formData.incidentLocation} update={updateField} error={fieldErrors.incidentLocation} required />
-                        <div className="space-y-2">
-                           <label className={fieldErrors.incidentType ? 'text-[9px] font-black text-brand-red uppercase tracking-widest mb-2 block ml-1' : labelReqCls}>Classification</label>
-                           <select value={formData.incidentType} onChange={e => updateField('incidentType', e.target.value)} className={fieldErrors.incidentType ? 'w-full bg-white border-2 border-brand-red px-5 py-4 text-sm text-brand-red focus:border-brand-red outline-none transition-all font-black uppercase' : inputReqCls}>
-                              <option value="">SELECT</option>
+                     <SectionTitle title="Incident Details" />
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <Field label="Incident Timestamp" field="incidentDateTime" value={formData.incidentDateTime} update={updateField} type="datetime-local" error={fieldErrors.incidentDateTime} required />
+                        <Field label="Incident Location" field="incidentLocation" value={formData.incidentLocation} update={updateField} error={fieldErrors.incidentLocation} required />
+                        <div className="space-y-1.5">
+                           <label className={fieldErrors.incidentType ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Incident Type</label>
+                           <select value={formData.incidentType} onChange={e => updateField('incidentType', e.target.value)} className={fieldErrors.incidentType ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
+                              <option value="">Select Type</option>
                               {INCIDENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                            </select>
-                           {fieldErrors.incidentType && <p className="text-[8px] font-black text-brand-red uppercase tracking-tighter ml-1">{fieldErrors.incidentType}</p>}
+                           {fieldErrors.incidentType && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.incidentType}</p>}
                         </div>
                         <Field label="Incident Number" field="incidentNumber" value={formData.incidentNumber} update={updateField} disabled placeholder="Auto-generated on save" />
                         <Field label="Scene Type" field="sceneAssessment.sceneType" value={formData.sceneAssessment.sceneType} update={updateField} />
@@ -653,17 +653,17 @@ const CreateRecord = () => {
                         <Field label="Weather Conditions" field="sceneAssessment.weatherConditions" value={formData.sceneAssessment.weatherConditions} update={updateField} />
                         <Field label="Lighting Conditions" field="sceneAssessment.lightingConditions" value={formData.sceneAssessment.lightingConditions} update={updateField} />
                         <Field label="Patient Access Difficulty" field="sceneAssessment.patientAccessDifficulty" value={formData.sceneAssessment.patientAccessDifficulty} update={updateField} />
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                            <label className={labelCls}>Triage Tag</label>
                            <select value={formData.sceneAssessment.triageTag} onChange={e => updateField('sceneAssessment.triageTag', e.target.value)} className={inputCls}>
-                              <option value="">SELECT</option>
+                              <option value="">Select Triage Tag</option>
                               {TRIAGE_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
                            </select>
                         </div>
                      </div>
 
                      {/* Scene Toggles */}
-                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-6">
                         <ToggleField label="Scene Safe" field="sceneAssessment.sceneSafe" value={formData.sceneAssessment.sceneSafe} update={updateField} />
                         <ToggleField label="Trauma Call" field="sceneAssessment.traumaCall" value={formData.sceneAssessment.traumaCall} update={updateField} />
                         <ToggleField label="Mass Casualty" field="sceneAssessment.massCasualtyIncident" value={formData.sceneAssessment.massCasualtyIncident} update={updateField} />
@@ -674,21 +674,21 @@ const CreateRecord = () => {
 
                      {/* Witness Info */}
                      {formData.sceneAssessment.witnessPresent && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                            <Field label="Witness Name" field="sceneAssessment.witnessName" value={formData.sceneAssessment.witnessName} update={updateField} />
                            <Field label="Witness Contact" field="sceneAssessment.witnessContact" value={formData.sceneAssessment.witnessContact} update={updateField} />
                         </div>
                      )}
 
                      {/* Narrative */}
-                     <div className="space-y-2">
-                        <label className={labelCls}>Narrative Abstract</label>
+                     <div className="space-y-1.5 mt-6">
+                        <label className={labelCls}>Narrative Description</label>
                         <textarea rows={4} value={formData.incidentDescription} onChange={e => updateField('incidentDescription', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
 
                      {/* Timeline */}
                      <SectionTitle title="Response Timeline" />
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Field label="Call Received At" field="timeline.callReceivedAt" value={formData.timeline.callReceivedAt} update={updateField} type="datetime-local" />
                         <Field label="Arrived Scene At" field="timeline.arrivedSceneAt" value={formData.timeline.arrivedSceneAt} update={updateField} type="datetime-local" />
                         <Field label="Departed Scene At" field="timeline.departedSceneAt" value={formData.timeline.departedSceneAt} update={updateField} type="datetime-local" />
@@ -698,7 +698,7 @@ const CreateRecord = () => {
 
                      {/* Complaints */}
                      <SectionTitle title="Chief Complaints" />
-                     <div className="space-y-2">
+                     <div className="space-y-1.5">
                         <label className={labelCls}>Complaints</label>
                         <textarea rows={3} value={formData.complaints} onChange={e => updateField('complaints', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
@@ -723,7 +723,7 @@ const CreateRecord = () => {
 
                      {/* Clinical Assessment */}
                      <SectionTitle title="Clinical Assessment" />
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Field label="Mental Status" field="mentalStatus" value={formData.mentalStatus} update={updateField} />
                         <Field label="ECG Rhythm" field="ecgRhythm" value={formData.ecgRhythm} update={updateField} />
                         <Field label="Pupils Response" field="pupilsResponse" value={formData.pupilsResponse} update={updateField} />
@@ -736,24 +736,24 @@ const CreateRecord = () => {
                         <ToggleField label="Airway Managed" field="airwayManaged" value={formData.airwayManaged} update={updateField} />
                      </div>
 
-                     <div className="space-y-2">
+                     <div className="space-y-1.5 mt-6">
                         <label className={labelCls}>Diagnostic Findings</label>
                         <textarea rows={3} value={formData.diagnosticFindings} onChange={e => updateField('diagnosticFindings', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
-                     <div className="space-y-2">
+                     <div className="space-y-1.5 mt-6">
                         <label className={labelCls}>Procedures Performed</label>
                         <textarea rows={3} value={formData.proceduresPerformed} onChange={e => updateField('proceduresPerformed', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
-                     <div className="space-y-2">
+                     <div className="space-y-1.5 mt-6">
                         <label className={labelCls}>Medications Administered</label>
                         <textarea rows={3} value={formData.medicationsAdministered} onChange={e => updateField('medicationsAdministered', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
 
                      {/* Dynamic Workflow */}
                      {selectedWorkflow && (
-                        <div className="p-10 border-2 border-slate-100 space-y-8">
-                           <h3 className="text-lg font-black text-brand-blue uppercase tracking-tighter flex items-center gap-3">
-                              <Layers size={20} /> Matrix: {selectedWorkflow.name}
+                        <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-6">
+                           <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                              <Layers size={18} className="text-brand-blue" /> Workflow: {selectedWorkflow.name}
                            </h3>
                            <DynamicFormRenderer
                               schema={selectedWorkflow.schema || { fields: [] }}
@@ -772,45 +772,45 @@ const CreateRecord = () => {
                {/* ── STEP 4: DISPOSITION ── */}
                {currentStep === 4 && (
                   <div className="space-y-12">
-                     <SectionTitle title="Disposition" />
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <Field label="Target Terminal" field="transport.destinationName" value={formData.transport.destinationName} update={updateField} error={fieldErrors['transport.destinationName']} required />
-                        <div className="space-y-2">
-                           <label className={fieldErrors['transport.transportMode'] ? 'text-[9px] font-black text-brand-red uppercase tracking-widest mb-2 block ml-1' : labelReqCls}>Transport Mode</label>
-                           <select value={formData.transport.transportMode} onChange={e => updateField('transport.transportMode', e.target.value)} required className={fieldErrors['transport.transportMode'] ? 'w-full bg-white border-2 border-brand-red px-5 py-4 text-sm text-brand-red focus:border-brand-red outline-none transition-all font-black uppercase' : inputReqCls}>
-                              <option value="">SELECT</option>
+                     <SectionTitle title="Disposition & Transport" />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Field label="Destination Facility" field="transport.destinationName" value={formData.transport.destinationName} update={updateField} error={fieldErrors['transport.destinationName']} required />
+                        <div className="space-y-1.5">
+                           <label className={fieldErrors['transport.transportMode'] ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Transport Mode</label>
+                           <select value={formData.transport.transportMode} onChange={e => updateField('transport.transportMode', e.target.value)} required className={fieldErrors['transport.transportMode'] ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
+                              <option value="">Select Transport Mode</option>
                               {TRANSPORT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                            </select>
-                           {fieldErrors['transport.transportMode'] && <p className="text-[8px] font-black text-brand-red uppercase tracking-tighter ml-1">{fieldErrors['transport.transportMode']}</p>}
+                           {fieldErrors['transport.transportMode'] && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors['transport.transportMode']}</p>}
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                            <label className={labelCls}>Care Level</label>
                            <select value={formData.transport.careLevel} onChange={e => updateField('transport.careLevel', e.target.value)} className={inputCls}>
-                              <option value="">SELECT</option>
-                              <option value="BASIC">BASIC</option>
-                              <option value="STABLE">STABLE</option>
-                              <option value="URGENT">URGENT</option>
-                              <option value="CRITICAL">CRITICAL</option>
+                              <option value="">Select Care Level</option>
+                              <option value="BASIC">Basic</option>
+                              <option value="STABLE">Stable</option>
+                              <option value="URGENT">Urgent</option>
+                              <option value="CRITICAL">Critical</option>
                            </select>
                         </div>
-                        <div className="space-y-2">
-                           <label className={labelCls}>Status</label>
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Record Status</label>
                            <select value={formData.status} onChange={e => updateField('status', e.target.value)} className={inputCls}>
-                              <option value="PENDING">PENDING</option>
-                              <option value="ACTIVE">ACTIVE</option>
-                              <option value="COMPLETED">COMPLETED</option>
-                              <option value="CANCELLED">CANCELLED</option>
+                              <option value="PENDING">Pending</option>
+                              <option value="ACTIVE">Active</option>
+                              <option value="COMPLETED">Completed</option>
+                              <option value="CANCELLED">Cancelled</option>
                            </select>
                         </div>
-                        <div className="space-y-2 md:col-span-2">
-                           <label className={labelReqCls}>Triage Priority</label>
-                           <div className="flex gap-2">
+                        <div className="space-y-1.5 md:col-span-2 mt-6">
+                           <label className={labelReqCls}>Patient Condition on Arrival</label>
+                           <div className="flex gap-3">
                               {[
-                                 { id: 'RED', label: 'CRITICAL', color: 'bg-brand-red' },
-                                 { id: 'YELLOW', label: 'URGENT', color: 'bg-amber-500' },
-                                 { id: 'GREEN', label: 'STABLE', color: 'bg-emerald-600' },
+                                 { id: 'RED', label: 'CRITICAL', color: 'bg-brand-red', hover: 'hover:bg-brand-red/10 hover:border-brand-red' },
+                                 { id: 'YELLOW', label: 'URGENT', color: 'bg-amber-500', hover: 'hover:bg-amber-500/10 hover:border-amber-500' },
+                                 { id: 'GREEN', label: 'STABLE', color: 'bg-emerald-600', hover: 'hover:bg-emerald-600/10 hover:border-emerald-600' },
                               ].map(t => (
-                                 <button key={t.id} type="button" onClick={() => updateField('transport.patientConditionOnArrival', t.id === 'RED' ? 'CRITICAL' : (t.id === 'YELLOW' ? 'URGENT' : 'STABLE'))} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest border-2 transition-all ${formData.transport.patientConditionOnArrival === (t.id === 'RED' ? 'CRITICAL' : (t.id === 'YELLOW' ? 'URGENT' : 'STABLE')) ? `${t.color} text-white border-transparent shadow-lg` : 'bg-white text-slate-400 border-slate-100 hover:border-brand-blue'}`}>
+                                 <button key={t.id} type="button" onClick={() => updateField('transport.patientConditionOnArrival', t.id === 'RED' ? 'CRITICAL' : (t.id === 'YELLOW' ? 'URGENT' : 'STABLE'))} className={`flex-1 py-3 rounded-lg text-sm font-semibold border transition-all ${formData.transport.patientConditionOnArrival === (t.id === 'RED' ? 'CRITICAL' : (t.id === 'YELLOW' ? 'URGENT' : 'STABLE')) ? `${t.color} text-white border-transparent shadow-md` : `bg-white text-slate-600 border-slate-300 ${t.hover}`}`}>
                                     {t.label}
                                  </button>
                               ))}
@@ -821,18 +821,18 @@ const CreateRecord = () => {
                )}
 
                {/* Navigation */}
-               <div className="pt-12 border-t-2 border-slate-100 flex justify-between items-center">
-                  <button type="button" onClick={() => currentStep > 1 && setCurrentStep(s => s - 1)} disabled={currentStep === 1} className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${currentStep === 1 ? 'opacity-0' : 'text-slate-400 hover:text-brand-red'}`}>
+               <div className="pt-8 border-t border-slate-200 flex justify-between items-center">
+                  <button type="button" onClick={() => currentStep > 1 && setCurrentStep(s => s - 1)} disabled={currentStep === 1} className={`flex items-center gap-2 text-sm font-semibold transition-all ${currentStep === 1 ? 'opacity-0' : 'text-slate-500 hover:text-brand-blue'}`}>
                      <ChevronLeft size={18} /> Previous Step
                   </button>
                   {currentStep < 4 ? (
-                     <button type="button" onClick={handleNext} className="bg-brand-blue text-white px-12 py-5 font-black text-[12px] uppercase tracking-widest hover:bg-brand-red transition-all shadow-xl flex items-center gap-3">
-                        Advance Protocol <ChevronRight size={18} />
+                     <button type="button" onClick={handleNext} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md flex items-center gap-2">
+                        Next Step <ChevronRight size={18} />
                      </button>
                   ) : (
-                     <button type="submit" disabled={isSubmitting} className="bg-brand-red text-white px-16 py-5 font-black text-[13px] uppercase tracking-widest hover:bg-brand-blue transition-all shadow-2xl flex items-center gap-3">
-                        {isSubmitting ? <RefreshCw className="animate-spin" size={24} /> : <Zap size={24} />}
-                        {recordId ? 'Update Manifest' : 'Commit Manifest'}
+                     <button type="submit" disabled={isSubmitting} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md flex items-center gap-2">
+                        {isSubmitting ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
+                        {recordId ? 'Update Record' : 'Save Record'}
                      </button>
                   )}
                </div>
@@ -843,32 +843,32 @@ const CreateRecord = () => {
 };
 
 const SectionTitle = ({ title }) => (
-   <div className="flex items-center gap-4 pb-4 border-b-2 border-slate-100">
-      <div className="w-1.5 h-6 bg-brand-red" />
-      <h3 className="text-xl font-black text-brand-blue uppercase tracking-tighter">{title}</h3>
+   <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+      <div className="w-1 h-5 bg-brand-blue rounded-full" />
+      <h3 className="text-lg font-bold text-slate-800">{title}</h3>
    </div>
 );
 
 const Field = ({ label, field, value, update, type = 'text', required = false, disabled = false, maxLength, error, placeholder = '' }) => (
-   <div className="space-y-2">
-      <label className={error ? 'text-[9px] font-black text-brand-red uppercase tracking-widest mb-2 block ml-1' : (required ? labelReqCls : labelCls)}>{label}</label>
+   <div className="space-y-1.5">
+      <label className={error ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (required ? labelReqCls : labelCls)}>{label}</label>
       <input
          type={type} value={value} onChange={e => update(field, e.target.value)} required={required} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
-         className={(error ? 'w-full bg-white border-2 border-brand-red px-5 py-4 text-sm text-brand-red focus:border-brand-red outline-none transition-all font-black uppercase' : (required ? inputReqCls : inputCls)) + (disabled ? ' opacity-50 bg-slate-100' : '')}
+         className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (required ? inputReqCls : inputCls)) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '')}
       />
-      {error && <p className="text-[8px] font-black text-brand-red uppercase tracking-tighter ml-1">{error}</p>}
+      {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
    </div>
 );
 
 const ToggleField = ({ label, field, value, update }) => (
-   <div className="space-y-2">
+   <div className="space-y-1.5">
       <label className={labelCls}>{label}</label>
       <button
          type="button"
          onClick={() => update(field, !value)}
-         className={`w-full py-4 text-[10px] font-black uppercase tracking-widest border-2 transition-all ${value ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-slate-400 border-slate-200 hover:border-brand-blue'}`}
+         className={`w-full py-3 rounded-lg text-sm font-semibold border transition-all ${value ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue/50'}`}
       >
-         {value ? 'YES' : 'NO'}
+         {value ? 'Yes' : 'No'}
       </button>
    </div>
 );

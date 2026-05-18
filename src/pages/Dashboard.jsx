@@ -233,7 +233,6 @@ const Dashboard = () => {
       dispatch(fetchQaReviews());
       dispatch(fetchPendingReviews());
     }
-    if (ROLE_MENU[role]?.includes('Notifications')) dispatch(fetchUnreadNotifications());
     if (role === 'ADMIN' || role === 'MANAGER') dispatch(fetchWorkflows(user?.organizationId));
   }, [dispatch, role, user]);
 

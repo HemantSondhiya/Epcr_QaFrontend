@@ -6,7 +6,7 @@ export const ROLE_MENU = {
   PHYSICIAN:   ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications','Patient History'],
   QA_REVIEWER: ['Dashboard','EPCR','QA Reviews','QA Rules','Reports','Feedback','Notifications'],
   VIEWER:      ['Dashboard','Feedback','Notifications'],
-  PATIENT:     ['Patient Portal']
+  PATIENT:     ['Patient Portal', 'Notifications']
 };
 
 // Menu item → route path
