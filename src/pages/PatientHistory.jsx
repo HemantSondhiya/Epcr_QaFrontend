@@ -1710,7 +1710,7 @@ function PatientHistory() {
                                 </button>
                               )}
                             </div>
-                            <div className="overflow-y-auto max-h-[400px] custom-scrollbar bg-white flex-1">
+                            <div className="overflow-y-auto custom-scrollbar bg-white flex-1">
                               {docs.length === 0 && imgs.length === 0 ? (
                                 <div className="p-6 text-center">
                                   <FileText className="mx-auto text-[#A0AECB] opacity-50 mb-2" size={24} />
@@ -1718,54 +1718,53 @@ function PatientHistory() {
                                 </div>
                               ) : null}
                               {imgs.length > 0 && (() => {
-                                const visibleImgs = imgs.slice(0, 2);
+                                const sortedImgs = [...imgs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
                                 return (
-                                  <div className={`grid gap-3 p-4 border-b border-[#F0F4FC] ${visibleImgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                                    {visibleImgs.map(doc => (
-                                      <div key={getId(doc)} className="flex flex-col rounded-xl overflow-hidden bg-white border border-[#DDE3F0] shadow-sm">
-                                        <div className="relative group bg-[#0F1A3A]">
-                                          <SecureInlineImage
-                                            patientId={patientId}
-                                            doc={doc}
-                                            className="w-full h-48 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                                            onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                                          />
-                                          <div className="hidden w-full h-48 items-center justify-center text-[#A0AECB]">
-                                            <FileText size={36} />
+                                  <div className="flex flex-col gap-4 p-4 border-b border-[#F0F4FC]">
+                                    {sortedImgs.map((doc) => {
+                                      return (
+                                        <div key={getId(doc)} className="flex flex-col rounded-xl overflow-hidden bg-white border border-[#DDE3F0] shadow-sm min-w-0">
+                                          <div className="relative group bg-[#0F1A3A]">
+                                            <SecureInlineImage
+                                              patientId={patientId}
+                                              doc={doc}
+                                              className="w-full h-40 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                                              onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                                            />
+                                            <div className="hidden w-full h-40 items-center justify-center text-[#A0AECB]">
+                                              <FileText size={36} />
+                                            </div>
+                                            <div className="absolute top-0 left-0 right-0 p-2.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none flex items-start justify-between gap-3">
+                                              <p className="text-xs font-bold text-white truncate drop-shadow-md">{doc.fileName || doc.name || 'Image'}</p>
+                                              <p className="text-[9px] font-black text-white shrink-0 drop-shadow-md bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm uppercase">{date(doc.date || doc.uploadedAt)}</p>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
+                                              className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
+                                              title="Open full size"
+                                            >
+                                              <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/95 text-[#0F1A3A] text-xs font-black px-4 py-2 rounded-full shadow-md">
+                                                <ExternalLink size={14} /> View Full Size
+                                              </span>
+                                            </button>
                                           </div>
-                                          <div className="absolute top-0 left-0 right-0 p-2.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
-                                            <p className="text-xs font-bold text-white truncate">{doc.fileName || doc.name || 'Image'}</p>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
-                                            className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
-                                            title="Open full size"
-                                          >
-                                            <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/95 text-[#0F1A3A] text-xs font-black px-4 py-2 rounded-full shadow-md">
-                                              <ExternalLink size={14} /> View Full Size
-                                            </span>
-                                          </button>
+                                          {doc.notes && (
+                                            <div className="p-3 bg-white border-t border-[#F0F4FC]">
+                                              <p className="text-[11px] text-[#4B5A7A] font-semibold leading-snug overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{doc.notes}</p>
+                                            </div>
+                                          )}
                                         </div>
-                                        {doc.notes && (
-                                          <div className="p-3 bg-white border-t border-[#F0F4FC]">
-                                            <p className="text-[11px] text-[#4B5A7A] font-semibold leading-snug">{doc.notes}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {imgs.length > 2 && (
-                                      <p className="col-span-full text-center text-xs font-bold text-[#A0AECB] py-1">+ {imgs.length - 2} more image{imgs.length - 2 > 1 ? 's' : ''} in Documents tab</p>
-                                    )}
+                                      );
+                                    })}
                                   </div>
                                 );
                               })()}
                               {docs.length > 0 && (() => {
                                 const sortedDocs = [...docs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
-                                const topDocs = sortedDocs.slice(0, 2);
                                 return (
                                   <div className="divide-y divide-[#F0F4FC]">
-                                    {topDocs.map(doc => (
+                                    {sortedDocs.map(doc => (
                                       <div key={getId(doc)} className="px-5 py-5 hover:bg-[#F8FAFF] transition-colors">
                                         <div className="flex items-start gap-4">
                                           <div className="h-10 w-10 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
@@ -1788,11 +1787,6 @@ function PatientHistory() {
                                         </div>
                                       </div>
                                     ))}
-                                    {docs.length > 2 && (
-                                      <div className="px-5 py-3 bg-[#F8FAFF] border-t border-[#F0F4FC]">
-                                        <p className="text-center text-xs font-bold text-[#A0AECB]">+ {docs.length - 2} more {docs.length - 2 === 1 ? 'document' : 'documents'} (view in Documents tab)</p>
-                                      </div>
-                                    )}
                                   </div>
                                 );
                               })()}
