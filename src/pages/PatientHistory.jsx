@@ -1831,32 +1831,43 @@ function PatientHistory() {
                                   <div className="w-2 h-2 rounded-full bg-brand-blue" />
                                   <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Details</h3>
                                 </div>
-                                <div className="shrink-0">
-                                  <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
-                                </div>
                                 
-                                <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
-                                  <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
-                                    <div className="flex items-center gap-3">
-                                      <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
-                                      <h2 className="text-sm font-black text-[#0F1A3A]">Lab Results</h2>
+                                {preVital || labResults.length > 0 ? (
+                                  <>
+                                    <div className="shrink-0">
+                                      <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
                                     </div>
-                                  </div>
-                                  <div className="divide-y divide-[#F0F4FC]">
-                                    {labResults.length === 0 ? <div className="p-4"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
-                                      <div key={getId(lab)} className="flex items-center justify-between px-5 py-3">
-                                        <div className="min-w-0">
-                                          <p className="text-xs font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
-                                          <p className="text-[10px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
-                                        </div>
-                                        <div className="text-right shrink-0 ml-2">
-                                          <p className="text-sm font-black text-brand-blue">{text(lab.value)} <span className="text-[10px] text-[#8A97B0]">{lab.unit}</span></p>
-                                          {lab.interpretation && <Badge className={`text-[10px] ${statusClass(lab.interpretation)}`}>{lab.interpretation}</Badge>}
+                                    
+                                    <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
+                                      <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
+                                          <h2 className="text-sm font-black text-[#0F1A3A]">Lab Results</h2>
                                         </div>
                                       </div>
-                                    ))}
+                                      <div className="divide-y divide-[#F0F4FC]">
+                                        {labResults.length === 0 ? <div className="p-4"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
+                                          <div key={getId(lab)} className="flex items-center justify-between px-5 py-3">
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
+                                              <p className="text-[10px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
+                                            </div>
+                                            <div className="text-right shrink-0 ml-2">
+                                              <p className="text-sm font-black text-brand-blue">{text(lab.value)} <span className="text-[10px] text-[#8A97B0]">{lab.unit}</span></p>
+                                              {lab.interpretation && <Badge className={`text-[10px] ${statusClass(lab.interpretation)}`}>{lab.interpretation}</Badge>}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </section>
+                                  </>
+                                ) : (
+                                  <div className="flex-1 flex flex-col items-center justify-center bg-[#F8FAFF] border-2 border-dashed border-[#DBEAFE] rounded-[24px] p-6 text-center min-h-[120px]">
+                                    <Activity className="text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                    <p className="text-xs font-bold text-[#1A3C8F] uppercase tracking-wide mb-1">No Pre-Treatment Details</p>
+                                    <p className="text-[10px] text-[#A0AECB]">Vitals or labs have not been recorded yet.</p>
                                   </div>
-                                </section>
+                                )}
                               </div>
 
                               {/* Post-Treatment Details */}
@@ -1865,31 +1876,42 @@ function PatientHistory() {
                                   <div className="w-2 h-2 rounded-full bg-green-500" />
                                   <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Details</h3>
                                 </div>
-                                <div className="shrink-0">
-                                  <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
-                                </div>
                                 
-                                {encounters.length > 0 && (
-                                  <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
-                                    <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
-                                      <div className="flex items-center gap-3">
-                                        <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
-                                        <h2 className="text-sm font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
-                                      </div>
+                                {postVital || encounters.length > 0 ? (
+                                  <>
+                                    <div className="shrink-0">
+                                      <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
                                     </div>
-                                    <div className="divide-y divide-[#F0F4FC]">
-                                      {encounters.map(enc => (
-                                        <div key={getId(enc)} className="px-5 py-3">
-                                          <div className="flex items-center justify-between gap-2">
-                                            <p className="text-sm font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || enc.encounterType || 'Visit'}</p>
-                                            {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px] shrink-0">{enc.outcome}</Badge>}
+                                    
+                                    {encounters.length > 0 && (
+                                      <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
+                                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
+                                          <div className="flex items-center gap-3">
+                                            <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
+                                            <h2 className="text-sm font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
                                           </div>
-                                          <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">{date(enc.date || enc.encounterDate)}{enc.epcrRecordId ? ` · EPCR ${enc.epcrRecordId}` : ''}</p>
-                                          {enc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{enc.notes}</p>}
                                         </div>
-                                      ))}
-                                    </div>
-                                  </section>
+                                        <div className="divide-y divide-[#F0F4FC]">
+                                          {encounters.map(enc => (
+                                            <div key={getId(enc)} className="px-5 py-3">
+                                              <div className="flex items-center justify-between gap-2">
+                                                <p className="text-sm font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || enc.encounterType || 'Visit'}</p>
+                                                {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px] shrink-0">{enc.outcome}</Badge>}
+                                              </div>
+                                              <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">{date(enc.date || enc.encounterDate)}{enc.epcrRecordId ? ` · EPCR ${enc.epcrRecordId}` : ''}</p>
+                                              {enc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{enc.notes}</p>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </section>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="flex-1 flex flex-col items-center justify-center bg-[#F0FDF4]/30 border-2 border-dashed border-[#DCFCE7] rounded-[24px] p-6 text-center min-h-[120px]">
+                                    <Activity className="text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                    <p className="text-xs font-bold text-[#16A34A] uppercase tracking-wide mb-1">No Post-Treatment Details</p>
+                                    <p className="text-[10px] text-[#A0AECB]">Vitals or procedures have not been recorded yet.</p>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -1897,16 +1919,52 @@ function PatientHistory() {
                             {/* ── ROW 2: IMAGES ── */}
                             {(preImages.length > 0 || postImages.length > 0) && (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                                <div className="h-full"><ImgBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preImages} /></div>
-                                <div className="h-full"><ImgBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postImages} /></div>
+                                <div className="h-full">
+                                  {preImages.length > 0 ? (
+                                    <ImgBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preImages} />
+                                  ) : (
+                                    <div className="h-full flex flex-col items-center justify-center bg-[#F8FAFF] border-2 border-dashed border-[#DBEAFE] rounded-[24px] p-6 text-center min-h-[120px]">
+                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                      <p className="text-xs font-bold text-[#1A3C8F] uppercase tracking-wide mb-1">No Pre-Treatment Images</p>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="h-full">
+                                  {postImages.length > 0 ? (
+                                    <ImgBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postImages} />
+                                  ) : (
+                                    <div className="h-full flex flex-col items-center justify-center bg-[#F0FDF4]/30 border-2 border-dashed border-[#DCFCE7] rounded-[24px] p-6 text-center min-h-[120px]">
+                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                      <p className="text-xs font-bold text-[#16A34A] uppercase tracking-wide mb-1">No Post-Treatment Images</p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
 
                             {/* ── ROW 3: DOCUMENTS ── */}
                             {(preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                                <div className="h-full"><DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} /></div>
-                                <div className="h-full"><DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} /></div>
+                                <div className="h-full">
+                                  {preDocsOnly.length > 0 ? (
+                                    <DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} />
+                                  ) : (
+                                    <div className="h-full flex flex-col items-center justify-center bg-[#F8FAFF] border-2 border-dashed border-[#DBEAFE] rounded-[24px] p-6 text-center min-h-[120px]">
+                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                      <p className="text-xs font-bold text-[#1A3C8F] uppercase tracking-wide mb-1">No Pre-Treatment Documents</p>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="h-full">
+                                  {postDocsOnly.length > 0 ? (
+                                    <DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} />
+                                  ) : (
+                                    <div className="h-full flex flex-col items-center justify-center bg-[#F0FDF4]/30 border-2 border-dashed border-[#DCFCE7] rounded-[24px] p-6 text-center min-h-[120px]">
+                                      <FileText className="text-[#A0AECB] opacity-50 mb-2" size={24} />
+                                      <p className="text-xs font-bold text-[#16A34A] uppercase tracking-wide mb-1">No Post-Treatment Documents</p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
 
