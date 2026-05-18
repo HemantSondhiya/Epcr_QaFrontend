@@ -1826,14 +1826,16 @@ function PatientHistory() {
                             {/* ── ROW 1: DETAILS (Vitals & Procedures/Labs) ── */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
                               {/* Pre-Treatment Details */}
-                              <div className="space-y-6">
-                                <div className="flex items-center gap-3 border-b-2 border-brand-blue pb-2 mb-2">
+                              <div className="flex flex-col h-full space-y-6">
+                                <div className="flex items-center gap-3 border-b-2 border-brand-blue pb-2 mb-2 shrink-0">
                                   <div className="w-2 h-2 rounded-full bg-brand-blue" />
                                   <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Details</h3>
                                 </div>
-                                <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
+                                <div className="shrink-0">
+                                  <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
+                                </div>
                                 
-                                <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden h-full">
+                                <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
                                   <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
                                     <div className="flex items-center gap-3">
                                       <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
@@ -1858,15 +1860,17 @@ function PatientHistory() {
                               </div>
 
                               {/* Post-Treatment Details */}
-                              <div className="space-y-6">
-                                <div className="flex items-center gap-3 border-b-2 border-green-500 pb-2 mb-2">
+                              <div className="flex flex-col h-full space-y-6">
+                                <div className="flex items-center gap-3 border-b-2 border-green-500 pb-2 mb-2 shrink-0">
                                   <div className="w-2 h-2 rounded-full bg-green-500" />
                                   <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Details</h3>
                                 </div>
-                                <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
+                                <div className="shrink-0">
+                                  <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
+                                </div>
                                 
                                 {encounters.length > 0 && (
-                                  <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden h-full">
+                                  <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
                                     <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
                                       <div className="flex items-center gap-3">
                                         <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
@@ -1893,16 +1897,16 @@ function PatientHistory() {
                             {/* ── ROW 2: IMAGES ── */}
                             {(preImages.length > 0 || postImages.length > 0) && (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                                <div><ImgBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preImages} /></div>
-                                <div><ImgBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postImages} /></div>
+                                <div className="h-full"><ImgBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preImages} /></div>
+                                <div className="h-full"><ImgBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postImages} /></div>
                               </div>
                             )}
 
                             {/* ── ROW 3: DOCUMENTS ── */}
                             {(preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                                <div><DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} /></div>
-                                <div><DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} /></div>
+                                <div className="h-full"><DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} /></div>
+                                <div className="h-full"><DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} /></div>
                               </div>
                             )}
 
