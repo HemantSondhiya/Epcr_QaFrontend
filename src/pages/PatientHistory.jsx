@@ -135,6 +135,36 @@ const statusClass = (status) => {
   return 'bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]';
 };
 
+const SecureInlineImage = ({ patientId, doc, className, onError }) => {
+  const [src, setSrc] = useState(null);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const documentId = getId(doc);
+    if (!patientId || !documentId) {
+      if(active) setErr(true);
+      return;
+    }
+    client.get(`/api/patients/${patientId}/history/documents/${documentId}/signed-url`, { hideToast: true })
+      .then(res => { if(active) setSrc(res.data.url); })
+      .catch(() => { if(active) setErr(true); });
+    return () => { active = false; };
+  }, [patientId, doc]);
+
+  if (err) return <div className="w-full h-24 flex items-center justify-center text-[#A0AECB]"><FileText size={32} /></div>;
+  if (!src) return <div className="w-full h-32 flex items-center justify-center text-[#A0AECB] animate-pulse bg-gray-50"><FileText size={32} className="opacity-30" /></div>;
+
+  return (
+    <img
+      src={src}
+      alt={doc.fileName || doc.name || 'Medical image'}
+      className={className}
+      onError={onError}
+    />
+  );
+};
+
 const Badge = ({ children, className = '' }) => (
   <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold ${className}`}>
     {children}
@@ -1651,71 +1681,90 @@ function PatientHistory() {
                         return /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/.test(name);
                       };
 
-                      const DocBox = ({ label, color, accent, docs }) => (
-                        <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden`}>
-                          <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
-                            <div className="flex items-center gap-3">
-                              <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
-                                <FileText size={18} />
-                              </div>
-                              <div>
-                                <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
-                                <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
+                      const preImages = finalPre.filter(isImageFile);
+                      const preDocsOnly = finalPre.filter(d => !isImageFile(d));
+                      const postImages = finalPost.filter(isImageFile);
+                      const postDocsOnly = finalPost.filter(d => !isImageFile(d));
+
+                      const ImgBox = ({ label, color, accent, docs }) => {
+                        if (docs.length === 0) return null;
+                        return (
+                          <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full`}>
+                            <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
+                                  <FileText size={18} />
+                                </div>
+                                <div>
+                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Images</h2>
+                                  <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="divide-y divide-[#F0F4FC]">
-                            {docs.length === 0 ? (
-                              <div className="px-5 py-6 text-center">
-                                <p className="text-xs text-[#A0AECB] italic font-semibold">No {label.toLowerCase()} documents yet.</p>
-                              </div>
-                            ) : docs.map(doc => {
-                              const imgSrc = (doc.fileUrl || doc.url) || null;
-                              const isImg = isImageFile(doc) && imgSrc;
-                              return (
-                                <div key={getId(doc)} className="px-5 py-3">
-                                  {/* ── Image preview (X-rays, scans, photos) ── */}
-                                  {isImg && (
-                                    <div className="relative mb-3 rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group">
-                                      <img
-                                        src={imgSrc}
-                                        alt={doc.fileName || doc.name || 'Medical image'}
-                                        className="w-full max-h-52 object-contain"
-                                        onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                                      />
-                                      {/* fallback shown on img error */}
-                                      <div className="hidden w-full h-24 items-center justify-center text-[#A0AECB]">
-                                        <FileText size={32} />
-                                      </div>
-                                      {/* expand overlay on hover */}
-                                      <button
-                                        type="button"
-                                        onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
-                                        className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
-                                        title="Open full size"
-                                      >
-                                        <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/90 text-[#0F1A3A] text-xs font-black px-3 py-1.5 rounded-full shadow">
-                                          <ExternalLink size={13} /> Open full size
-                                        </span>
-                                      </button>
+                            <div className="p-5 space-y-6">
+                              {docs.map(doc => (
+                                <div key={getId(doc)}>
+                                  <div className="relative mb-3 rounded-xl overflow-hidden bg-[#0F1A3A] border border-[#DDE3F0] group">
+                                    <SecureInlineImage
+                                      patientId={patientId}
+                                      doc={doc}
+                                      className="w-full max-h-52 object-contain"
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                                    />
+                                    <div className="hidden w-full h-24 items-center justify-center text-[#A0AECB]">
+                                      <FileText size={32} />
                                     </div>
-                                  )}
+                                    <button
+                                      type="button"
+                                      onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
+                                      className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
+                                      title="Open full size"
+                                    >
+                                      <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/90 text-[#0F1A3A] text-xs font-black px-3 py-1.5 rounded-full shadow">
+                                        <ExternalLink size={13} /> Open full size
+                                      </span>
+                                    </button>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 px-1">
+                                    <p className="text-xs font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Medical Image'}</p>
+                                    <p className="text-[10px] font-bold text-[#A0AECB] shrink-0">{date(doc.date || doc.uploadedAt)}</p>
+                                  </div>
+                                  {doc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{doc.notes}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        );
+                      };
 
-                                  {/* ── Metadata row ── */}
+                      const DocBox = ({ label, color, accent, docs }) => {
+                        if (docs.length === 0) return null;
+                        return (
+                          <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full`}>
+                            <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
+                                  <FileText size={18} />
+                                </div>
+                                <div>
+                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
+                                  <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="divide-y divide-[#F0F4FC]">
+                              {docs.map(doc => (
+                                <div key={getId(doc)} className="px-5 py-4">
                                   <div className="flex items-start gap-3">
-                                    {!isImg && (
-                                      <div className="h-8 w-8 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
-                                        <FileText size={13} className="text-[#475569]" />
-                                      </div>
-                                    )}
+                                    <div className="h-8 w-8 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
+                                      <FileText size={13} className="text-[#475569]" />
+                                    </div>
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center justify-between gap-2">
                                         <p className="text-xs font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
-                                        {!isImg && imgSrc && (
-                                          <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[10px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
-                                            View <ExternalLink size={11} />
-                                          </button>
-                                        )}
+                                        <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[10px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
+                                          View <ExternalLink size={11} />
+                                        </button>
                                       </div>
                                       <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">
                                         {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
@@ -1726,17 +1775,17 @@ function PatientHistory() {
                                     </div>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </section>
-                      );
+                              ))}
+                            </div>
+                          </section>
+                        );
+                      };
 
                       const VitalsBox = ({ label, v, accentCls, borderCls }) => {
                         if (!v) return null;
                         const st = assessVitalStatus(v);
                         return (
-                          <section className={`bg-white border-2 ${borderCls} rounded-[24px] shadow-sm overflow-hidden`}>
+                          <section className={`bg-white border-2 ${borderCls} rounded-[24px] shadow-sm overflow-hidden h-full`}>
                             <div className={`flex items-center justify-between border-b ${borderCls} px-5 py-4 ${accentCls}`}>
                               <div className="flex items-center gap-3">
                                 <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accentCls}`}><Thermometer size={18} /></div>
@@ -1772,78 +1821,90 @@ function PatientHistory() {
 
                       return (
                         <>
-                          {/* ── DIVIDED UI: PRE VS POST TREATMENT ── */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
-                            {/* ── LEFT COLUMN: PRE-TREATMENT ── */}
-                            <div className="space-y-6">
-                              <div className="flex items-center gap-3 border-b-2 border-brand-blue pb-2 mb-2">
-                                <div className="w-2 h-2 rounded-full bg-brand-blue" />
-                                <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Phase</h3>
-                              </div>
-
-                              <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
-
-                              <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
-                                <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
-                                    <h2 className="text-sm font-black text-[#0F1A3A]">Lab Results</h2>
-                                  </div>
+                          <div className="space-y-8">
+                            
+                            {/* ── ROW 1: DETAILS (Vitals & Procedures/Labs) ── */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+                              {/* Pre-Treatment Details */}
+                              <div className="space-y-6">
+                                <div className="flex items-center gap-3 border-b-2 border-brand-blue pb-2 mb-2">
+                                  <div className="w-2 h-2 rounded-full bg-brand-blue" />
+                                  <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Details</h3>
                                 </div>
-                                <div className="divide-y divide-[#F0F4FC]">
-                                  {labResults.length === 0 ? <div className="p-4"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
-                                    <div key={getId(lab)} className="flex items-center justify-between px-5 py-3">
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
-                                        <p className="text-[10px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
-                                      </div>
-                                      <div className="text-right shrink-0 ml-2">
-                                        <p className="text-sm font-black text-brand-blue">{text(lab.value)} <span className="text-[10px] text-[#8A97B0]">{lab.unit}</span></p>
-                                        {lab.interpretation && <Badge className={`text-[10px] ${statusClass(lab.interpretation)}`}>{lab.interpretation}</Badge>}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </section>
-
-                              <DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={finalPre} />
-                            </div>
-
-                            {/* ── RIGHT COLUMN: POST-TREATMENT ── */}
-                            <div className="space-y-6">
-                              <div className="flex items-center gap-3 border-b-2 border-green-500 pb-2 mb-2">
-                                <div className="w-2 h-2 rounded-full bg-green-500" />
-                                <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Phase</h3>
-                              </div>
-
-                              <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
-
-                              {encounters.length > 0 && (
-                                <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
+                                <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
+                                
+                                <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden h-full">
                                   <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
                                     <div className="flex items-center gap-3">
-                                      <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
-                                      <h2 className="text-sm font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
+                                      <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
+                                      <h2 className="text-sm font-black text-[#0F1A3A]">Lab Results</h2>
                                     </div>
                                   </div>
                                   <div className="divide-y divide-[#F0F4FC]">
-                                    {encounters.map(enc => (
-                                      <div key={getId(enc)} className="px-5 py-3">
-                                        <div className="flex items-center justify-between gap-2">
-                                          <p className="text-sm font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || enc.encounterType || 'Visit'}</p>
-                                          {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px] shrink-0">{enc.outcome}</Badge>}
+                                    {labResults.length === 0 ? <div className="p-4"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
+                                      <div key={getId(lab)} className="flex items-center justify-between px-5 py-3">
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
+                                          <p className="text-[10px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
                                         </div>
-                                        <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">{date(enc.date || enc.encounterDate)}{enc.epcrRecordId ? ` · EPCR ${enc.epcrRecordId}` : ''}</p>
-                                        {enc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{enc.notes}</p>}
+                                        <div className="text-right shrink-0 ml-2">
+                                          <p className="text-sm font-black text-brand-blue">{text(lab.value)} <span className="text-[10px] text-[#8A97B0]">{lab.unit}</span></p>
+                                          {lab.interpretation && <Badge className={`text-[10px] ${statusClass(lab.interpretation)}`}>{lab.interpretation}</Badge>}
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
                                 </section>
-                              )}
+                              </div>
 
-                              <DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={finalPost} />
+                              {/* Post-Treatment Details */}
+                              <div className="space-y-6">
+                                <div className="flex items-center gap-3 border-b-2 border-green-500 pb-2 mb-2">
+                                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                                  <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Details</h3>
+                                </div>
+                                <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
+                                
+                                {encounters.length > 0 && (
+                                  <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden h-full">
+                                    <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
+                                        <h2 className="text-sm font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
+                                      </div>
+                                    </div>
+                                    <div className="divide-y divide-[#F0F4FC]">
+                                      {encounters.map(enc => (
+                                        <div key={getId(enc)} className="px-5 py-3">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <p className="text-sm font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || enc.encounterType || 'Visit'}</p>
+                                            {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px] shrink-0">{enc.outcome}</Badge>}
+                                          </div>
+                                          <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">{date(enc.date || enc.encounterDate)}{enc.epcrRecordId ? ` · EPCR ${enc.epcrRecordId}` : ''}</p>
+                                          {enc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{enc.notes}</p>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </section>
+                                )}
+                              </div>
                             </div>
+
+                            {/* ── ROW 2: IMAGES ── */}
+                            {(preImages.length > 0 || postImages.length > 0) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+                                <div><ImgBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preImages} /></div>
+                                <div><ImgBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postImages} /></div>
+                              </div>
+                            )}
+
+                            {/* ── ROW 3: DOCUMENTS ── */}
+                            {(preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+                                <div><DocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} /></div>
+                                <div><DocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} /></div>
+                              </div>
+                            )}
 
                           </div>
                           {/* ── Recent Activity ── */}
