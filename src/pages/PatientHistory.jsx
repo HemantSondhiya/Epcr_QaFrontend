@@ -1578,7 +1578,7 @@ function PatientHistory() {
                     })()}
 
                     {/* ── Row 1: Conditions + Medications ── */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Active Conditions */}
                       <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden">
                         <div className="flex items-center justify-between border-b border-[#DDE3F0] px-6 py-4">
@@ -1773,7 +1773,7 @@ function PatientHistory() {
                       return (
                         <>
                           {/* ── DIVIDED UI: PRE VS POST TREATMENT ── */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
                             {/* ── LEFT COLUMN: PRE-TREATMENT ── */}
                             <div className="space-y-6">
