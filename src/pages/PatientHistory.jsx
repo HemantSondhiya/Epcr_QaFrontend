@@ -143,12 +143,12 @@ const SecureInlineImage = ({ patientId, doc, className, onError }) => {
     let active = true;
     const documentId = getId(doc);
     if (!patientId || !documentId) {
-      if(active) setErr(true);
+      if (active) setErr(true);
       return;
     }
     client.get(`/api/patients/${patientId}/history/documents/${documentId}/signed-url`, { hideToast: true })
-      .then(res => { if(active) setSrc(res.data.url); })
-      .catch(() => { if(active) setErr(true); });
+      .then(res => { if (active) setSrc(res.data.url); })
+      .catch(() => { if (active) setErr(true); });
     return () => { active = false; };
   }, [patientId, doc]);
 
@@ -513,7 +513,7 @@ const FORM_CONFIG = {
     subtitle: 'Complete all required fields to save the lab result',
     create: createLabResult,
     update: updateLabResult,
-    defaults: { conditionId: '', testName: '', value: '', unit: '', normalRange: '', date: isoToday(), interpretation: '' },
+    defaults: { conditionId: '', testName: '', value: '', unit: '', normalRange: '', date: isoToday(), interpretation: '', notes: '' },
     fields: [
       field('testName', 'Test Name', 'text', { required: true, placeholder: 'e.g., Blood Glucose, Hemoglobin A1C' }),
       field('value', 'Result Value', 'text', { required: true, placeholder: 'e.g., 145' }),
@@ -521,12 +521,13 @@ const FORM_CONFIG = {
       field('normalRange', 'Normal Range', 'text', { placeholder: 'e.g., 70-100 mg/dL' }),
       field('interpretation', 'Interpretation', 'text', { placeholder: 'e.g., High, Low, Normal' }),
       field('date', 'Test Date', 'date', { required: true }),
+      field('notes', 'Additional Notes', 'textarea', { placeholder: 'Any extra details regarding the lab result...' }),
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID' }),
     ],
     sections: [
       { title: 'Test Information', fieldNames: ['testName', 'date'] },
       { title: 'Results', fieldNames: ['value', 'unit', 'normalRange', 'interpretation'] },
-      { title: 'Linked Condition', fieldNames: ['conditionId'] },
+      { title: 'Additional Details', fieldNames: ['notes', 'conditionId'] },
     ],
   },
   documents: {
@@ -1486,7 +1487,7 @@ function PatientHistory() {
   );
 
   return (
-    <div className="h-screen bg-[#F8FAFF] p-4 space-y-4 max-w-[1600px] mx-auto animate-fade-in flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-[#F8FAFF] p-4 space-y-4 max-w-[1600px] mx-auto animate-fade-in flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
         <div>
@@ -1541,7 +1542,7 @@ function PatientHistory() {
       ) : (
         <div className="flex-1 flex flex-col space-y-4 min-h-0">
           {/* Summary Stats Grid */}
-            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+          <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
             {[
               { label: 'Active Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
               { label: 'Current Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -1588,32 +1589,12 @@ function PatientHistory() {
                 <p className="text-sm font-bold text-[#8A97B0]">Loading record...</p>
               </div>
             ) : (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 h-full">
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 flex-1 flex flex-col">
 
                 {tab === 'overview' && (
-                  <div className="flex flex-col gap-3 h-full">
+                  <div className="flex flex-col gap-3 flex-1">
 
-                    {/* ── Risk Banner ── */}
-                    {(() => {
-                      const crit = conditions.filter(c => c.status === 'ACTIVE' && String(c.severity || '').toUpperCase() === 'SEVERE');
-                      const latestV = [...vitals].sort((a, b) => new Date(b.recordedAt || b.createdAt) - new Date(a.recordedAt || a.createdAt))[0];
-                      const vStatus = latestV ? assessVitalStatus(latestV) : null;
-                      const hasAlert = crit.length > 0 || vStatus?.label === 'Critical';
-                      if (!hasAlert) return null;
-                      return (
-                        <div className="flex items-center gap-4 rounded-2xl border border-red-200 bg-red-50 px-6 py-4">
-                          <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0"><AlertCircle size={20} className="text-red-600" /></div>
-                          <div>
-                            <p className="text-sm font-black text-red-700 uppercase tracking-wide">Clinical Alert</p>
-                            <p className="text-xs font-semibold text-red-600 mt-0.5">
-                              {crit.length > 0 && `${crit.length} severe active condition${crit.length > 1 ? 's' : ''}`}
-                              {crit.length > 0 && vStatus?.label === 'Critical' && ' · '}
-                              {vStatus?.label === 'Critical' && 'Critical vitals on latest reading'}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })()}
+
 
                     {/* ── Row 1: Conditions + Medications (compact wrapping chips) ── */}
                     <div className="grid grid-cols-2 gap-2 shrink-0">
@@ -1629,8 +1610,8 @@ function PatientHistory() {
                         </div>
                         <div className="flex flex-wrap gap-1 max-h-[52px] overflow-y-auto custom-scrollbar">
                           {conditions.length === 0 ? <span className="text-[9px] text-[#A0AECB]">None on record</span> : conditions.map((c, i) => (
-                            <span key={getId(c)||i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(c.status)}`}>
-                              <span className={`w-1 h-1 rounded-full shrink-0 ${c.status==='ACTIVE'?'bg-red-500 animate-pulse':'bg-green-400'}`}/>
+                            <span key={getId(c) || i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(c.status)}`}>
+                              <span className={`w-1 h-1 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`} />
                               {c.name}{c.severity ? ` · ${c.severity}` : ''}
                             </span>
                           ))}
@@ -1648,7 +1629,7 @@ function PatientHistory() {
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {medications.length === 0 ? <span className="text-[9px] text-[#A0AECB]">None on record</span> : medications.map((m, i) => (
-                            <span key={getId(m)||i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(m.status)}`}>
+                            <span key={getId(m) || i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(m.status)}`}>
                               {m.name || m.medicationName}{m.dosage ? ` ${m.dosage}` : ''}
                             </span>
                           ))}
@@ -1737,7 +1718,7 @@ function PatientHistory() {
                                           </div>
                                           {doc.notes && (
                                             <div className="p-2 bg-white border-t border-[#F0F4FC]">
-                                              <p className="text-[10px] text-[#4B5A7A] font-semibold leading-snug overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{doc.notes}</p>
+                                              <p className="text-[10px] text-[#4B5A7A] font-semibold leading-snug">{doc.notes}</p>
                                             </div>
                                           )}
                                         </div>
@@ -1821,10 +1802,10 @@ function PatientHistory() {
                       return (
                         <>
                           {/* ── 2-Column Treatment Layout: Docs + Vitals + Labs/Procedures ── */}
-                          <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+                          <div className="grid grid-cols-2 gap-2 flex-1">
 
                             {/* PRE-TREATMENT Column */}
-                            <div className="flex flex-col gap-2 h-full min-h-0">
+                            <div className="flex flex-col gap-2 flex-1">
                               <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
                                 <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment</h3>
@@ -1836,19 +1817,33 @@ function PatientHistory() {
                               {/* Pre Vitals */}
                               {preVital && <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>}
                               {/* Lab Results */}
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 flex flex-col">
                                 <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-2 py-1 shrink-0">
                                   <div className="h-5 w-5 rounded-md bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={11} className="text-[#1A3C8F]" /></div>
                                   <h2 className="text-[10px] font-black text-[#0F1A3A]">Lab Results</h2>
                                 </div>
-                                <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar">
+                                <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar max-h-[150px]">
                                   {labResults.length === 0 ? <div className="p-2"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
-                                    <div key={getId(lab)} className="flex items-center justify-between px-2 py-1">
-                                      <div className="min-w-0">
-                                        <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
-                                        <p className="text-[9px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
+                                    <div key={getId(lab)} className="flex flex-col gap-1 px-2 py-1.5 hover:bg-[#F8FAFF] transition-colors">
+                                      <div className="flex items-center justify-between">
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
+                                          <p className="text-[9px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-xs font-black text-brand-blue shrink-0 ml-1">{text(lab.value)} <span className="text-[9px] text-[#8A97B0]">{lab.unit}</span></p>
+                                          {lab.interpretation && (
+                                            <p className={`text-[8px] font-black uppercase tracking-widest mt-0.5 ${String(lab.interpretation).toUpperCase() === 'NORMAL' ? 'text-green-600' : 'text-red-500'
+                                              }`}>{lab.interpretation}</p>
+                                          )}
+                                        </div>
                                       </div>
-                                      <p className="text-xs font-black text-brand-blue shrink-0 ml-1">{text(lab.value)} <span className="text-[9px] text-[#8A97B0]">{lab.unit}</span></p>
+                                      {lab.normalRange && (
+                                        <p className="text-[8px] text-[#8A97B0] font-semibold">Ref Range: {lab.normalRange}</p>
+                                      )}
+                                      {lab.notes && (
+                                        <p className="text-[9px] text-[#4B5A7A] italic leading-tight border-l-2 border-[#DDE3F0] pl-1.5">{lab.notes}</p>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -1856,7 +1851,7 @@ function PatientHistory() {
                             </div>
 
                             {/* POST-TREATMENT Column */}
-                            <div className="flex flex-col gap-2 h-full min-h-0">
+                            <div className="flex flex-col gap-2 flex-1">
                               <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
                                 <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                                 <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment</h3>
@@ -1868,12 +1863,12 @@ function PatientHistory() {
                               {/* Post Vitals */}
                               {postVital && <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>}
                               {/* Procedures */}
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 flex flex-col">
                                 <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-2 py-1 shrink-0">
                                   <div className="h-5 w-5 rounded-md bg-orange-50 flex items-center justify-center"><Stethoscope size={11} className="text-orange-600" /></div>
                                   <h2 className="text-[10px] font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
                                 </div>
-                                <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar">
+                                <div className="divide-y divide-[#F0F4FC] max-h-[80px] overflow-y-auto custom-scrollbar">
                                   {encounters.length === 0 ? <div className="p-2"><Empty>No visits.</Empty></div> : encounters.map(enc => (
                                     <div key={getId(enc)} className="px-2 py-1">
                                       <div className="flex items-center justify-between gap-1">
@@ -1885,11 +1880,43 @@ function PatientHistory() {
                                   ))}
                                 </div>
                               </section>
-                            </div>
 
+                            </div>
                           </div>
 
-
+                          {/* ── Recent Activity (compact rows) at bottom ── */}
+                          <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 mt-2">
+                            <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-3 py-1.5">
+                              <div className="h-5 w-5 rounded-md bg-[#E8EEF8] flex items-center justify-center"><Clock size={11} className="text-[#4B5A7A]" /></div>
+                              <h2 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Recent Activity</h2>
+                              <span className="text-[9px] font-bold text-[#A0AECB]">{timeline.length} event{timeline.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="divide-y divide-[#F0F4FC] max-h-[140px] overflow-y-auto custom-scrollbar">
+                              {timeline.length === 0
+                                ? <p className="text-[9px] text-[#A0AECB] px-3 py-2">No activity recorded yet.</p>
+                                : timeline.slice(0, 8).map((item, index) => {
+                                  const st = getEventStyle(item.eventType || item.type);
+                                  const Icon = st.icon;
+                                  const eventDate = item.date || item.eventDate || item.timestamp;
+                                  return (
+                                    <button
+                                      key={timelineKey(item, index)}
+                                      type="button"
+                                      onClick={() => setTimelineViewItem(item)}
+                                      className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#F8FAFF] transition-colors text-left"
+                                    >
+                                      <div className="h-5 w-5 rounded flex items-center justify-center shrink-0" style={{ background: st.bg, color: st.color }}>
+                                        <Icon size={10} />
+                                      </div>
+                                      <span className="text-[9px] font-black uppercase tracking-wide shrink-0" style={{ color: st.color }}>{st.label}</span>
+                                      <span className="text-[9px] font-bold text-[#0F1A3A] truncate flex-1">{item.title || ''}</span>
+                                      <span className="text-[8px] font-bold text-[#A0AECB] shrink-0">{eventDate ? relativeTime(eventDate) : ''}</span>
+                                    </button>
+                                  );
+                                })
+                              }
+                            </div>
+                          </div>
                         </>
                       );
                     })()}
