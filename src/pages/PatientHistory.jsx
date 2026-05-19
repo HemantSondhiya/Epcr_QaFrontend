@@ -1816,24 +1816,23 @@ function PatientHistory() {
                               </div>
                             </div>
                             <div className="px-2 py-1 flex flex-wrap gap-1">
-                              {v ? (
-                                [
-                                  { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
-                                  { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
-                                  { k: 'SpO₂', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
-                                  { k: 'Temp', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
-                                  { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
-                                  { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
-                                ].filter(x => x.val != null && x.val !== '').map(x => (
-                                  <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]'}`}>
-                                    <span className="text-[7px] text-[#A0AECB] font-black uppercase">{x.k}</span>
-                                    <span className="tabular-nums font-black">{x.val}</span>
-                                    <span className="text-[7px] text-[#8A97B0]">{x.u}</span>
+                              {(() => {
+                                const VITAL_KEYS = [
+                                  { k: 'BP', val: v?.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v && (v.systolicBP > 140 || v.systolicBP < 90) },
+                                  { k: 'HR', val: v?.heartRate ?? null, u: 'bpm', w: v && (v.heartRate > 100 || v.heartRate < 60) },
+                                  { k: 'SpO₂', val: v?.oxygenSaturation ?? null, u: '%', w: v && v.oxygenSaturation < 95 },
+                                  { k: 'Temp', val: v?.temperature ?? null, u: '°C', w: v && (v.temperature > 37.2 || v.temperature < 36.1) },
+                                  { k: 'RR', val: v?.respiratoryRate ?? null, u: '/min', w: v && (v.respiratoryRate > 20 || v.respiratoryRate < 12) },
+                                  { k: 'GCS', val: v?.glasgowComaScale ?? null, u: '/15', w: v && v.glasgowComaScale < 14 },
+                                ];
+                                return VITAL_KEYS.map(x => (
+                                  <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.val != null && x.val !== '' ? (x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]') : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#A0AECB]'}`}>
+                                    <span className="text-[7px] font-black uppercase" style={{ color: 'inherit', opacity: 0.6 }}>{x.k}</span>
+                                    <span className="tabular-nums font-black">{x.val != null && x.val !== '' ? x.val : 'N/A'}</span>
+                                    {x.val != null && x.val !== '' && <span className="text-[7px] text-[#8A97B0]">{x.u}</span>}
                                   </span>
-                                ))
-                              ) : (
-                                <span className="text-[9px] text-[#A0AECB] italic">No vitals recorded</span>
-                              )}
+                                ));
+                              })()}
                             </div>
                           </section>
                         );
