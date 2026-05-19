@@ -1486,32 +1486,67 @@ function PatientHistory() {
     )
   );
 
+  const searchResults = useSelector(selectPatientSearchResults);
+  const matchedPatient = searchResults?.find((p) => patientIdOf(p) === patientId);
+  const [fetchedPatientName, setFetchedPatientName] = useState(null);
+
+  useEffect(() => {
+    if (!matchedPatient && patientId && user?.role !== 'PATIENT') {
+      client.get(`/api/admin/patients/search`, { params: { query: patientId, limit: 1 }, hideToast: true })
+        .then(res => {
+          const pt = (res.data?.content || res.data || []).find(p => patientIdOf(p) === patientId);
+          if (pt) setFetchedPatientName(patientName(pt));
+        })
+        .catch(() => {});
+    }
+  }, [patientId, matchedPatient, user?.role]);
+
+  let displayName = 'Unknown Name';
+  if (fetchedPatientName) {
+    displayName = fetchedPatientName;
+  } else if (user?.role === 'PATIENT') {
+    displayName = patientName(user);
+  } else if (matchedPatient) {
+    displayName = patientName(matchedPatient);
+  } else if (summary) {
+    const pt = summary.patient || summary;
+    const nameStr = pt.patientName || pt.name || [pt.firstName, pt.lastName].filter(Boolean).join(' ');
+    if (nameStr) displayName = nameStr;
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFF] p-4 space-y-4 max-w-[1600px] mx-auto animate-fade-in flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-        <div>
-          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tighter">Complete Medical Record</h1>
-          <p className="text-sm font-bold text-[#8A97B0] mt-2 flex items-center gap-2">
-            Patient ID: <span className="text-[#0F1A3A]">{patientId || 'Not Selected'}</span>
-          </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="bg-white border border-[#DDE3F0] px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-2">
+            <Activity size={14} className="text-[#C8102E]" />
+            <h1 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wider">Medical Record</h1>
+          </div>
+          {patientId && (
+            <div className="bg-[#E8EEF8] border border-[#DDE3F0] px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-2">
+              <span className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider">Patient</span>
+              <span className="text-xs font-black text-brand-blue">{displayName}</span>
+              <span className="text-[9px] font-bold text-[#8A97B0] border-l border-[#DDE3F0] pl-2 ml-1">ID: {patientId}</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           {patientId && (
             <button
               type="button"
               onClick={() => dispatch(fetchAllPatientHistory(patientId))}
-              className="flex items-center gap-2 px-6 py-3 bg-white border border-[#DDE3F0] rounded-xl text-sm font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#DDE3F0] rounded-lg text-xs font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
           )}
           {canSearch && patientId && (
             <button
               type="button"
               onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }}
-              className="text-sm font-bold text-[#8A97B0] hover:text-brand-blue transition-colors"
+              className="text-xs font-bold text-[#8A97B0] hover:text-brand-blue transition-colors px-2 py-1.5"
             >
               Change Patient
             </button>
@@ -1552,13 +1587,13 @@ function PatientHistory() {
               { label: 'Documents', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
               { label: 'Vitals', value: counts.vitals, icon: Thermometer, color: 'text-teal-500', bg: 'bg-teal-50' },
             ].map((stat) => (
-              <div key={stat.label} className="bg-white p-3 rounded-xl border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-3">
-                <div className={`w-8 h-8 ${stat.bg} ${stat.color} rounded-lg flex items-center justify-center shrink-0`}>
-                  <stat.icon size={16} />
+              <div key={stat.label} className="bg-white px-2.5 py-1.5 rounded-lg border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-2">
+                <div className={`w-6 h-6 ${stat.bg} ${stat.color} rounded flex items-center justify-center shrink-0`}>
+                  <stat.icon size={12} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-lg font-black text-[#0F1A3A] leading-none">{stat.value}</p>
-                  <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest truncate mt-0.5">{stat.label}</p>
+                  <p className="text-sm font-black text-[#0F1A3A] leading-none">{stat.value}</p>
+                  <p className="text-[8px] font-black text-[#A0AECB] uppercase tracking-wider truncate mt-0.5">{stat.label}</p>
                 </div>
               </div>
             ))}
@@ -1763,33 +1798,43 @@ function PatientHistory() {
                       };
 
                       const VitalsBox = ({ label, v, accentCls, borderCls }) => {
-                        if (!v) return null;
-                        const st = assessVitalStatus(v);
+                        const st = v ? assessVitalStatus(v) : null;
                         return (
                           <section className={`bg-white border ${borderCls} rounded-lg shadow-sm overflow-hidden shrink-0`}>
                             <div className={`flex items-center justify-between border-b ${borderCls} px-2 py-1 ${accentCls}`}>
                               <div className="flex items-center gap-1.5">
                                 <div className={`h-4 w-4 rounded flex items-center justify-center ${accentCls}`}><Thermometer size={10} /></div>
                                 <h2 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">{label} Vitals</h2>
-                                <span className="text-[8px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</span>
+                                {v && <span className="text-[8px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</span>}
                               </div>
-                              <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                              <div className="flex items-center gap-2">
+                                {st && <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>}
+                                {canEdit && (
+                                  <button type="button" onClick={() => setModal({ type: 'vitals' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center hover:bg-red-700 transition-colors shrink-0">
+                                    <Plus size={11} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             <div className="px-2 py-1 flex flex-wrap gap-1">
-                              {[
-                                { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
-                                { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
-                                { k: 'SpO₂', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
-                                { k: 'Temp', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
-                                { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
-                                { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
-                              ].filter(x => x.val != null && x.val !== '').map(x => (
-                                <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]'}`}>
-                                  <span className="text-[7px] text-[#A0AECB] font-black uppercase">{x.k}</span>
-                                  <span className="tabular-nums font-black">{x.val}</span>
-                                  <span className="text-[7px] text-[#8A97B0]">{x.u}</span>
-                                </span>
-                              ))}
+                              {v ? (
+                                [
+                                  { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
+                                  { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
+                                  { k: 'SpO₂', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
+                                  { k: 'Temp', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
+                                  { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
+                                  { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
+                                ].filter(x => x.val != null && x.val !== '').map(x => (
+                                  <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]'}`}>
+                                    <span className="text-[7px] text-[#A0AECB] font-black uppercase">{x.k}</span>
+                                    <span className="tabular-nums font-black">{x.val}</span>
+                                    <span className="text-[7px] text-[#8A97B0]">{x.u}</span>
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[9px] text-[#A0AECB] italic">No vitals recorded</span>
+                              )}
                             </div>
                           </section>
                         );
@@ -1815,12 +1860,19 @@ function PatientHistory() {
                                 <div className="shrink-0"><QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} /></div>
                               )}
                               {/* Pre Vitals */}
-                              {preVital && <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>}
+                              <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>
                               {/* Lab Results */}
                               <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 flex flex-col">
-                                <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-2 py-1 shrink-0">
-                                  <div className="h-5 w-5 rounded-md bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={11} className="text-[#1A3C8F]" /></div>
-                                  <h2 className="text-[10px] font-black text-[#0F1A3A]">Lab Results</h2>
+                                <div className="flex items-center justify-between border-b border-[#DDE3F0] px-2 py-1 shrink-0 bg-[#F8FAFF]">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-5 w-5 rounded-md bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={11} className="text-[#1A3C8F]" /></div>
+                                    <h2 className="text-[10px] font-black text-[#0F1A3A]">Lab Results</h2>
+                                  </div>
+                                  {canEdit && (
+                                    <button type="button" onClick={() => setModal({ type: 'labResults' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center hover:bg-red-700 transition-colors shrink-0">
+                                      <Plus size={11} />
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar max-h-[150px]">
                                   {labResults.length === 0 ? <div className="p-2"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
@@ -1861,12 +1913,19 @@ function PatientHistory() {
                                 <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} /></div>
                               )}
                               {/* Post Vitals */}
-                              {postVital && <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>}
+                              <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>
                               {/* Procedures */}
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 flex flex-col">
-                                <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-2 py-1 shrink-0">
-                                  <div className="h-5 w-5 rounded-md bg-orange-50 flex items-center justify-center"><Stethoscope size={11} className="text-orange-600" /></div>
-                                  <h2 className="text-[10px] font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                                <div className="flex items-center justify-between border-b border-[#DDE3F0] px-2 py-1 shrink-0 bg-[#F8FAFF]">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-5 w-5 rounded-md bg-orange-50 flex items-center justify-center"><Stethoscope size={11} className="text-orange-600" /></div>
+                                    <h2 className="text-[10px] font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
+                                  </div>
+                                  {canEdit && (
+                                    <button type="button" onClick={() => setModal({ type: 'encounters' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center hover:bg-red-700 transition-colors shrink-0">
+                                      <Plus size={11} />
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="divide-y divide-[#F0F4FC] max-h-[80px] overflow-y-auto custom-scrollbar">
                                   {encounters.length === 0 ? <div className="p-2"><Empty>No visits.</Empty></div> : encounters.map(enc => (
