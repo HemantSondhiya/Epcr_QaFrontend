@@ -1486,12 +1486,11 @@ function PatientHistory() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFF] p-8 space-y-10 max-w-[1600px] mx-auto animate-fade-in" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="h-screen bg-[#F8FAFF] p-4 space-y-4 max-w-[1600px] mx-auto animate-fade-in flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
         <div>
-          <p className="text-[10px] font-black text-brand-blue uppercase tracking-[0.2em] mb-2">Patient History</p>
-          <h1 className="text-4xl font-black text-[#0F1A3A] tracking-tighter">Complete Medical Record</h1>
+          <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tighter">Complete Medical Record</h1>
           <p className="text-sm font-bold text-[#8A97B0] mt-2 flex items-center gap-2">
             Patient ID: <span className="text-[#0F1A3A]">{patientId || 'Not Selected'}</span>
           </p>
@@ -1530,19 +1529,19 @@ function PatientHistory() {
       )}
 
       {!patientId ? (
-        <div className="py-20 text-center card bg-[#F8FAFF] border-dashed border-2">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-[#DDE3F0]">
-            <Search className="text-brand-blue" size={24} />
+        <div className="py-10 text-center card bg-[#F8FAFF] border-dashed border-2">
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-[#DDE3F0]">
+            <Search className="text-brand-blue" size={20} />
           </div>
-          <h3 className="text-lg font-black text-[#0F1A3A] mb-2 uppercase">Identify Patient</h3>
-          <p className="text-sm font-semibold text-[#8A97B0] max-w-md mx-auto">
+          <h3 className="text-base font-black text-[#0F1A3A] mb-1 uppercase">Identify Patient</h3>
+          <p className="text-xs font-semibold text-[#8A97B0] max-w-md mx-auto">
             Use the search panel above to find a patient by name, phone, or email to view their complete clinical history.
           </p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="flex-1 flex flex-col space-y-4 min-h-0">
           {/* Summary Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
             {[
               { label: 'Active Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
               { label: 'Current Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -1552,45 +1551,47 @@ function PatientHistory() {
               { label: 'Documents', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
               { label: 'Vitals', value: counts.vitals, icon: Thermometer, color: 'text-teal-500', bg: 'bg-teal-50' },
             ].map((stat) => (
-              <div key={stat.label} className="bg-white p-6 rounded-2xl border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all group">
-                <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <stat.icon size={20} />
+              <div key={stat.label} className="bg-white p-3 rounded-xl border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-3">
+                <div className={`w-8 h-8 ${stat.bg} ${stat.color} rounded-lg flex items-center justify-center shrink-0`}>
+                  <stat.icon size={16} />
                 </div>
-                <p className="text-3xl font-black text-[#0F1A3A] mb-1">{stat.value}</p>
-                <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">{stat.label}</p>
+                <div className="min-w-0">
+                  <p className="text-lg font-black text-[#0F1A3A] leading-none">{stat.value}</p>
+                  <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-widest truncate mt-0.5">{stat.label}</p>
+                </div>
               </div>
             ))}
           </div>
 
           {/* Horizontal Navigation Tabs */}
-          <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-[#DDE3F0] rounded-2xl shadow-sm">
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-white border border-[#DDE3F0] rounded-xl shadow-sm shrink-0">
             {tabs.map(([id, label, Icon]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`flex items-center gap-2.5 px-6 py-3 rounded-xl transition-all text-sm font-bold ${tab === id
-                  ? 'bg-[#C8102E] text-white shadow-lg shadow-red-900/30'
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-xs font-bold ${tab === id
+                  ? 'bg-[#C8102E] text-white shadow-md shadow-red-900/20'
                   : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
                   }`}
               >
-                <Icon size={16} />
+                <Icon size={14} />
                 {label}
               </button>
             ))}
           </div>
 
           {/* Main Content Area */}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 pr-1 -mr-1 flex flex-col min-h-0">
             {loading ? (
               <div className="py-20 text-center card bg-white rounded-2xl border border-[#DDE3F0]">
                 <RefreshCw className="animate-spin w-12 h-12 mx-auto mb-4 text-brand-blue/30" />
                 <p className="text-sm font-bold text-[#8A97B0]">Loading record...</p>
               </div>
             ) : (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 h-full">
 
                 {tab === 'overview' && (
-                  <div className="space-y-6">
+                  <div className="flex flex-col gap-3 h-full">
 
                     {/* ── Risk Banner ── */}
                     {(() => {
@@ -1614,60 +1615,45 @@ function PatientHistory() {
                       );
                     })()}
 
-                    {/* ── Row 1: Conditions + Medications ── */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Active Conditions */}
-                      <section className="bg-white border border-[#DDE3F0] rounded-2xl shadow-sm overflow-hidden">
-                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded-lg bg-red-50 flex items-center justify-center"><HeartPulse size={13} className="text-red-600" /></div>
-                            <h2 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wide">Conditions</h2>
+                    {/* ── Row 1: Conditions + Medications (compact wrapping chips) ── */}
+                    <div className="grid grid-cols-2 gap-2 shrink-0">
+                      {/* Conditions */}
+                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm px-3 py-1.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="h-5 w-5 rounded-md bg-red-50 flex items-center justify-center shrink-0"><HeartPulse size={11} className="text-red-600" /></div>
+                            <span className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Conditions</span>
+                            <span className="text-[9px] font-black text-red-600 bg-red-50 px-1 rounded">{conditions.filter(c => c.status === 'ACTIVE').length} active</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md">{conditions.filter(c => c.status === 'ACTIVE').length} active</span>
-                            {canEdit && <button type="button" onClick={() => setModal({ type: 'conditions' })} className="btn-primary px-2 py-0.5 text-[10px]"><Plus size={10} /></button>}
-                          </div>
+                          {canEdit && <button type="button" onClick={() => setModal({ type: 'conditions' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Plus size={9} /></button>}
                         </div>
-                        <div className="p-2 space-y-1 overflow-y-auto max-h-[100px] custom-scrollbar">
-                          {conditions.length === 0 ? <Empty>No conditions on record.</Empty> : conditions.map((c, i) => (
-                            <div key={getId(c) || i} className="flex items-center justify-between rounded-lg border border-[#DDE3F0] px-3 py-1.5">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`} />
-                                <p className="text-xs font-bold text-[#0F1A3A] truncate">{c.name}</p>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {c.severity && <span className="text-[9px] font-black text-[#8A97B0]">{c.severity}</span>}
-                                <Badge className={statusClass(c.status)}>{c.status}</Badge>
-                              </div>
-                            </div>
+                        <div className="flex flex-wrap gap-1 max-h-[52px] overflow-y-auto custom-scrollbar">
+                          {conditions.length === 0 ? <span className="text-[9px] text-[#A0AECB]">None on record</span> : conditions.map((c, i) => (
+                            <span key={getId(c)||i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(c.status)}`}>
+                              <span className={`w-1 h-1 rounded-full shrink-0 ${c.status==='ACTIVE'?'bg-red-500 animate-pulse':'bg-green-400'}`}/>
+                              {c.name}{c.severity ? ` · ${c.severity}` : ''}
+                            </span>
                           ))}
                         </div>
-                      </section>
-
-                      {/* Current Medications */}
-                      <section className="bg-white border border-[#DDE3F0] rounded-2xl shadow-sm overflow-hidden">
-                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded-lg bg-purple-50 flex items-center justify-center"><Pill size={13} className="text-purple-600" /></div>
-                            <h2 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wide">Medications</h2>
+                      </div>
+                      {/* Medications */}
+                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm px-3 py-1.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="h-5 w-5 rounded-md bg-purple-50 flex items-center justify-center shrink-0"><Pill size={11} className="text-purple-600" /></div>
+                            <span className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Medications</span>
+                            <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-1 rounded">{medications.filter(m => !m.status || m.status === 'ACTIVE').length} active</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">{medications.filter(m => !m.status || m.status === 'ACTIVE').length} active</span>
-                            {canEdit && <button type="button" onClick={() => setModal({ type: 'medications' })} className="btn-primary px-2 py-0.5 text-[10px]"><Plus size={10} /></button>}
-                          </div>
+                          {canEdit && <button type="button" onClick={() => setModal({ type: 'medications' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Plus size={9} /></button>}
                         </div>
-                        <div className="p-2 space-y-1 overflow-y-auto max-h-[100px] custom-scrollbar">
-                          {medications.length === 0 ? <Empty>No medications on record.</Empty> : medications.map((m, i) => (
-                            <div key={getId(m) || i} className="flex items-center justify-between rounded-lg border border-[#DDE3F0] px-3 py-1.5">
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-[#0F1A3A] truncate">{m.name || m.medicationName}</p>
-                                {(m.dosage || m.frequency) && <p className="text-[9px] font-bold text-[#8A97B0]">{[m.dosage, m.frequency].filter(Boolean).join(' · ')}</p>}
-                              </div>
-                              <Badge className={statusClass(m.status)}>{m.status || 'ACTIVE'}</Badge>
-                            </div>
+                        <div className="flex flex-wrap gap-1">
+                          {medications.length === 0 ? <span className="text-[9px] text-[#A0AECB]">None on record</span> : medications.map((m, i) => (
+                            <span key={getId(m)||i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(m.status)}`}>
+                              {m.name || m.medicationName}{m.dosage ? ` ${m.dosage}` : ''}
+                            </span>
                           ))}
                         </div>
-                      </section>
+                      </div>
                     </div>
 
                     {/* ── Clinical Workflow: Pre-Vitals → Pre-Docs → Post-Docs+Post-Vitals → Procedures → Timeline ── */}
@@ -1695,35 +1681,35 @@ function PatientHistory() {
 
                       const QuickDocBox = ({ label, color, accent, docs, imgs }) => {
                         return (
-                          <section className={`bg-white border-2 ${color} rounded-[24px] shadow-sm overflow-hidden h-full flex flex-col`}>
-                            <div className={`flex items-center justify-between border-b ${color} px-5 py-4 ${accent}`}>
-                              <div className="flex items-center gap-3">
-                                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}><FileText size={18} /></div>
+                          <section className={`bg-white border ${color} rounded-lg shadow-sm overflow-hidden shrink-0`}>
+                            <div className={`flex items-center justify-between border-b ${color} px-2 py-1 ${accent} shrink-0`}>
+                              <div className="flex items-center gap-2">
+                                <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${accent}`}><FileText size={13} /></div>
                                 <div>
-                                  <h2 className="text-sm font-black text-[#0F1A3A]">{label} Documents</h2>
-                                  <p className="text-[10px] font-bold text-[#A0AECB]">{docs.length + imgs.length} file{docs.length + imgs.length !== 1 ? 's' : ''}</p>
+                                  <h2 className="text-[10px] font-black text-[#0F1A3A]">{label} Documents</h2>
+                                  <p className="text-[9px] font-bold text-[#A0AECB]">{docs.length + imgs.length} file{docs.length + imgs.length !== 1 ? 's' : ''}</p>
                                 </div>
                               </div>
                               {canEdit && (
-                                <button type="button" onClick={() => setModal({ type: 'documents' })} className="btn-primary px-2 py-0.5 text-[10px]">
-                                  <Plus size={10} />
+                                <button type="button" onClick={() => setModal({ type: 'documents' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0">
+                                  <Plus size={9} />
                                 </button>
                               )}
                             </div>
-                            <div className="overflow-y-auto custom-scrollbar bg-white flex-1">
+                            <div className="bg-white">
                               {docs.length === 0 && imgs.length === 0 ? (
-                                <div className="p-6 text-center">
-                                  <FileText className="mx-auto text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                  <p className="text-xs font-bold text-[#0F1A3A]">No {label.toLowerCase()} documents.</p>
+                                <div className="p-3 text-center">
+                                  <FileText className="mx-auto text-[#A0AECB] opacity-50 mb-1" size={16} />
+                                  <p className="text-[9px] font-bold text-[#0F1A3A]">No {label.toLowerCase()} documents.</p>
                                 </div>
                               ) : null}
                               {imgs.length > 0 && (() => {
                                 const sortedImgs = [...imgs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
                                 return (
-                                  <div className="flex flex-col gap-4 p-4 border-b border-[#F0F4FC]">
+                                  <div className="flex flex-col gap-2 p-2 border-b border-[#F0F4FC]">
                                     {sortedImgs.map((doc) => {
                                       return (
-                                        <div key={getId(doc)} className="flex flex-col rounded-xl overflow-hidden bg-white border border-[#DDE3F0] shadow-sm min-w-0">
+                                        <div key={getId(doc)} className="flex flex-col rounded-lg overflow-hidden bg-white border border-[#DDE3F0] shadow-sm min-w-0">
                                           <div className="relative group bg-[#0F1A3A]">
                                             <SecureInlineImage
                                               patientId={patientId}
@@ -1734,9 +1720,9 @@ function PatientHistory() {
                                             <div className="hidden w-full h-40 items-center justify-center text-[#A0AECB]">
                                               <FileText size={36} />
                                             </div>
-                                            <div className="absolute top-0 left-0 right-0 p-2.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none flex items-start justify-between gap-3">
-                                              <p className="text-xs font-bold text-white truncate drop-shadow-md">{doc.fileName || doc.name || 'Image'}</p>
-                                              <p className="text-[9px] font-black text-white shrink-0 drop-shadow-md bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm uppercase">{date(doc.date || doc.uploadedAt)}</p>
+                                            <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-black/70 to-transparent pointer-events-none flex items-start justify-between gap-2">
+                                              <p className="text-[10px] font-bold text-white truncate drop-shadow-md">{doc.fileName || doc.name || 'Image'}</p>
+                                              <p className="text-[8px] font-black text-white shrink-0 drop-shadow-md bg-black/40 px-1.5 py-0.5 rounded-full backdrop-blur-sm uppercase">{date(doc.date || doc.uploadedAt)}</p>
                                             </div>
                                             <button
                                               type="button"
@@ -1744,14 +1730,14 @@ function PatientHistory() {
                                               className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
                                               title="Open full size"
                                             >
-                                              <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-white/95 text-[#0F1A3A] text-xs font-black px-4 py-2 rounded-full shadow-md">
-                                                <ExternalLink size={14} /> View Full Size
+                                              <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 text-[#0F1A3A] text-[10px] font-black px-3 py-1.5 rounded-full shadow-md">
+                                                <ExternalLink size={12} /> View
                                               </span>
                                             </button>
                                           </div>
                                           {doc.notes && (
-                                            <div className="p-3 bg-white border-t border-[#F0F4FC]">
-                                              <p className="text-[11px] text-[#4B5A7A] font-semibold leading-snug overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{doc.notes}</p>
+                                            <div className="p-2 bg-white border-t border-[#F0F4FC]">
+                                              <p className="text-[10px] text-[#4B5A7A] font-semibold leading-snug overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{doc.notes}</p>
                                             </div>
                                           )}
                                         </div>
@@ -1765,10 +1751,10 @@ function PatientHistory() {
                                 return (
                                   <div className="divide-y divide-[#F0F4FC]">
                                     {sortedDocs.map(doc => (
-                                      <div key={getId(doc)} className="px-5 py-5 hover:bg-[#F8FAFF] transition-colors">
-                                        <div className="flex items-start gap-4">
-                                          <div className="h-10 w-10 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
-                                            <FileText size={20} className="text-[#475569]" />
+                                      <div key={getId(doc)} className="px-3 py-2 hover:bg-[#F8FAFF] transition-colors">
+                                        <div className="flex items-start gap-3">
+                                          <div className="h-8 w-8 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
+                                            <FileText size={16} className="text-[#475569]" />
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center justify-between gap-2">
@@ -1799,36 +1785,29 @@ function PatientHistory() {
                         if (!v) return null;
                         const st = assessVitalStatus(v);
                         return (
-                          <section className={`bg-white border-2 ${borderCls} rounded-2xl shadow-sm overflow-hidden h-full`}>
-                            <div className={`flex items-center justify-between border-b ${borderCls} px-4 py-2 ${accentCls}`}>
-                              <div className="flex items-center gap-2">
-                                <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${accentCls}`}><Thermometer size={13} /></div>
-                                <div>
-                                  <h2 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wide">{label} Vitals</h2>
-                                  <p className="text-[9px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</p>
-                                </div>
+                          <section className={`bg-white border ${borderCls} rounded-lg shadow-sm overflow-hidden shrink-0`}>
+                            <div className={`flex items-center justify-between border-b ${borderCls} px-2 py-1 ${accentCls}`}>
+                              <div className="flex items-center gap-1.5">
+                                <div className={`h-4 w-4 rounded flex items-center justify-center ${accentCls}`}><Thermometer size={10} /></div>
+                                <h2 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">{label} Vitals</h2>
+                                <span className="text-[8px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</span>
                               </div>
-                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                              <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
                             </div>
-                            <div className="p-2 grid grid-cols-2 gap-1.5">
+                            <div className="px-2 py-1 flex flex-wrap gap-1">
                               {[
-                                { k: 'BP', desc: 'Blood Pressure', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
-                                { k: 'HR', desc: 'Heart Rate', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
-                                { k: 'SpO₂', desc: 'Oxygen Sat.', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
-                                { k: 'Temp', desc: 'Temperature', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
-                                { k: 'RR', desc: 'Resp Rate', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
-                                { k: 'GCS', desc: 'Coma Scale', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
+                                { k: 'BP', val: v.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v.systolicBP > 140 || v.systolicBP < 90 },
+                                { k: 'HR', val: v.heartRate, u: 'bpm', w: v.heartRate > 100 || v.heartRate < 60 },
+                                { k: 'SpO₂', val: v.oxygenSaturation, u: '%', w: v.oxygenSaturation < 95 },
+                                { k: 'Temp', val: v.temperature, u: '°C', w: v.temperature > 37.2 || v.temperature < 36.1 },
+                                { k: 'RR', val: v.respiratoryRate, u: '/min', w: v.respiratoryRate > 20 || v.respiratoryRate < 12 },
+                                { k: 'GCS', val: v.glasgowComaScale, u: '/15', w: v.glasgowComaScale < 14 },
                               ].filter(x => x.val != null && x.val !== '').map(x => (
-                                <div key={x.k} className={`flex items-center justify-between rounded-md px-1.5 py-1 ${x.w ? 'bg-amber-50 border border-amber-200' : 'bg-[#F8FAFF] border border-[#DDE3F0]'}`}>
-                                  <div className="flex flex-col">
-                                    <span className="text-[9px] font-black text-[#A0AECB] uppercase leading-none">{x.k}</span>
-                                    <span className="text-[7px] font-bold text-[#8A97B0] leading-tight mt-0.5">{x.desc}</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className={`text-[11px] font-black tabular-nums leading-none ${x.w ? 'text-amber-700' : 'text-[#0F1A3A]'}`}>{x.val}</span>
-                                    <span className="text-[8px] text-[#8A97B0] font-bold ml-0.5">{x.u}</span>
-                                  </div>
-                                </div>
+                                <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]'}`}>
+                                  <span className="text-[7px] text-[#A0AECB] font-black uppercase">{x.k}</span>
+                                  <span className="tabular-nums font-black">{x.val}</span>
+                                  <span className="text-[7px] text-[#8A97B0]">{x.u}</span>
+                                </span>
                               ))}
                             </div>
                           </section>
@@ -1841,124 +1820,76 @@ function PatientHistory() {
 
                       return (
                         <>
-                          <div className="space-y-4">
-                            
-                            {/* ── Pre/Post Documents ── */}
-                            {(canEdit || preImages.length > 0 || postImages.length > 0 || preDocsOnly.length > 0 || postDocsOnly.length > 0) && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                  <QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} />
-                                </div>
-                                <div>
-                                  <QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} />
-                                </div>
-                              </div>
-                            )}
+                          {/* ── 2-Column Treatment Layout: Docs + Vitals + Labs/Procedures ── */}
+                          <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
 
-                            {/* ── ROW 1: DETAILS (Vitals & Procedures/Labs) ── */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                              {/* Pre-Treatment Details */}
-                              <div className="flex flex-col h-full space-y-6">
-                                <div className="flex items-center gap-3 border-b-2 border-brand-blue pb-2 mb-2 shrink-0">
-                                  <div className="w-2 h-2 rounded-full bg-brand-blue" />
-                                  <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Details</h3>
-                                </div>
-                                
-                                {preVital || labResults.length > 0 ? (
-                                  <>
-                                    <div className="shrink-0">
-                                      <VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
-                                    </div>
-                                    
-                                    <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
-                                      <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
-                                        <div className="flex items-center gap-3">
-                                          <div className="h-9 w-9 rounded-xl bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={18} className="text-[#1A3C8F]" /></div>
-                                          <h2 className="text-sm font-black text-[#0F1A3A]">Lab Results</h2>
-                                        </div>
-                                      </div>
-                                      <div className="divide-y divide-[#F0F4FC]">
-                                        {labResults.length === 0 ? <div className="p-4"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
-                                          <div key={getId(lab)} className="flex items-center justify-between px-5 py-3">
-                                            <div className="min-w-0">
-                                              <p className="text-xs font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
-                                              <p className="text-[10px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
-                                            </div>
-                                            <div className="text-right shrink-0 ml-2">
-                                              <p className="text-sm font-black text-brand-blue">{text(lab.value)} <span className="text-[10px] text-[#8A97B0]">{lab.unit}</span></p>
-                                              {lab.interpretation && <Badge className={`text-[10px] ${statusClass(lab.interpretation)}`}>{lab.interpretation}</Badge>}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </section>
-                                  </>
-                                ) : (
-                                  <div className="flex-1 flex flex-col items-center justify-center bg-[#F8FAFF] border-2 border-dashed border-[#DBEAFE] rounded-[24px] p-6 text-center min-h-[120px]">
-                                    <Activity className="text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                    <p className="text-xs font-bold text-[#1A3C8F] uppercase tracking-wide mb-1">No Pre-Treatment Details</p>
-                                    <p className="text-[10px] text-[#A0AECB]">Vitals or labs have not been recorded yet.</p>
-                                  </div>
-                                )}
+                            {/* PRE-TREATMENT Column */}
+                            <div className="flex flex-col gap-2 h-full min-h-0">
+                              <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
+                                <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
+                                <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment</h3>
                               </div>
+                              {/* Pre Doc image */}
+                              {(canEdit || preImages.length > 0 || preDocsOnly.length > 0) && (
+                                <div className="shrink-0"><QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} /></div>
+                              )}
+                              {/* Pre Vitals */}
+                              {preVital && <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>}
+                              {/* Lab Results */}
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                                <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-2 py-1 shrink-0">
+                                  <div className="h-5 w-5 rounded-md bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={11} className="text-[#1A3C8F]" /></div>
+                                  <h2 className="text-[10px] font-black text-[#0F1A3A]">Lab Results</h2>
+                                </div>
+                                <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar">
+                                  {labResults.length === 0 ? <div className="p-2"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
+                                    <div key={getId(lab)} className="flex items-center justify-between px-2 py-1">
+                                      <div className="min-w-0">
+                                        <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
+                                        <p className="text-[9px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
+                                      </div>
+                                      <p className="text-xs font-black text-brand-blue shrink-0 ml-1">{text(lab.value)} <span className="text-[9px] text-[#8A97B0]">{lab.unit}</span></p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </section>
+                            </div>
 
-                              {/* Post-Treatment Details */}
-                              <div className="flex flex-col h-full space-y-6">
-                                <div className="flex items-center gap-3 border-b-2 border-green-500 pb-2 mb-2 shrink-0">
-                                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                                  <h3 className="text-sm font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Details</h3>
-                                </div>
-                                
-                                {postVital || encounters.length > 0 ? (
-                                  <>
-                                    <div className="shrink-0">
-                                      <VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
-                                    </div>
-                                    
-                                    {encounters.length > 0 && (
-                                      <section className="bg-white border border-[#DDE3F0] rounded-[24px] shadow-sm overflow-hidden flex-1 flex flex-col">
-                                        <div className="flex items-center justify-between border-b border-[#DDE3F0] px-5 py-4">
-                                          <div className="flex items-center gap-3">
-                                            <div className="h-9 w-9 rounded-xl bg-orange-50 flex items-center justify-center"><Stethoscope size={18} className="text-orange-600" /></div>
-                                            <h2 className="text-sm font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
-                                          </div>
-                                        </div>
-                                        <div className="divide-y divide-[#F0F4FC]">
-                                          {encounters.map(enc => (
-                                            <div key={getId(enc)} className="px-5 py-3">
-                                              <div className="flex items-center justify-between gap-2">
-                                                <p className="text-sm font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || enc.encounterType || 'Visit'}</p>
-                                                {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[10px] shrink-0">{enc.outcome}</Badge>}
-                                              </div>
-                                              <p className="text-[10px] font-bold text-[#A0AECB] mt-0.5">{date(enc.date || enc.encounterDate)}{enc.epcrRecordId ? ` · EPCR ${enc.epcrRecordId}` : ''}</p>
-                                              {enc.notes && <p className="mt-1.5 text-xs text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2">{enc.notes}</p>}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </section>
-                                    )}
-                                  </>
-                                ) : (
-                                  <div className="flex-1 flex flex-col items-center justify-center bg-[#F0FDF4]/30 border-2 border-dashed border-[#DCFCE7] rounded-[24px] p-6 text-center min-h-[120px]">
-                                    <Activity className="text-[#A0AECB] opacity-50 mb-2" size={24} />
-                                    <p className="text-xs font-bold text-[#16A34A] uppercase tracking-wide mb-1">No Post-Treatment Details</p>
-                                    <p className="text-[10px] text-[#A0AECB]">Vitals or procedures have not been recorded yet.</p>
-                                  </div>
-                                )}
+                            {/* POST-TREATMENT Column */}
+                            <div className="flex flex-col gap-2 h-full min-h-0">
+                              <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment</h3>
                               </div>
+                              {/* Post Doc image */}
+                              {(canEdit || postImages.length > 0 || postDocsOnly.length > 0) && (
+                                <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} /></div>
+                              )}
+                              {/* Post Vitals */}
+                              {postVital && <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>}
+                              {/* Procedures */}
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                                <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-2 py-1 shrink-0">
+                                  <div className="h-5 w-5 rounded-md bg-orange-50 flex items-center justify-center"><Stethoscope size={11} className="text-orange-600" /></div>
+                                  <h2 className="text-[10px] font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
+                                </div>
+                                <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar">
+                                  {encounters.length === 0 ? <div className="p-2"><Empty>No visits.</Empty></div> : encounters.map(enc => (
+                                    <div key={getId(enc)} className="px-2 py-1">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || 'Visit'}</p>
+                                        {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[9px] shrink-0">{enc.outcome}</Badge>}
+                                      </div>
+                                      <p className="text-[9px] font-bold text-[#A0AECB]">{date(enc.date || enc.encounterDate)}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </section>
                             </div>
 
                           </div>
-                          {/* ── Recent Activity ── */}
-                          <Section icon={Clock} title="Recent Activity">
-                            {timeline.length === 0 ? <Empty>No activity recorded yet.</Empty> : (
-                              <div>
-                                {timeline.map((item, index) => (
-                                  <TimelineEvent key={timelineKey(item, index)} item={item} index={index} isLast={index === timeline.length - 1} onView={setTimelineViewItem} />
-                                ))}
-                              </div>
-                            )}
-                          </Section>
+
+
                         </>
                       );
                     })()}
