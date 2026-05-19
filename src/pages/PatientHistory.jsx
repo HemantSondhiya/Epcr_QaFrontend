@@ -427,18 +427,23 @@ const FORM_CONFIG = {
     subtitle: 'Complete all required fields to save the condition',
     create: createCondition,
     update: updateCondition,
-    defaults: { name: '', status: 'ACTIVE', severity: '', dateDiagnosed: isoToday(), dateResolved: '', notes: '' },
+    defaults: { name: '', status: 'ACTIVE', severity: '', dateDiagnosed: isoToday(), dateResolved: '', notes: '', symptoms: '', findings: '', analysis: '', recommendedTreatment: '' },
     fields: [
       field('name', 'Condition Name', 'text', { required: true, placeholder: 'e.g., Hypertension, Diabetes' }),
       field('status', 'Status', 'select', { options: ['ACTIVE', 'RESOLVED', 'CHRONIC'], required: true }),
       field('severity', 'Severity Level', 'text', { placeholder: 'e.g., Mild, Moderate, Severe' }),
       field('dateDiagnosed', 'Date Diagnosed', 'date', { required: true }),
       field('dateResolved', 'Date Resolved', 'date', { placeholder: 'Leave empty if ongoing' }),
+      field('symptoms', 'Symptoms', 'textarea', { placeholder: 'Reported symptoms...' }),
+      field('findings', 'Clinical Findings', 'textarea', { placeholder: 'Objective findings...' }),
+      field('analysis', 'Analysis / Assessment', 'textarea', { placeholder: 'Clinical analysis...' }),
+      field('recommendedTreatment', 'Recommended Treatment', 'textarea', { placeholder: 'Proposed treatment plan...' }),
       field('notes', 'Additional Notes', 'textarea', { placeholder: 'Any relevant clinical information...' }),
     ],
     sections: [
       { title: 'Condition Information', fieldNames: ['name', 'status', 'severity'] },
       { title: 'Timeline', fieldNames: ['dateDiagnosed', 'dateResolved'] },
+      { title: 'Clinical Notes', fieldNames: ['symptoms', 'findings', 'analysis', 'recommendedTreatment'] },
       { title: 'Additional Notes', fieldNames: ['notes'] },
     ],
   },
@@ -538,10 +543,10 @@ const FORM_CONFIG = {
     defaults: { conditionId: '', encounterId: '', admissionId: '', type: 'LAB_REPORT', documentPhase: 'PRE', fileName: '', fileUrl: '', date: isoToday(), notes: '', file: null },
     isDocument: true,
     transform: (data, isUpdate) => {
-      if (data.file instanceof File) {
+      if (!isUpdate || data.file instanceof File) {
         // → multipart PUT /history/documents/{id}  (or multipart POST for create)
         const fd = new FormData();
-        fd.append('file', data.file);
+        if (data.file) fd.append('file', data.file);
         if (data.type) fd.append('type', data.type);
         if (data.documentPhase) fd.append('documentPhase', data.documentPhase);
         if (data.date) fd.append('date', data.date);
@@ -553,26 +558,21 @@ const FORM_CONFIG = {
         return fd;
       }
       // → JSON-only PUT (metadata update, no file replacement)
-      // Only return JSON if it's an update and no file is present
-      if (isUpdate) {
-        const { file, ...rest } = data;
-        return rest;
-      }
-      // For create, if file is missing, the backend will throw error anyway
-      return data;
+      const { file, ...rest } = data;
+      return rest;
     },
     fields: [
       field('type', 'Document Type', 'select', { options: ['LAB_REPORT', 'DISCHARGE_SUMMARY', 'IMAGING', 'OTHER'], required: true }),
       field('documentPhase', 'Treatment Phase', 'select', { options: ['PRE', 'POST'], required: true }),
       field('date', 'Document Date', 'date', { required: true }),
-      field('notes', 'Summary or Notes', 'textarea', { placeholder: 'Key findings, recommendations, or important details...' }),
+      field('notes', 'Summary or Notes', 'textarea', { placeholder: 'Additional notes about this document...' }),
       field('conditionId', 'Related Condition (Optional)', 'text', { placeholder: 'Condition ID' }),
       field('encounterId', 'Related Encounter (Optional)', 'text', { placeholder: 'Encounter ID' }),
       field('admissionId', 'Related Admission (Optional)', 'text', { placeholder: 'Admission ID' }),
     ],
     sections: [
       { title: 'Document Details', fieldNames: ['type', 'documentPhase', 'date'] },
-      { title: 'Summary', fieldNames: ['notes'] },
+      { title: 'Notes', fieldNames: ['notes'] },
       { title: 'Linked Records', fieldNames: ['conditionId', 'encounterId', 'admissionId'] },
     ],
   },
@@ -1497,7 +1497,7 @@ function PatientHistory() {
           const pt = (res.data?.content || res.data || []).find(p => patientIdOf(p) === patientId);
           if (pt) setFetchedPatientName(patientName(pt));
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [patientId, matchedPatient, user?.role]);
 
@@ -1515,38 +1515,47 @@ function PatientHistory() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFF] p-4 space-y-4 max-w-[1600px] mx-auto animate-fade-in flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="bg-white border border-[#DDE3F0] px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-2">
-            <Activity size={14} className="text-[#C8102E]" />
-            <h1 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wider">Medical Record</h1>
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="bg-white border border-[#DDE3F0] px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5">
+            <Activity size={11} className="text-[#C8102E]" />
+            <h1 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wider">Medical Record</h1>
           </div>
           {patientId && (
-            <div className="bg-[#E8EEF8] border border-[#DDE3F0] px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-2">
-              <span className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider">Patient</span>
-              <span className="text-xs font-black text-brand-blue">{displayName}</span>
-              <span className="text-[9px] font-bold text-[#8A97B0] border-l border-[#DDE3F0] pl-2 ml-1">ID: {patientId}</span>
+            <div className="bg-[#E8EEF8] border border-[#DDE3F0] px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5">
+              <span className="text-[9px] font-bold text-[#4B5A7A] uppercase tracking-wider">Patient</span>
+              <span className="text-[10px] font-black text-brand-blue">{displayName}</span>
+              <span className="text-[9px] font-bold text-[#8A97B0] border-l border-[#DDE3F0] pl-1.5 ml-0.5">ID: {patientId}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {patientId && (
-            <button
-              type="button"
-              onClick={() => dispatch(fetchAllPatientHistory(patientId))}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#DDE3F0] rounded-lg text-xs font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
-            >
-              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => navigate(`/epcr/new?patientId=${patientId}`)}
+                className="flex items-center gap-1 px-2.5 py-1 bg-brand-blue border border-brand-blue rounded-md text-[10px] font-black text-white hover:bg-blue-700 transition-all shadow-sm"
+              >
+                + New ePCR
+              </button>
+              <button
+                type="button"
+                onClick={() => dispatch(fetchAllPatientHistory(patientId))}
+                className="flex items-center gap-1 px-2 py-1 bg-white border border-[#DDE3F0] rounded-md text-[10px] font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
+              >
+                <RefreshCw size={10} className={loading ? 'animate-spin' : ''} /> Refresh
+              </button>
+            </>
           )}
           {canSearch && patientId && (
             <button
               type="button"
               onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }}
-              className="text-xs font-bold text-[#8A97B0] hover:text-brand-blue transition-colors px-2 py-1.5"
+              className="text-[10px] font-bold text-[#8A97B0] hover:text-brand-blue transition-colors px-1.5 py-1"
             >
               Change Patient
             </button>
@@ -1577,40 +1586,38 @@ function PatientHistory() {
       ) : (
         <div className="flex-1 flex flex-col space-y-4 min-h-0">
           {/* Summary Stats Grid */}
-          <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {[
-              { label: 'Active Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
-              { label: 'Current Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
+              { label: 'Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
+              { label: 'Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
               { label: 'Visits', value: counts.encounters, icon: UserRound, color: 'text-purple-500', bg: 'bg-purple-50' },
               { label: 'Admissions', value: counts.admissions, icon: BedDouble, color: 'text-orange-500', bg: 'bg-orange-50' },
-              { label: 'Lab Results', value: counts.labs, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
-              { label: 'Documents', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { label: 'Labs', value: counts.labs, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
+              { label: 'Docs', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
               { label: 'Vitals', value: counts.vitals, icon: Thermometer, color: 'text-teal-500', bg: 'bg-teal-50' },
             ].map((stat) => (
-              <div key={stat.label} className="bg-white px-2.5 py-1.5 rounded-lg border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-2">
-                <div className={`w-6 h-6 ${stat.bg} ${stat.color} rounded flex items-center justify-center shrink-0`}>
-                  <stat.icon size={12} />
+              <div key={stat.label} className="bg-white px-2 py-1 rounded-md border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-1.5">
+                <div className={`w-5 h-5 ${stat.bg} ${stat.color} rounded flex items-center justify-center shrink-0`}>
+                  <stat.icon size={10} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-[#0F1A3A] leading-none">{stat.value}</p>
-                  <p className="text-[8px] font-black text-[#A0AECB] uppercase tracking-wider truncate mt-0.5">{stat.label}</p>
-                </div>
+                <span className="text-xs font-black text-[#0F1A3A]">{stat.value}</span>
+                <span className="text-[9px] font-bold text-[#A0AECB] uppercase tracking-wider">{stat.label}</span>
               </div>
             ))}
           </div>
 
           {/* Horizontal Navigation Tabs */}
-          <div className="flex flex-wrap items-center gap-1 p-1 bg-white border border-[#DDE3F0] rounded-xl shadow-sm shrink-0">
+          <div className="flex flex-wrap items-center gap-0.5 p-0.5 bg-white border border-[#DDE3F0] rounded-lg shadow-sm shrink-0">
             {tabs.map(([id, label, Icon]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-xs font-bold ${tab === id
-                  ? 'bg-[#C8102E] text-white shadow-md shadow-red-900/20'
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all text-[11px] font-bold ${tab === id
+                  ? 'bg-[#C8102E] text-white shadow-sm shadow-red-900/20'
                   : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
                   }`}
               >
-                <Icon size={14} />
+                <Icon size={12} />
                 {label}
               </button>
             ))}
@@ -1722,18 +1729,18 @@ function PatientHistory() {
                               {imgs.length > 0 && (() => {
                                 const sortedImgs = [...imgs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
                                 return (
-                                  <div className="flex flex-col gap-2 p-2 border-b border-[#F0F4FC]">
+                                  <div className={`${sortedImgs.length > 1 ? 'flex gap-2 overflow-x-auto custom-scrollbar p-2' : 'p-2'} border-b border-[#F0F4FC]`}>
                                     {sortedImgs.map((doc) => {
                                       return (
-                                        <div key={getId(doc)} className="flex flex-col rounded-lg overflow-hidden bg-white border border-[#DDE3F0] shadow-sm min-w-0">
-                                          <div className="relative group bg-[#0F1A3A]">
+                                        <div key={getId(doc)} className={`flex flex-col rounded-lg overflow-hidden bg-[#0A1128] border border-[#DDE3F0] shadow-sm ${sortedImgs.length > 1 ? 'min-w-[200px]' : 'w-full'}`}>
+                                          <div className="relative group">
                                             <SecureInlineImage
                                               patientId={patientId}
                                               doc={doc}
-                                              className="w-full h-40 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                                              className="w-full h-52 object-contain"
                                               onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
                                             />
-                                            <div className="hidden w-full h-40 items-center justify-center text-[#A0AECB]">
+                                            <div className="hidden w-full h-52 items-center justify-center text-[#A0AECB] bg-[#0A1128]">
                                               <FileText size={36} />
                                             </div>
                                             <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-black/70 to-transparent pointer-events-none flex items-start justify-between gap-2">
@@ -1751,11 +1758,6 @@ function PatientHistory() {
                                               </span>
                                             </button>
                                           </div>
-                                          {doc.notes && (
-                                            <div className="p-2 bg-white border-t border-[#F0F4FC]">
-                                              <p className="text-[10px] text-[#4B5A7A] font-semibold leading-snug">{doc.notes}</p>
-                                            </div>
-                                          )}
                                         </div>
                                       );
                                     })}
@@ -1782,9 +1784,6 @@ function PatientHistory() {
                                             <p className="text-xs font-bold text-[#A0AECB] mt-1">
                                               {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
                                             </p>
-                                            {doc.notes && (
-                                              <p className="mt-2 text-sm text-[#4B5A7A] leading-relaxed border-l-2 border-[#DDE3F0] pl-2.5">{doc.notes}</p>
-                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -1843,26 +1842,86 @@ function PatientHistory() {
                       const sortedV = [...vitals].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
                       const preVital = sortedV[0] || null;
                       const postVital = sortedV.length > 1 ? sortedV[sortedV.length - 1] : null;
+                      // Pick the most recently updated condition that has clinical notes; fall back to the most recent condition if none have notes
+                      const conditionWithNotes = [...conditions].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)).find(c => c.symptoms || c.findings || c.analysis || c.recommendedTreatment)
+                        || ([...conditions].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))[0] ?? null);
 
                       return (
                         <>
-                          {/* ── 2-Column Treatment Layout: Docs + Vitals + Labs/Procedures ── */}
-                          <div className="grid grid-cols-2 gap-2 flex-1">
-
+                          {/* ── 2-Column Treatment Layout: Top (Vitals + Docs) ── */}
+                          <div className="grid grid-cols-2 gap-2">
                             {/* PRE-TREATMENT Column */}
-                            <div className="flex flex-col gap-2 flex-1">
+                            <div className="flex flex-col gap-2">
                               <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
                                 <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment</h3>
                               </div>
+                              {/* Pre Vitals */}
+                              <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>
                               {/* Pre Doc image */}
                               {(canEdit || preImages.length > 0 || preDocsOnly.length > 0) && (
                                 <div className="shrink-0"><QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} /></div>
                               )}
-                              {/* Pre Vitals */}
-                              <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>
-                              {/* Lab Results */}
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 flex flex-col">
+                            </div>
+
+                            {/* POST-TREATMENT Column */}
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment</h3>
+                              </div>
+                              {/* Post Vitals */}
+                              <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>
+                              {/* Post Doc image */}
+                              {(canEdit || postImages.length > 0 || postDocsOnly.length > 0) && (
+                                <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} /></div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ── Clinical Notes (4 Horizontal Cards from Condition) ── */}
+                          {conditionWithNotes && (
+                            <div className="grid grid-cols-4 gap-2 mt-2">
+                              {/* Symptoms */}
+                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Symptoms</h3>
+                                </div>
+                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.symptoms || '—'}</p>
+                              </div>
+                              {/* Findings */}
+                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Findings</h3>
+                                </div>
+                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.findings || '—'}</p>
+                              </div>
+                              {/* Analysis */}
+                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Analysis</h3>
+                                </div>
+                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.analysis || '—'}</p>
+                              </div>
+                              {/* Treatment */}
+                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Treatment</h3>
+                                </div>
+                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.recommendedTreatment || '—'}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── 2-Column Treatment Layout: Bottom (Labs/Procedures) ── */}
+                          <div className="grid grid-cols-2 gap-2 mt-2 flex-1">
+                            {/* Lab Results */}
+                            <div className="flex flex-col flex-1">
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex flex-col flex-1">
                                 <div className="flex items-center justify-between border-b border-[#DDE3F0] px-2 py-1 shrink-0 bg-[#F8FAFF]">
                                   <div className="flex items-center gap-2">
                                     <div className="h-5 w-5 rounded-md bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={11} className="text-[#1A3C8F]" /></div>
@@ -1902,20 +1961,9 @@ function PatientHistory() {
                               </section>
                             </div>
 
-                            {/* POST-TREATMENT Column */}
-                            <div className="flex flex-col gap-2 flex-1">
-                              <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
-                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment</h3>
-                              </div>
-                              {/* Post Doc image */}
-                              {(canEdit || postImages.length > 0 || postDocsOnly.length > 0) && (
-                                <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} /></div>
-                              )}
-                              {/* Post Vitals */}
-                              <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>
-                              {/* Procedures */}
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                            {/* Procedures */}
+                            <div className="flex flex-col flex-1">
+                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex flex-col flex-1">
                                 <div className="flex items-center justify-between border-b border-[#DDE3F0] px-2 py-1 shrink-0 bg-[#F8FAFF]">
                                   <div className="flex items-center gap-2">
                                     <div className="h-5 w-5 rounded-md bg-orange-50 flex items-center justify-center"><Stethoscope size={11} className="text-orange-600" /></div>
@@ -1939,7 +1987,6 @@ function PatientHistory() {
                                   ))}
                                 </div>
                               </section>
-
                             </div>
                           </div>
 
@@ -2070,6 +2117,10 @@ function PatientHistory() {
                             {text(item.type, 'Document').replace(/_/g, ' ')} <span className="text-[#DDE3F0]">•</span> {date(item.date || item.uploadedAt)}
                           </p>
                           {item.notes && <p className="mt-3 text-sm font-semibold text-[#4B5A7A] leading-relaxed max-w-2xl">{item.notes}</p>}
+                          {item.symptoms && <p className="mt-2 text-sm text-[#4B5A7A]"><span className="font-bold">Symptoms:</span> {item.symptoms}</p>}
+                          {item.findings && <p className="mt-2 text-sm text-[#4B5A7A]"><span className="font-bold">Findings:</span> {item.findings}</p>}
+                          {item.analysis && <p className="mt-2 text-sm text-[#4B5A7A]"><span className="font-bold">Analysis:</span> {item.analysis}</p>}
+                          {item.recommendedTreatment && <p className="mt-2 text-sm text-[#4B5A7A]"><span className="font-bold">Recommended Treatment:</span> {item.recommendedTreatment}</p>}
                         </div>
                         {(item.fileUrl || item.url) && (
                           <button

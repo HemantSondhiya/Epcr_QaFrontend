@@ -15,7 +15,7 @@ const Layout = () => {
         <Header setIsMobileMenuOpen={setIsMobileMenuOpen} />
 
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto p-6 lg:p-8">
+          <div className="w-full h-full">
             <Outlet />
           </div>
         </main>

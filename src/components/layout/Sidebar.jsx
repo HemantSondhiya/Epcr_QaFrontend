@@ -65,32 +65,32 @@ const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      <aside className={`fixed md:relative top-0 left-0 h-full w-64 flex flex-col shrink-0 z-50
+      <aside className={`fixed md:relative top-0 left-0 h-full w-48 flex flex-col shrink-0 z-50
         transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `} style={{ background: '#1A3C8F' }}>
 
         {/* Logo */}
-        <div className="h-20 flex items-center px-5 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-brand-red rounded-xl flex items-center justify-center shadow-lg">
-              <Activity size={18} className="text-white" />
+        <div className="h-10 flex items-center px-4 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-brand-red rounded-lg flex items-center justify-center shadow-sm">
+              <Activity size={12} className="text-white" />
             </div>
             <div>
-              <p className="text-white font-black text-base leading-none tracking-tight">INNOVIXA</p>
-              <p className="text-white/40 font-semibold text-[10px] tracking-widest uppercase">Health Platform</p>
+              <p className="text-white font-black text-xs leading-none tracking-tight">INNOVIXA</p>
+              <p className="text-white/40 font-semibold text-[8px] tracking-widest uppercase">Health Platform</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {MENU_GROUPS.map(group => {
             const visible = group.items.filter(i => menuItems.includes(i));
             if (!visible.length) return null;
             return (
-              <div key={group.label} className="mb-4">
-                <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/25">
+              <div key={group.label} className="mb-3">
+                <p className="px-2 mb-1 text-[9px] font-bold uppercase tracking-widest text-white/25">
                   {group.label}
                 </p>
                 {visible.map(item => {
@@ -101,15 +101,15 @@ const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     <NavLink key={item} to={path}
                       onClick={() => setIsMobileMenuOpen(false)}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${isActive
-                          ? 'bg-brand-red text-white shadow-[0_4px_16px_rgba(200,16,46,0.35)]'
-                          : 'text-white/60 hover:text-white hover:bg-white/8'
+                        `flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 group ${isActive
+                          ? 'bg-brand-red text-white shadow-[0_2px_8px_rgba(200,16,46,0.35)]'
+                          : 'text-white/60 hover:text-white hover:bg-white/10'
                         }`
                       }>
-                      <Icon size={16} className="shrink-0" />
-                      <span className="flex-1 text-xs font-semibold">{item}</span>
+                      <Icon size={12} className="shrink-0" />
+                      <span className="flex-1 text-[11px] font-semibold">{item}</span>
                       {item === 'Notifications' && unread > 0 && (
-                        <span className="bg-white text-brand-red text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        <span className="bg-white text-brand-red text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
                           {unread}
                         </span>
                       )}
@@ -122,21 +122,21 @@ const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
         </nav>
 
         {/* User Footer */}
-        <div className="p-4 border-t border-white/10 shrink-0" style={{ background: 'rgba(0,0,0,0.15)' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 bg-brand-red rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">
+        <div className="p-2 border-t border-white/10 shrink-0" style={{ background: 'rgba(0,0,0,0.15)' }}>
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <div className="w-6 h-6 bg-brand-red rounded-lg flex items-center justify-center text-white font-black text-[10px] shrink-0">
               {(user?.firstName?.charAt(0) || user?.email?.charAt(0) || 'U').toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-white text-xs font-bold truncate">
+              <p className="text-white text-[11px] font-bold truncate leading-tight">
                 {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || 'User'}
               </p>
-              <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider truncate">{role}</p>
+              <p className="text-white/40 text-[9px] font-semibold uppercase tracking-wider truncate">{role}</p>
             </div>
           </div>
           <button onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all text-xs font-semibold">
-            <LogOut size={15} /> Sign Out
+            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all text-[11px] font-semibold">
+            <LogOut size={12} /> Sign Out
           </button>
         </div>
       </aside>

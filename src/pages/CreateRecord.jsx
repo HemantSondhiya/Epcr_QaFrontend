@@ -4,7 +4,7 @@ import {
    CheckCircle2, Layers, AlertTriangle, Pill, ClipboardList,
    FlaskConical, Clock, Shield, Zap, Heart, Thermometer,
    Stethoscope, Syringe, Building, ChevronLeft, Fingerprint, Lock,
-   RefreshCw
+   RefreshCw, Search, Check
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
@@ -30,6 +30,7 @@ const CreateRecord = () => {
    const navigate = useNavigate();
    const [searchParams] = useSearchParams();
    const recordId = searchParams.get('id');
+   const prefilledPatientId = searchParams.get('patientId');
    const dispatch = useDispatch();
    const user = useSelector(selectUser);
    const [currentStep, setCurrentStep] = useState(1);
@@ -41,9 +42,14 @@ const CreateRecord = () => {
    const [selectedWorkflow, setSelectedWorkflow] = useState(null);
    const [dynamicFormResponses, setDynamicFormResponses] = useState({});
 
+   const [patientMode, setPatientMode] = useState(prefilledPatientId ? 'existing' : 'new');
+   const [searchPhone, setSearchPhone] = useState('');
+   const [searchResults, setSearchResults] = useState([]);
+   const [isSearching, setIsSearching] = useState(false);
+
    const [formData, setFormData] = useState({
       // Patient
-      patientId: '',
+      patientId: prefilledPatientId || '',
       patientName: '',
       patientDateOfBirth: '',
       patientGender: '',
@@ -220,6 +226,36 @@ const CreateRecord = () => {
       fetchRecord();
    }, [recordId, dispatch]);
 
+   const handlePatientSearch = async () => {
+      if (!searchPhone) return;
+      setIsSearching(true);
+      try {
+         const { data } = await client.get("/api/admin/patients/search", { params: { phone: searchPhone } });
+         setSearchResults(Array.isArray(data) ? data : (data.content || []));
+         if ((!data || data.length === 0) && !data.content?.length) {
+            dispatch(addToast({ type: 'info', message: 'No patient found with that phone number.' }));
+         }
+      } catch (err) {
+         dispatch(addToast({ type: 'error', message: 'Failed to search patients.' }));
+      } finally {
+         setIsSearching(false);
+      }
+   };
+
+   const selectExistingPatient = (pat) => {
+      setFormData(prev => ({
+         ...prev,
+         patientId: pat.patientId || pat.id,
+         patientName: pat.name || `${pat.firstName || ''} ${pat.lastName || ''}`.trim(),
+         patientDateOfBirth: pat.dateOfBirth || pat.dob || '',
+         patientGender: pat.gender || '',
+         patientPhone: pat.phone || pat.phoneNumber || searchPhone,
+         email: pat.email || '',
+      }));
+      setSearchResults([]);
+      dispatch(addToast({ type: 'success', message: 'Patient linked successfully.' }));
+   };
+
    const updateField = (path, value) => {
       setFormData(prev => {
          const newFormData = { ...prev };
@@ -243,9 +279,11 @@ const CreateRecord = () => {
    const validateStep = (step) => {
       const errors = {};
       if (step === 1) {
-         if (!formData.patientName) errors.patientName = 'Name Required';
-         if (!formData.patientDateOfBirth) errors.patientDateOfBirth = 'DOB Required';
-         if (!formData.patientGender) errors.patientGender = 'Gender Required';
+         if (!formData.patientId) {
+            if (!formData.patientName) errors.patientName = 'Name Required';
+            if (!formData.patientDateOfBirth) errors.patientDateOfBirth = 'DOB Required';
+            if (!formData.patientGender) errors.patientGender = 'Gender Required';
+         }
       }
       if (step === 2) {
          if (!formData.incidentDateTime) errors.incidentDateTime = 'Timestamp Required';
@@ -303,6 +341,7 @@ const CreateRecord = () => {
       const cn = data.consent || {};
 
       return {
+         patientId: cv(data.patientId) || '',
          patientName: cv(data.patientName) || '',
          patientDateOfBirth: data.patientDateOfBirth || null,
          patientGender: cv(data.patientGender) || '',
@@ -549,15 +588,67 @@ const CreateRecord = () => {
                {currentStep === 1 && (
                   <div className="space-y-12">
 
+                     {!recordId && (
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                           <div className="flex items-center gap-4 mb-4">
+                              <button type="button" onClick={() => setPatientMode('new')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${patientMode === 'new' ? 'bg-brand-blue text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>New Patient</button>
+                              <button type="button" onClick={() => setPatientMode('existing')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${patientMode === 'existing' ? 'bg-brand-blue text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>Existing Patient</button>
+                           </div>
+
+                           {patientMode === 'existing' && !formData.patientId && (
+                              <div className="flex gap-2 items-end">
+                                 <div className="flex-1 space-y-1.5">
+                                    <label className={labelCls}>Search by Phone Number</label>
+                                    <div className="relative">
+                                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                       <input type="text" value={searchPhone} onChange={e => setSearchPhone(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handlePatientSearch())} placeholder="e.g. 555-1234" className="w-full bg-white border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none" />
+                                    </div>
+                                 </div>
+                                 <button type="button" onClick={handlePatientSearch} disabled={isSearching} className="bg-brand-blue text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 h-[38px] flex items-center justify-center min-w-[100px]">
+                                    {isSearching ? <RefreshCw className="animate-spin" size={16} /> : 'Search'}
+                                 </button>
+                              </div>
+                           )}
+
+                           {searchResults.length > 0 && (
+                              <div className="mt-4 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                 <div className="bg-slate-100 px-4 py-2 text-xs font-bold text-slate-500 uppercase">Search Results</div>
+                                 {searchResults.map(pat => (
+                                    <div key={pat.id || pat.patientId} className="px-4 py-3 border-b border-slate-100 last:border-0 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                       <div>
+                                          <p className="text-sm font-bold text-slate-800">{pat.name || `${pat.firstName || ''} ${pat.lastName || ''}`.trim()}</p>
+                                          <p className="text-xs text-slate-500">ID: {pat.patientId || pat.id} | DOB: {pat.dateOfBirth || pat.dob || 'N/A'}</p>
+                                       </div>
+                                       <button type="button" onClick={() => selectExistingPatient(pat)} className="text-brand-blue bg-blue-50 px-3 py-1.5 rounded text-xs font-bold hover:bg-brand-blue hover:text-white transition-all">Select</button>
+                                    </div>
+                                 ))}
+                              </div>
+                           )}
+
+                           {patientMode === 'existing' && formData.patientId && (
+                              <div className="mt-4 flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+                                 <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="text-emerald-500" size={18} />
+                                    <div>
+                                       <p className="text-sm font-bold text-emerald-800">Linked to Existing Patient</p>
+                                       <p className="text-xs text-emerald-600 font-medium">{formData.patientName} (ID: {formData.patientId})</p>
+                                    </div>
+                                 </div>
+                                 <button type="button" onClick={() => { setFormData(prev => ({ ...prev, patientId: '', patientName: '', patientDateOfBirth: '', patientGender: '', patientPhone: '', email: '' })); setSearchPhone(''); }} className="text-xs font-bold text-brand-red hover:underline">Unlink</button>
+                              </div>
+                           )}
+                        </div>
+                     )}
+
                      {/* Basic Info */}
                      <SectionTitle title="Patient Information" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Field label="Patient Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required />
+                        <Field label="Patient Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} />
                         <Field label="Patient ID" field="patientId" value={formData.patientId} update={updateField} disabled placeholder="Auto-generated on save" />
-                        <Field label="Date of Birth" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required />
+                        <Field label="Date of Birth" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} />
                         <div className="space-y-1.5">
-                           <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Gender</label>
-                           <select value={formData.patientGender} onChange={e => updateField('patientGender', e.target.value)} className={fieldErrors.patientGender ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
+                           <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (patientMode === 'new' ? labelReqCls : labelCls)}>Gender</label>
+                           <select value={formData.patientGender} onChange={e => updateField('patientGender', e.target.value)} disabled={patientMode === 'existing' && !!formData.patientId} className={fieldErrors.patientGender ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (patientMode === 'new' ? inputReqCls : inputCls)}>
                               <option value="">Select Gender</option>
                               <option value="MALE">Male</option>
                               <option value="FEMALE">Female</option>
@@ -581,7 +672,7 @@ const CreateRecord = () => {
                      </div>
                      <div className="space-y-1.5 mt-6">
                         <label className={labelCls}>Address</label>
-                        <textarea rows={2} value={formData.patientAddress} onChange={e => updateField('patientAddress', e.target.value)} className={inputCls + ' resize-none'} />
+                        <textarea rows={2} value={formData.patientAddress} onChange={e => updateField('patientAddress', e.target.value)} disabled={patientMode === 'existing' && !!formData.patientId} className={inputCls + ' resize-none'} />
                      </div>
 
                      {/* Medical History */}
