@@ -1882,14 +1882,6 @@ function PatientHistory() {
                           {/* ── Clinical Notes (4 Horizontal Cards from Condition) ── */}
                           {conditionWithNotes && (
                             <div className="grid grid-cols-4 gap-2 mt-2">
-                              {/* Symptoms */}
-                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Symptoms</h3>
-                                </div>
-                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.symptoms || '—'}</p>
-                              </div>
                               {/* Findings */}
                               <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
                                 <div className="flex items-center gap-1.5 mb-2">
@@ -1897,6 +1889,14 @@ function PatientHistory() {
                                   <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Findings</h3>
                                 </div>
                                 <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.findings || '—'}</p>
+                              </div>
+                              {/* Symptoms */}
+                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Symptoms</h3>
+                                </div>
+                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.symptoms || '—'}</p>
                               </div>
                               {/* Analysis */}
                               <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
@@ -1906,11 +1906,11 @@ function PatientHistory() {
                                 </div>
                                 <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.analysis || '—'}</p>
                               </div>
-                              {/* Treatment */}
+                              {/* Recommended Treatment */}
                               <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
                                 <div className="flex items-center gap-1.5 mb-2">
                                   <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Treatment</h3>
+                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Recommended Treatment</h3>
                                 </div>
                                 <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.recommendedTreatment || '—'}</p>
                               </div>
