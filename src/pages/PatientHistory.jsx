@@ -999,7 +999,7 @@ function VitalsTab({ vitals, canEdit, onAdd, onEdit, onView, onDelete }) {
   );
 }
 
-function HistoryModal({ type, item, patientId, onClose }) {
+function HistoryModal({ type, item, patientId, initialValues = {}, onClose }) {
   const dispatch = useDispatch();
   const config = FORM_CONFIG[type];
   const conditions = useSelector(selectConditions) || [];
@@ -1007,7 +1007,7 @@ function HistoryModal({ type, item, patientId, onClose }) {
   const admissions = useSelector(selectAdmissions) || [];
   const [form, setForm] = useState(() => {
     const existing = item && config.fromExisting ? config.fromExisting(item) : item;
-    return { ...config.defaults, ...(existing || {}) };
+    return { ...config.defaults, ...initialValues, ...(existing || {}) };
   });
   const [saving, setSaving] = useState(false);
 
@@ -1679,30 +1679,14 @@ function PatientHistory() {
                       </div>
                     </div>
 
-                    {/* ── Clinical Workflow: Pre-Vitals → Pre-Docs → Post-Docs+Post-Vitals → Procedures → Timeline ── */}
+                    {/* ── Incidents (Pre/Post Layout + 4 Clinical Cards per Condition) ── */}
                     {(() => {
-                      const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
-                      const POST_KEYS = ['POST', 'DISCHARGE', 'FOLLOW', 'RESULT', 'REPORT', 'PRESCRIPTION'];
-                      const isPre = (d) => d.documentPhase === 'PRE' || (!d.documentPhase && PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
-                      const isPost = (d) => d.documentPhase === 'POST' || (!d.documentPhase && POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
-                      const preDocs = documents.filter(isPre);
-                      const postDocs = documents.filter(isPost);
-                      const otherDocs = documents.filter(d => !isPre(d) && !isPost(d));
-                      // If no classification available, split in half
-                      const finalPre = preDocs.length ? preDocs : otherDocs.slice(0, Math.ceil(otherDocs.length / 2));
-                      const finalPost = postDocs.length ? postDocs : otherDocs.slice(Math.ceil(otherDocs.length / 2));
-
                       const isImageFile = (doc) => {
                         const name = (doc.fileName || doc.name || '').toLowerCase();
                         return /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/.test(name);
                       };
 
-                      const preImages = finalPre.filter(isImageFile);
-                      const preDocsOnly = finalPre.filter(d => !isImageFile(d));
-                      const postImages = finalPost.filter(isImageFile);
-                      const postDocsOnly = finalPost.filter(d => !isImageFile(d));
-
-                      const QuickDocBox = ({ label, color, accent, docs, imgs }) => {
+                      const QuickDocBox = ({ label, color, accent, docs, imgs, conditionId, phase }) => {
                         return (
                           <section className={`bg-white border ${color} rounded-lg shadow-sm overflow-hidden shrink-0`}>
                             <div className={`flex items-center justify-between border-b ${color} px-2 py-1 ${accent} shrink-0`}>
@@ -1714,7 +1698,17 @@ function PatientHistory() {
                                 </div>
                               </div>
                               {canEdit && (
-                                <button type="button" onClick={() => setModal({ type: 'documents' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setModal({
+                                    type: 'documents',
+                                    initialValues: {
+                                      conditionId: conditionId || '',
+                                      documentPhase: phase,
+                                    },
+                                  })}
+                                  className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0"
+                                >
                                   <Plus size={9} />
                                 </button>
                               )}
@@ -1838,83 +1832,164 @@ function PatientHistory() {
                         );
                       };
 
-                      const sortedV = [...vitals].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
-                      const preVital = sortedV[0] || null;
-                      const postVital = sortedV.length > 1 ? sortedV[sortedV.length - 1] : null;
-                      // Pick the most recently updated condition that has clinical notes; fall back to the most recent condition if none have notes
-                      const conditionWithNotes = [...conditions].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)).find(c => c.symptoms || c.findings || c.analysis || c.recommendedTreatment)
-                        || ([...conditions].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))[0] ?? null);
+                      const getValidTime = (dateVal) => {
+                        if (!dateVal) return null;
+                        if (Array.isArray(dateVal)) {
+                          return new Date(dateVal[0], dateVal[1] - 1, dateVal[2], dateVal[3] || 0, dateVal[4] || 0, dateVal[5] || 0).getTime();
+                        }
+                        const t = new Date(dateVal).getTime();
+                        return isNaN(t) ? null : t;
+                      };
+
+                      const conditionSortTime = (condition) => getValidTime(condition.createdAt || condition.updatedAt || condition.dateDiagnosed || condition.diagnosedAt);
+
+                      const activeConditions = conditions
+                        .map((condition, index) => ({ condition, index, time: conditionSortTime(condition) }))
+                        .filter(({ condition }) => !condition.status || condition.status === 'ACTIVE')
+                        .sort((a, b) => {
+                          if (a.time !== null && b.time !== null && a.time !== b.time) return a.time - b.time;
+                          if (a.time !== null && b.time === null) return -1;
+                          if (a.time === null && b.time !== null) return 1;
+                          return b.index - a.index;
+                        })
+                        .map(({ condition }) => condition);
+
+                      const fallbackCondition = conditions.length > 0 ? conditions[0] : null;
+                      const conditionsToDisplay = activeConditions.length > 0 ? activeConditions : [fallbackCondition];
 
                       return (
                         <>
-                          {/* ── 2-Column Treatment Layout: Top (Vitals + Docs) ── */}
-                          <div className="grid grid-cols-2 gap-2">
-                            {/* PRE-TREATMENT Column */}
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
-                                <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
-                                <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment</h3>
-                              </div>
-                              {/* Pre Vitals */}
-                              <div className="shrink-0"><VitalsBox label="Pre-Treatment" v={preVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" /></div>
-                              {/* Pre Doc image */}
-                              {(canEdit || preImages.length > 0 || preDocsOnly.length > 0) && (
-                                <div className="shrink-0"><QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnly} imgs={preImages} /></div>
-                              )}
-                            </div>
+                          <div className="flex flex-col gap-6 mt-2">
+                            {/* ── Global Vitals (Fixed after Conditions & Medications) ── */}
+                            {(() => {
+                              const sortedV = [...vitals].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
+                              const preVitalCond = sortedV[0] || null;
+                              const postVitalCond = sortedV.length > 1 ? sortedV[sortedV.length - 1] : null;
 
-                            {/* POST-TREATMENT Column */}
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
-                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment</h3>
-                              </div>
-                              {/* Post Vitals */}
-                              <div className="shrink-0"><VitalsBox label="Post-Treatment" v={postVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" /></div>
-                              {/* Post Doc image */}
-                              {(canEdit || postImages.length > 0 || postDocsOnly.length > 0) && (
-                                <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnly} imgs={postImages} /></div>
-                              )}
-                            </div>
+                              return (
+                                <div className="grid grid-cols-2 gap-2 shrink-0">
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
+                                      <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Vitals</h3>
+                                    </div>
+                                    <VitalsBox label="Pre-Treatment" v={preVitalCond} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
+                                  </div>
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                      <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Vitals</h3>
+                                    </div>
+                                    <VitalsBox label="Post-Treatment" v={postVitalCond} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* ── Repeating Incident Blocks (Images -> 4 Cards) ── */}
+                            {conditionsToDisplay.map((cond, idx) => {
+                              // Safely assign unlinked images to the newest condition (which is now guaranteed to be the LAST one in the correctly sorted ascending array)
+                              const newestCond = conditionsToDisplay[conditionsToDisplay.length - 1];
+                              const newestCondId = getId(newestCond) || newestCond?._id;
+
+                              const condId = getId(cond) || cond?._id;
+                              const isNewestCond = condId === newestCondId;
+                              const blockDocs = documents.filter(d => {
+                                const docConditionId = d.conditionId || d.relatedConditionId;
+                                return String(docConditionId || '') === String(condId || '') || (isNewestCond && !docConditionId);
+                              });
+
+                              const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
+                              const POST_KEYS = ['POST', 'DISCHARGE', 'FOLLOW', 'RESULT', 'REPORT', 'PRESCRIPTION'];
+                              const isPre = (d) => d.documentPhase === 'PRE' || (!d.documentPhase && PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
+                              const isPost = (d) => d.documentPhase === 'POST' || (!d.documentPhase && POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
+
+                              const preDocs = blockDocs.filter(isPre);
+                              const postDocs = blockDocs.filter(isPost);
+                              const otherDocs = blockDocs.filter(d => !isPre(d) && !isPost(d));
+
+                              const finalPre = preDocs.length ? preDocs : otherDocs.slice(0, Math.ceil(otherDocs.length / 2));
+                              const finalPost = postDocs.length ? postDocs : otherDocs.slice(Math.ceil(otherDocs.length / 2));
+
+                              const preImagesCond = finalPre.filter(isImageFile);
+                              const preDocsOnlyCond = finalPre.filter(d => !isImageFile(d));
+                              const postImagesCond = finalPost.filter(isImageFile);
+                              const postDocsOnlyCond = finalPost.filter(d => !isImageFile(d));
+
+                              return (
+                                <div key={condId || idx} className="flex flex-col gap-2">
+                                  {/* Incident Header (Only if multiple) */}
+                                  {conditionsToDisplay.length > 1 && cond && (
+                                    <div className="flex items-center gap-1.5 px-1 pt-1">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                      <h3 className="text-[12px] font-black text-[#0F1A3A] uppercase tracking-wide">INCIDENT: {cond.name || 'Condition'}</h3>
+                                    </div>
+                                  )}
+
+                                  {/* ── 2-Column Treatment Layout: Docs Only ── */}
+                                  <div className="grid grid-cols-2 gap-2 mt-1">
+                                    {/* PRE-TREATMENT Column */}
+                                    <div className="flex flex-col gap-2">
+                                      <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
+                                        <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Evidence</h3>
+                                      </div>
+                                      {/* Pre Doc image */}
+                                      {(canEdit || preImagesCond.length > 0 || preDocsOnlyCond.length > 0) && (
+                                        <div className="shrink-0"><QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnlyCond} imgs={preImagesCond} conditionId={condId} phase="PRE" /></div>
+                                      )}
+                                    </div>
+
+                                    {/* POST-TREATMENT Column */}
+                                    <div className="flex flex-col gap-2">
+                                      <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                        <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Evidence</h3>
+                                      </div>
+                                      {/* Post Doc image */}
+                                      {(canEdit || postImagesCond.length > 0 || postDocsOnlyCond.length > 0) && (
+                                        <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnlyCond} imgs={postImagesCond} conditionId={condId} phase="POST" /></div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* ── 4 Clinical Cards ── */}
+                                  {cond && (
+                                    <div className="grid grid-cols-4 gap-2 mb-2 mt-1">
+                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Findings</h3>
+                                        </div>
+                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.findings || '—'}</p>
+                                      </div>
+                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Symptoms</h3>
+                                        </div>
+                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.symptoms || '—'}</p>
+                                      </div>
+                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Analysis</h3>
+                                        </div>
+                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.analysis || '—'}</p>
+                                      </div>
+                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Recommended Treatment</h3>
+                                        </div>
+                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.recommendedTreatment || '—'}</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-
-                          {/* ── Clinical Notes (4 Horizontal Cards from Condition) ── */}
-                          {conditionWithNotes && (
-                            <div className="grid grid-cols-4 gap-2 mt-2">
-                              {/* Findings */}
-                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Findings</h3>
-                                </div>
-                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.findings || '—'}</p>
-                              </div>
-                              {/* Symptoms */}
-                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Symptoms</h3>
-                                </div>
-                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.symptoms || '—'}</p>
-                              </div>
-                              {/* Analysis */}
-                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Analysis</h3>
-                                </div>
-                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.analysis || '—'}</p>
-                              </div>
-                              {/* Recommended Treatment */}
-                              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                  <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Recommended Treatment</h3>
-                                </div>
-                                <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{conditionWithNotes.recommendedTreatment || '—'}</p>
-                              </div>
-                            </div>
-                          )}
 
                           {/* ── 2-Column Treatment Layout: Bottom (Labs/Procedures) ── */}
                           <div className="grid grid-cols-2 gap-2 mt-2 flex-1">
@@ -2214,7 +2289,7 @@ function PatientHistory() {
 
       {
         modal && patientId && (
-          <HistoryModal type={modal.type} item={modal.item} patientId={patientId} onClose={() => setModal(null)} />
+          <HistoryModal type={modal.type} item={modal.item} patientId={patientId} initialValues={modal.initialValues} onClose={() => setModal(null)} />
         )
       }
       {
