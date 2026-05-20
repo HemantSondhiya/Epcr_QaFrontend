@@ -85,6 +85,12 @@ import {
 } from 'lucide-react';
 
 const getId = (item) => item?.id || item?.conditionId || item?.medicationId || item?.encounterId || item?.admissionId || item?.labResultId || item?.documentId;
+const getConditionLinkId = (item) => {
+  const value = item?.conditionId || item?.relatedConditionId || item?.condition?.id || item?.condition?.conditionId;
+  if (value && typeof value === 'object') return value.id || value.conditionId || value._id || '';
+  return value || '';
+};
+const sameId = (a, b) => String(a || '') === String(b || '');
 const timelineKey = (item, index) => [
   item?.eventType || item?.type || 'event',
   item?.sourceId || getId(item) || item?.title || 'unknown',
@@ -1888,15 +1894,11 @@ function PatientHistory() {
 
                             {/* ── Repeating Incident Blocks (Images -> 4 Cards) ── */}
                             {conditionsToDisplay.map((cond, idx) => {
-                              // Safely assign unlinked images to the newest condition (which is now guaranteed to be the LAST one in the correctly sorted ascending array)
-                              const newestCond = conditionsToDisplay[conditionsToDisplay.length - 1];
-                              const newestCondId = getId(newestCond) || newestCond?._id;
-
                               const condId = getId(cond) || cond?._id;
-                              const isNewestCond = condId === newestCondId;
                               const blockDocs = documents.filter(d => {
-                                const docConditionId = d.conditionId || d.relatedConditionId;
-                                return String(docConditionId || '') === String(condId || '') || (isNewestCond && !docConditionId);
+                                const docConditionId = getConditionLinkId(d);
+                                if (!condId) return !docConditionId;
+                                return sameId(docConditionId, condId);
                               });
 
                               const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
