@@ -243,17 +243,95 @@ const CreateRecord = () => {
    };
 
    const selectExistingPatient = (pat) => {
+      const patMh = pat.medicalHistory || {};
       setFormData(prev => ({
          ...prev,
          patientId: pat.patientId || pat.id,
-         patientName: pat.name || `${pat.firstName || ''} ${pat.lastName || ''}`.trim(),
-         patientDateOfBirth: pat.dateOfBirth || pat.dob || '',
-         patientGender: pat.gender || '',
-         patientPhone: pat.phone || pat.phoneNumber || searchPhone,
-         email: pat.email || '',
+         patientName: pat.patientName ?? pat.displayName ?? pat.name ?? `${pat.firstName || ''} ${pat.lastName || ''}`.trim(),
+         patientDateOfBirth: pat.patientDateOfBirth ?? pat.dateOfBirth ?? pat.dob ?? '',
+         patientGender: pat.patientGender ?? pat.gender ?? '',
+         patientPhone: pat.patientPhone ?? pat.phone ?? pat.phoneNumber ?? searchPhone,
+         email: pat.email ?? '',
+         age: pat.age ?? '',
+         bloodGroup: pat.bloodGroup ?? '',
+         height: pat.height ?? '',
+         weight: pat.weight ?? '',
+         patientAddress: pat.patientAddress ?? pat.address ?? '',
+         patientSSNLast4: pat.patientSSNLast4 ?? pat.ssnLast4 ?? '',
+         spo2: pat.spo2 ?? '',
+         respirationRate: pat.respirationRate ?? '',
+         bloodSugar: pat.bloodSugar ?? '',
+         heartRate: pat.heartRate ?? '',
+         diastolicBp: pat.diastolicBp ?? '',
+         systolicBp: pat.systolicBp ?? '',
+         pulseRate: pat.pulseRate ?? '',
+         temperature: pat.temperature ?? pat.temperaturehemoglobin ?? '',
+         hemoglobin: pat.hemoglobin ?? '',
+         medicalHistory: {
+            ...prev.medicalHistory,
+            ...patMh,
+            comorbidity: pat.comorbidity ?? patMh.comorbidity ?? prev.medicalHistory.comorbidity ?? '',
+            allergy: pat.allergy ?? patMh.allergy ?? prev.medicalHistory.allergy ?? '',
+            doctor: pat.doctor ?? patMh.doctor ?? prev.medicalHistory.doctor ?? '',
+            currentMedicines: pat.currentMedicines ?? patMh.currentMedicines ?? prev.medicalHistory.currentMedicines ?? '',
+         }
       }));
       setSearchResults([]);
       dispatch(addToast({ type: 'success', message: 'Patient linked successfully.' }));
+   };
+
+   const handleUnlinkPatient = () => {
+      setFormData(prev => ({
+         ...prev,
+         patientId: '',
+         patientName: '',
+         patientDateOfBirth: '',
+         patientGender: '',
+         patientPhone: '',
+         email: '',
+         age: '',
+         bloodGroup: '',
+         height: '',
+         weight: '',
+         patientAddress: '',
+         patientSSNLast4: '',
+         spo2: '',
+         respirationRate: '',
+         bloodSugar: '',
+         heartRate: '',
+         diastolicBp: '',
+         systolicBp: '',
+         pulseRate: '',
+         temperature: '',
+         hemoglobin: '',
+         medicalHistory: {
+            ...prev.medicalHistory,
+            pastConditions: [],
+            currentMedications: [],
+            allergies: [],
+            surgicalHistory: [],
+            comorbidity: '',
+            currentMedicines: '',
+            allergy: '',
+            doctor: '',
+            surgicalHistoryString: '',
+            dnrOnFile: false,
+            advanceDirective: false,
+            advanceDirectiveType: '',
+            primaryPhysicianName: '',
+            primaryPhysicianContact: '',
+            primaryPhysicianFacility: '',
+            smoker: false,
+            alcoholUse: false,
+            substanceUse: false,
+            substanceUseDetails: '',
+            pregnant: false,
+            gestationalWeekIfPregnant: null,
+            lastKnownWellDateTime: null,
+            lastOralIntake: null,
+         }
+      }));
+      setSearchPhone('');
    };
 
    const updateField = (path, value) => {
@@ -634,7 +712,7 @@ const CreateRecord = () => {
                                        <p className="text-xs text-emerald-600 font-medium">{formData.patientName} (ID: {formData.patientId})</p>
                                     </div>
                                  </div>
-                                 <button type="button" onClick={() => { setFormData(prev => ({ ...prev, patientId: '', patientName: '', patientDateOfBirth: '', patientGender: '', patientPhone: '', email: '' })); setSearchPhone(''); }} className="text-xs font-bold text-brand-red hover:underline">Unlink</button>
+                                 <button type="button" onClick={handleUnlinkPatient} className="text-xs font-bold text-brand-red hover:underline">Unlink</button>
                               </div>
                            )}
                         </div>
