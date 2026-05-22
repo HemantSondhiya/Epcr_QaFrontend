@@ -11,6 +11,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { createRecord, updateRecord } from '../store/slices/epcrSlice';
+import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
 import DynamicFormRenderer from '../components/forms/DynamicFormRenderer';
 import client from '../api/client';
@@ -86,6 +87,7 @@ const CreateRecord = () => {
          gestationalWeekIfPregnant: null,
          lastKnownWellDateTime: null,
          lastOralIntake: null,
+         notes: [],
       },
       // Incident
       incidentDateTime: '',
@@ -143,8 +145,12 @@ const CreateRecord = () => {
       heartRate: '',
       glasgowComaScale: '',
       mentalStatus: '',
+      primaryImpression: '',
+      secondaryImpression: '',
       diagnosis: '',
       treatmentProvided: '',
+      dietAdvice: [],
+      notes: [],
       // Complaints
       complaints: [],
       structuredComplaints: [],
@@ -215,6 +221,8 @@ const CreateRecord = () => {
                vitals: data.vitals?.length ? data.vitals.join('\n') : '',
                proceduresPerformed: data.proceduresPerformed?.length ? data.proceduresPerformed.join('\n') : '',
                medicationsAdministered: data.medicationsAdministered?.length ? data.medicationsAdministered.join('\n') : '',
+               dietAdvice: Array.isArray(data.dietAdvice) ? data.dietAdvice : [],
+               notes: Array.isArray(data.notes) ? data.notes : [],
             }));
             if (data.dynamicFormResponses) {
                setDynamicFormResponses(data.dynamicFormResponses);
@@ -274,6 +282,7 @@ const CreateRecord = () => {
             allergy: pat.patientAllergy ?? pat.allergy ?? patMh.allergy ?? prev.medicalHistory.allergy ?? '',
             doctor: pat.patientDoctor ?? pat.doctor ?? patMh.doctor ?? prev.medicalHistory.doctor ?? '',
             currentMedicines: pat.patientCurrentMedicines ?? pat.currentMedicines ?? patMh.currentMedicines ?? prev.medicalHistory.currentMedicines ?? '',
+            notes: Array.isArray(patMh.notes) ? patMh.notes : prev.medicalHistory.notes,
          }
       }));
       setSearchResults([]);
@@ -329,6 +338,7 @@ const CreateRecord = () => {
             gestationalWeekIfPregnant: null,
             lastKnownWellDateTime: null,
             lastOralIntake: null,
+            notes: [],
          }
       }));
       setSearchPhone('');
@@ -471,6 +481,8 @@ const CreateRecord = () => {
          bloodGlucose: clinicalVitals.bloodGlucose,
          glasgowComaScale: clinicalVitals.glasgowComaScale,
          // Clinical
+         primaryImpression: cv(data.primaryImpression) || '',
+         secondaryImpression: cv(data.secondaryImpression) || '',
          diagnosis: cv(data.diagnosis) || '',
          treatmentProvided: cv(data.treatmentProvided) || '',
          mentalStatus: cv(data.mentalStatus) || '',
@@ -518,6 +530,7 @@ const CreateRecord = () => {
             gestationalWeekIfPregnant: gestationalWeekIfPregnant ? Number(gestationalWeekIfPregnant) : null,
             lastKnownWellDateTime: toIso(lastKnownWellDateTime),
             lastOralIntake: toIso(lastOralIntake),
+            notes: toArr(mh.notes),
          },
          // Nested: sceneAssessment
          sceneAssessment: {
@@ -588,10 +601,14 @@ const CreateRecord = () => {
          paramedicsId: data.paramedicsId || '',
          organizationId: data.organizationId || '',
          status: data.status || 'PENDING',
+         dietAdvice: toArr(data.dietAdvice),
+         notes: toArr(data.notes),
          clinicalData: {
             vitals: hasClinicalVitals ? [clinicalVitals] : [],
             assessment: {
                diagnosis: cv(data.diagnosis) || '',
+               primaryImpression: cv(data.primaryImpression) || '',
+               secondaryImpression: cv(data.secondaryImpression) || '',
                treatmentProvided: cv(data.treatmentProvided) || '',
                mentalStatus: cv(data.mentalStatus) || '',
                ecgRhythm: cv(data.ecgRhythm) || '',
@@ -603,6 +620,9 @@ const CreateRecord = () => {
             complaints: toArr(data.complaints),
             medicationsAdministered: toArr(data.medicationsAdministered),
             proceduresPerformed: toArr(data.proceduresPerformed),
+            dietAdvice: toArr(data.dietAdvice),
+            notes: toArr(data.notes),
+            medicalHistoryNotes: toArr(mh.notes),
          },
          dynamicFormResponses: dynamicData || {},
       };
@@ -636,6 +656,7 @@ const CreateRecord = () => {
          
          const finalPatientId = formData.patientId || created?.patientId || created?.patient?.id;
          if (finalPatientId) {
+            await dispatch(fetchAllPatientHistory(finalPatientId));
             navigate(`/patient-history/${finalPatientId}`);
          } else {
             navigate('/epcr');
@@ -845,6 +866,13 @@ const CreateRecord = () => {
                         <Field label="Last Known Well" field="medicalHistory.lastKnownWellDateTime" value={formData.medicalHistory.lastKnownWellDateTime} update={updateField} type="datetime-local" />
                         <Field label="Last Oral Intake" field="medicalHistory.lastOralIntake" value={formData.medicalHistory.lastOralIntake} update={updateField} type="datetime-local" />
                      </div>
+                     <BulletListField
+                        label="Medical History Notes"
+                        addLabel="Add note"
+                        values={formData.medicalHistory.notes}
+                        onChange={(next) => updateField('medicalHistory.notes', next)}
+                        placeholder="Known diabetic"
+                     />
                   </div>
                )}
 
@@ -948,6 +976,8 @@ const CreateRecord = () => {
                         <Field label="ECG Rhythm" field="ecgRhythm" value={formData.ecgRhythm} update={updateField} />
                         <Field label="Pupils Response" field="pupilsResponse" value={formData.pupilsResponse} update={updateField} />
                         <Field label="Skin Condition" field="skinCondition" value={formData.skinCondition} update={updateField} />
+                        <Field label="Primary Impression" field="primaryImpression" value={formData.primaryImpression} update={updateField} />
+                        <Field label="Secondary Impression" field="secondaryImpression" value={formData.secondaryImpression} update={updateField} />
                         <Field label="Diagnosis" field="diagnosis" value={formData.diagnosis} update={updateField} />
                         <Field label="Treatment Provided" field="treatmentProvided" value={formData.treatmentProvided} update={updateField} />
                      </div>
@@ -967,6 +997,22 @@ const CreateRecord = () => {
                      <div className="space-y-1.5 mt-6">
                         <label className={labelCls}>Medications Administered</label>
                         <textarea rows={3} value={formData.medicationsAdministered} onChange={e => updateField('medicationsAdministered', e.target.value)} className={inputCls + ' resize-none'} />
+                     </div>
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <BulletListField
+                           label="EPCR Notes"
+                           addLabel="Add note"
+                           values={formData.notes}
+                           onChange={(next) => updateField('notes', next)}
+                           placeholder="Patient stable on arrival"
+                        />
+                        <BulletListField
+                           label="Diet Advice"
+                           addLabel="Add diet advice"
+                           values={formData.dietAdvice}
+                           onChange={(next) => updateField('dietAdvice', next)}
+                           placeholder="Low salt diet"
+                        />
                      </div>
 
                      {/* Dynamic Workflow */}
@@ -1079,6 +1125,51 @@ const Field = ({ label, field, value, update, type = 'text', required = false, d
       {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
    </div>
 );
+
+const BulletListField = ({ label, addLabel, values = [], onChange, placeholder }) => {
+   const list = Array.isArray(values) ? values : [];
+   const updateItem = (index, value) => {
+      const next = [...list];
+      next[index] = value;
+      onChange(next);
+   };
+   const removeItem = (index) => onChange(list.filter((_, i) => i !== index));
+   const addItem = () => onChange([...list, '']);
+
+   return (
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+         <div className="flex items-center justify-between gap-3">
+            <label className={labelCls}>{label}</label>
+            <button
+               type="button"
+               onClick={addItem}
+               className="inline-flex items-center gap-1 rounded-lg bg-brand-blue px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-all"
+            >
+               <FilePlus2 size={14} /> {addLabel}
+            </button>
+         </div>
+         <div className="space-y-2">
+            {list.length === 0 ? (
+               <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-400">No items added.</p>
+            ) : list.map((item, index) => (
+               <div key={index} className="flex items-center gap-2">
+                  <span className="text-brand-blue font-black">•</span>
+                  <input
+                     type="text"
+                     value={item}
+                     onChange={(e) => updateItem(index, e.target.value)}
+                     placeholder={placeholder}
+                     className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all"
+                  />
+                  <button type="button" onClick={() => removeItem(index)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 hover:border-brand-red hover:text-brand-red transition-all">
+                     Remove
+                  </button>
+               </div>
+            ))}
+         </div>
+      </div>
+   );
+};
 
 const ToggleField = ({ label, field, value, update }) => (
    <div className="space-y-1.5">

@@ -195,6 +195,16 @@ const getVitalPhase = (vital) => String(
   vital?.documentPhase ||
   ''
 ).toUpperCase();
+const toTextList = (value) => {
+  if (Array.isArray(value)) return value.map(v => String(v || '').trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(/\r?\n|•/).map(v => v.trim()).filter(Boolean);
+  return [];
+};
+const getHistoryMetadata = (item = {}) => item.metadata || item.timelineMetadata || item.epcrMetadata || {};
+const getMergedList = (item, key) => {
+  const metadata = getHistoryMetadata(item);
+  return toTextList(item?.[key]).concat(toTextList(metadata?.[key]));
+};
 
 /* ─── main component ─── */
 export default function GeneralOverviewPage({
@@ -889,24 +899,33 @@ export default function GeneralOverviewPage({
                   <div className="p-4 text-center">
                     <p className="text-[9px] text-[#A0AECB]">No visits or procedures</p>
                   </div>
-                ) : encs.map(enc => (
-                  <div key={getId(enc)} className="px-2.5 py-1.5 hover:bg-[#F8FAFF] transition-colors relative group">
-                    <div className="flex items-center justify-between gap-1 pr-6">
-                      <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || 'Visit'}</p>
-                      {enc.outcome && <span className="inline-flex items-center rounded-md border border-[#DDE3F0] bg-[#E8EEF8] text-[#1A3C8F] px-1.5 py-0.5 text-[8px] font-black uppercase shrink-0">{enc.outcome}</span>}
+                ) : encs.map(enc => {
+                  const metadata = getHistoryMetadata(enc);
+                  const dietAdvice = getMergedList(enc, 'dietAdvice');
+                  const epcrNotes = getMergedList(enc, 'notes');
+                  const treatmentProvided = enc.treatmentProvided || metadata.treatmentProvided;
+                  return (
+                    <div key={getId(enc)} className="px-2.5 py-1.5 hover:bg-[#F8FAFF] transition-colors relative group">
+                      <div className="flex items-center justify-between gap-1 pr-6">
+                        <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || 'Visit'}</p>
+                        {enc.outcome && <span className="inline-flex items-center rounded-md border border-[#DDE3F0] bg-[#E8EEF8] text-[#1A3C8F] px-1.5 py-0.5 text-[8px] font-black uppercase shrink-0">{enc.outcome}</span>}
+                      </div>
+                      <p className="text-[8px] font-bold text-[#A0AECB] mt-0.5">{fmtDate(enc.date || enc.encounterDate)}</p>
+                      {treatmentProvided && <p className="text-[8px] text-[#4B5A7A] mt-1 line-clamp-2"><span className="font-black">Tx:</span> {treatmentProvided}</p>}
+                      {epcrNotes.length > 0 && <p className="text-[8px] text-[#4B5A7A] mt-1 line-clamp-2"><span className="font-black">Notes:</span> {epcrNotes.join(' • ')}</p>}
+                      {dietAdvice.length > 0 && <p className="text-[8px] text-green-700 mt-1 line-clamp-2"><span className="font-black">Diet:</span> {dietAdvice.join(' • ')}</p>}
+                      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white/95 rounded shadow-sm p-0.5">
+                        <button onClick={() => setViewModal({ type: 'encounters', item: enc })} className="p-0.5 text-slate-400 hover:text-blue-600"><Eye size={10} /></button>
+                        {canEditProp && (
+                          <>
+                            <button onClick={() => setModal({ type: 'encounters', item: enc })} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={10} /></button>
+                            <button onClick={() => handleDelete('encounters', enc)} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={10} /></button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-[8px] font-bold text-[#A0AECB] mt-0.5">{fmtDate(enc.date || enc.encounterDate)}</p>
-                    <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white/95 rounded shadow-sm p-0.5">
-                      <button onClick={() => setViewModal({ type: 'encounters', item: enc })} className="p-0.5 text-slate-400 hover:text-blue-600"><Eye size={10} /></button>
-                      {canEditProp && (
-                        <>
-                          <button onClick={() => setModal({ type: 'encounters', item: enc })} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={10} /></button>
-                          <button onClick={() => handleDelete('encounters', enc)} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={10} /></button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>

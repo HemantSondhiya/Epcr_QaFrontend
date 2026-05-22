@@ -96,6 +96,38 @@ const timelineKey = (item, index) => [
 const text = (value, fallback = 'Not recorded') => (value === 0 || value ? String(value) : fallback);
 const date = (value) => value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not recorded';
 const isoToday = () => new Date().toISOString().slice(0, 10);
+const toTextList = (value) => {
+  if (Array.isArray(value)) return value.map(v => String(v || '').trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(/\r?\n|•/).map(v => v.trim()).filter(Boolean);
+  return [];
+};
+const getHistoryMetadata = (item = {}) => item.metadata || item.timelineMetadata || item.epcrMetadata || {};
+const getMergedList = (item, key) => {
+  const metadata = getHistoryMetadata(item);
+  return toTextList(item?.[key]).concat(toTextList(metadata?.[key]));
+};
+const BulletList = ({ title, items }) => {
+  const list = toTextList(items);
+  if (list.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF] p-3">
+      <p className="text-[10px] font-black text-[#8A97B0] uppercase tracking-wider mb-2">{title}</p>
+      <ul className="space-y-1">
+        {list.map((item, index) => (
+          <li key={`${title}-${index}`} className="flex gap-2 text-sm font-semibold text-[#4B5A7A] leading-relaxed">
+            <span className="text-brand-blue font-black">•</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+const formatMetadataValue = (value) => {
+  const list = toTextList(value);
+  if (list.length > 0) return list.join('\n');
+  return String(value);
+};
 
 const patientName = (patient) => {
   if (!patient) return 'Select a patient';
@@ -284,7 +316,7 @@ const TimelineEvent = ({ item, index, isLast, onView }) => {
                 <span key={key} className="inline-flex items-center gap-1 rounded-lg bg-[#F8FAFF] border border-[#EEF2FF] px-2.5 py-1 text-[10px] font-bold text-[#4B5A7A]">
                   <Tag size={9} className="text-[#A0AECB]" />
                   <span className="text-[#A0AECB]">{key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span>
-                  {String(value).substring(0, 40)}
+                  {formatMetadataValue(value).replace(/\n/g, ' • ').substring(0, 80)}
                 </span>
               ))}
             </div>
@@ -314,7 +346,7 @@ function TimelineViewModal({ item, onClose }) {
     ['Source ID', item.sourceId],
     ['Patient ID', item.patientId],
     ['Condition ID', item.conditionId],
-    ...metaEntries.map(([key, value]) => [key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), String(value)]),
+    ...metaEntries.map(([key, value]) => [key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), formatMetadataValue(value)]),
   ];
 
   return (
@@ -2249,12 +2281,28 @@ function PatientHistory() {
                     <EncounterAnalytics encounters={encounters} />
                     <Section icon={UserRound} title="Patient Visits" action={addButton('encounters')}>
                       {renderList('encounters', encounters, (item) => (
-                        <>
-                          <p className="font-bold text-[#0F1A3A] text-base">{text(item.chiefComplaint || item.type || item.encounterType, 'Visit')}</p>
-                          <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.encounterDate)} {item.epcrRecordId ? `- EPCR ${item.epcrRecordId}` : ''}</p>
-                          {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
-                          {item.notes && <p className="mt-2 text-sm text-[#4B5A7A]">{item.notes}</p>}
-                        </>
+                        (() => {
+                          const metadata = getHistoryMetadata(item);
+                          const dietAdvice = getMergedList(item, 'dietAdvice');
+                          const epcrNotes = getMergedList(item, 'notes');
+                          const medicalHistoryNotes = getMergedList(item, 'medicalHistoryNotes');
+                          const treatmentProvided = item.treatmentProvided || metadata.treatmentProvided;
+
+                          return (
+                            <>
+                              <p className="font-bold text-[#0F1A3A] text-base">{text(item.chiefComplaint || item.type || item.encounterType, 'Visit')}</p>
+                              <p className="mt-1 text-xs font-semibold text-[#8A97B0]">{date(item.date || item.encounterDate)} {item.epcrRecordId ? `- EPCR ${item.epcrRecordId}` : ''}</p>
+                              {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
+                              {treatmentProvided && (
+                                <p className="mt-3 text-sm text-[#4B5A7A]"><span className="font-black text-[#0F1A3A]">Treatment:</span> {treatmentProvided}</p>
+                              )}
+                              {item.notes && <p className="mt-2 text-sm text-[#4B5A7A] whitespace-pre-wrap">{item.notes}</p>}
+                              <BulletList title="EPCR Notes" items={epcrNotes} />
+                              <BulletList title="Diet Advice" items={dietAdvice} />
+                              <BulletList title="Medical History Notes" items={medicalHistoryNotes} />
+                            </>
+                          );
+                        })()
                       ))}
                     </Section>
                   </div>

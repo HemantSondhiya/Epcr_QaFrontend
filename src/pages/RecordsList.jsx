@@ -12,6 +12,7 @@ import {
   fetchRecords as fetchEpcrRecords, updateRecord, deleteRecord,
   submitRecord, selectRecords, selectEpcrLoading, selectEpcrError
 } from '../store/slices/epcrSlice';
+import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import { extractErrorMessage } from '../api/client';
 
 const STATUS_BADGE = {
@@ -106,17 +107,24 @@ const RecordsList = () => {
   const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
 
   const handleDeleteClick = (record) => setConfirmAction({ type: 'delete', recordId: record.id, message: `Delete record for: ${record.patientName || 'Anonymous'}?` });
-  const handleSubmitRecord = (recordId) => setConfirmAction({ type: 'submit', recordId, message: 'Submit this record to QA review?' });
+  const handleSubmitRecord = (record) => setConfirmAction({
+    type: 'submit',
+    recordId: record.id,
+    patientId: record.patientId || record.patient?.id,
+    message: 'Submit this record to QA review?',
+  });
 
   const executeConfirm = async () => {
-    const { type, recordId } = confirmAction;
+    const { type, recordId, patientId } = confirmAction;
     setConfirmAction(null);
     try {
       if (type === 'delete') {
         await dispatch(deleteRecord(recordId)).unwrap();
         dispatch(addToast({ type: 'success', message: 'Record deleted' }));
       } else {
-        await dispatch(submitRecord(recordId)).unwrap();
+        const submitted = await dispatch(submitRecord(recordId)).unwrap();
+        const syncedPatientId = patientId || submitted?.patientId || submitted?.patient?.id;
+        if (syncedPatientId) await dispatch(fetchAllPatientHistory(syncedPatientId));
         dispatch(addToast({ type: 'success', message: 'Record submitted for QA' }));
       }
       fetchRecords(0, false);
@@ -287,7 +295,7 @@ const RecordsList = () => {
               </div>
               <div className="flex items-center gap-2">
                 {canSubmitRecord(viewRecord) && (
-                  <button onClick={() => handleSubmitRecord(viewRecord.id)} className="btn-danger text-sm px-4 py-2">
+                  <button onClick={() => handleSubmitRecord(viewRecord)} className="btn-danger text-sm px-4 py-2">
                     <Send size={15} /> Submit to QA
                   </button>
                 )}
