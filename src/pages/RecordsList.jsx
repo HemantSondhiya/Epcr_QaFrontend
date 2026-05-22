@@ -17,14 +17,17 @@ import { extractErrorMessage } from '../api/client';
 
 const STATUS_BADGE = {
   DRAFT: 'badge badge-gray',
+  PENDING: 'badge badge-gray',
   IN_PROGRESS: 'badge badge-blue',
+  ACTIVE: 'badge badge-blue',
   COMPLETED: 'badge badge-blue',
   SUBMITTED: 'badge badge-blue',
   APPROVED: 'badge badge-green',
+  QA_APPROVED: 'badge badge-green',
+  QA_COMPLETED: 'badge badge-green',
   REJECTED: 'badge badge-red',
   ARCHIVED: 'badge badge-gray',
   QA_PENDING: 'badge badge-orange',
-  QA_APPROVED: 'badge badge-green',
 };
 
 const StatusBadge = ({ status }) => (
@@ -99,7 +102,7 @@ const RecordsList = () => {
   };
 
   useEffect(() => { 
-    dispatch(fetchEpcrRecords({ filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }))
+    dispatch(fetchEpcrRecords({ page: 0, size: 20, filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
   }, [dispatch]);

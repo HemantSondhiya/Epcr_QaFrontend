@@ -18,13 +18,17 @@ import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
 /* ── Status Badge ── */
 const STATUS_COLOR = {
   DRAFT:       'badge-gray',
+  PENDING:     'badge-orange',
   IN_PROGRESS: 'badge-blue',
+  ACTIVE:      'badge-blue',
   COMPLETED:   'badge-blue',
   SUBMITTED:   'badge-blue',
   APPROVED:    'badge-green',
+  QA_APPROVED: 'badge-green',
+  QA_COMPLETED:'badge-green',
   REJECTED:    'badge-red',
   ARCHIVED:    'badge-gray',
-  PENDING:     'badge-orange',
+  QA_PENDING:  'badge-orange',
 };
 
 const Badge = ({ status }) => (
@@ -228,7 +232,10 @@ const Dashboard = () => {
   const loading   = useSelector(selectEpcrLoading);
 
   useEffect(() => {
-    if (ROLE_MENU[role]?.includes('EPCR')) dispatch(fetchRecords());
+    if (ROLE_MENU[role]?.includes('EPCR')) {
+      const paramedicId = role === 'PARAMEDIC' ? (user?.id || user?.userId) : null;
+      dispatch(fetchRecords({ page: 0, size: 20, paramedicId }));
+    }
     if (ROLE_MENU[role]?.includes('QA Reviews')) {
       dispatch(fetchQaReviews());
       dispatch(fetchPendingReviews());

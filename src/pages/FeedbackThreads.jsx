@@ -34,7 +34,7 @@ const FeedbackThreads = () => {
   const [msgInputs, setMsgInputs] = useState({});
   const [createForm, setCreateForm] = useState({ patientCareRecordId: '', subject: '' });
 
-  useEffect(() => { dispatch(fetchFeedbackThreads()); dispatch(fetchRecords()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchFeedbackThreads()); dispatch(fetchRecords({ page: 0, size: 20 })); }, [dispatch]);
 
   const handleCreate = async e => {
     e.preventDefault(); setIsSubmitting(true);

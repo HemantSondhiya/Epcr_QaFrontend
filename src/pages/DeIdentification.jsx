@@ -139,7 +139,7 @@ export default function DeIdentification() {
   const [maskStrategy, setMaskStrategy] = useState('FULL_HIPAA_18');
   const [anonMethod, setAnonMethod] = useState('GENERALIZATION');
 
-  useEffect(() => { dispatch(fetchRecords()); return () => { dispatch(clearResults()); }; }, [dispatch]);
+  useEffect(() => { dispatch(fetchRecords({ page: 0, size: 20 })); return () => { dispatch(clearResults()); }; }, [dispatch]);
 
   const handleAction = (actionFn, params) => {
     if (!recordId.trim()) { dispatch(addToast({ type: 'error', message: 'Select a record first.' })); return; }

@@ -58,7 +58,7 @@ const QaReviews = () => {
 
   useEffect(() => {
     fetchReviews_();
-    dispatch(fetchRecords());
+    dispatch(fetchRecords({ page: 0, size: 20 }));
     dispatch(fetchFormTemplates({ orgId:user?.organizationId, templateType:'QA_FORM' }));
   }, [filterStatus, user, dispatch]);
 
