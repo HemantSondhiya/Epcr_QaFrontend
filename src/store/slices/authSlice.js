@@ -1,11 +1,16 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import client from '../../api/client';
 
-export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWithValue }) => {
-  const endpoints = [
-    { url: '/api/auth/me', role: 'STAFF' },
-    { url: '/api/patient/auth/me', role: 'PATIENT' }
-  ];
+export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { getState, rejectWithValue }) => {
+  const currentRole = getState().auth.user?.role;
+  const endpoints = currentRole === 'PATIENT'
+    ? [{ url: '/api/patient/auth/me', role: 'PATIENT' }]
+    : currentRole
+      ? [{ url: '/api/auth/me', role: 'STAFF' }]
+      : [
+          { url: '/api/auth/me', role: 'STAFF' },
+          { url: '/api/patient/auth/me', role: 'PATIENT' },
+        ];
 
   for (const { url, role } of endpoints) {
     try {
@@ -16,6 +21,9 @@ export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWi
       }
       return res.data;
     } catch (error) {
+      if (error.response?.status === 429) {
+        return rejectWithValue('Too many authentication checks. Please wait a moment and try again.');
+      }
       // Silently catch 400/401 and try the next endpoint in the array
       continue;
     }
@@ -23,6 +31,8 @@ export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWi
 
   // If both endpoints fail, the user is genuinely logged out
   return rejectWithValue(null);
+}, {
+  condition: (_, { getState }) => !getState().auth.isChecking,
 });
 
 export const logoutUser = createAsyncThunk('auth/logout', async (_, { dispatch }) => {
@@ -50,6 +60,7 @@ const initialState = {
   user: null,
   isAuthenticated: false,
   isInitializing: true,
+  isChecking: false,
 };
 
 const authSlice = createSlice({
@@ -64,6 +75,7 @@ const authSlice = createSlice({
     logout(state) {
       state.user            = null;
       state.isAuthenticated = false;
+      state.isChecking      = false;
       saveUser(null);
     },
   },
@@ -71,6 +83,7 @@ const authSlice = createSlice({
     builder
       .addCase(checkAuth.pending, (state) => {
         state.isInitializing = true;
+        state.isChecking = true;
       })
       .addCase(checkAuth.fulfilled, (state, action) => {
         // CurrentUserResponse: { userId, firstName, lastName, email, organizationId, role }
@@ -92,6 +105,7 @@ const authSlice = createSlice({
         }
         state.isAuthenticated = !!data;
         state.isInitializing = false;
+        state.isChecking = false;
         saveUser(state.user);
       })
       .addCase(checkAuth.rejected, (state) => {
@@ -99,6 +113,7 @@ const authSlice = createSlice({
         state.user = null;
         state.isAuthenticated = false;
         state.isInitializing = false;
+        state.isChecking = false;
         saveUser(null);
       });
   },

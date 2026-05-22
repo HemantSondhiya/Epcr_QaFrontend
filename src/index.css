@@ -435,6 +435,34 @@
     }
   }
 
+  .animate-slide-up-drawer {
+    animation: slideUpDrawer 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes slideUpDrawer {
+    from {
+      transform: translateY(100%);
+    }
+
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-backdrop {
+    animation: fadeInBackdrop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes fadeInBackdrop {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 0.6;
+    }
+  }
+
   .animate-fade-in {
     animation: fadeIn 0.4s ease forwards;
   }

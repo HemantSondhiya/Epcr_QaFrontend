@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  Legend, ResponsiveContainer, ReferenceArea, Area, AreaChart, Cell,
+  Legend, ResponsiveContainer, ReferenceArea, Area, AreaChart,
   BarChart, Bar
 } from 'recharts';
 import {
@@ -50,6 +50,8 @@ import {
 import { addToast } from '../store/slices/uiSlice';
 import { selectUser } from '../store/slices/authSlice';
 import client from '../api/client';
+import DentistPatientOverview from './overview/DentistPatientOverview';
+import GeneralOverviewPage from './overview/GeneralOverviewPage';
 import {
   Activity,
   AlertCircle,
@@ -57,8 +59,6 @@ import {
   BedDouble,
   CalendarDays,
   Check,
-  ChevronDown,
-  ChevronRight,
   Clock,
   Edit3,
   ExternalLink,
@@ -67,13 +67,11 @@ import {
   FlaskConical,
   HeartPulse,
   Loader2,
-  MapPin,
   Paperclip,
   Pill,
   Plus,
   RefreshCw,
   Search,
-  Shield,
   Stethoscope,
   Tag,
   Thermometer,
@@ -82,15 +80,13 @@ import {
   Upload,
   UserRound,
   X,
+  Contrast,
+  ZoomIn,
+  Sparkles,
+  CheckCircle,
 } from 'lucide-react';
 
 const getId = (item) => item?.id || item?.conditionId || item?.medicationId || item?.encounterId || item?.admissionId || item?.labResultId || item?.documentId;
-const getConditionLinkId = (item) => {
-  const value = item?.conditionId || item?.relatedConditionId || item?.condition?.id || item?.condition?.conditionId;
-  if (value && typeof value === 'object') return value.id || value.conditionId || value._id || '';
-  return value || '';
-};
-const sameId = (a, b) => String(a || '') === String(b || '');
 const timelineKey = (item, index) => [
   item?.eventType || item?.type || 'event',
   item?.sourceId || getId(item) || item?.title || 'unknown',
@@ -108,10 +104,51 @@ const patientName = (patient) => {
 
 const patientIdOf = (patient) => patient?.patientId || patient?.id || patient?.userId;
 
-const getFileUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http') || url.startsWith('blob:')) return url;
-  return url.startsWith('/') ? url : `/${url}`;
+const DENTAL_KEYS = [
+  'dentist',
+  'dental',
+  'dentistry',
+  'tooth',
+  'teeth',
+  'gum',
+  'gingiva',
+  'oral',
+  'orthodont',
+  'endodont',
+  'periodont',
+  'prosthodont',
+  'crown',
+  'filling',
+  'root canal',
+  'extraction',
+  'caries',
+  'cavity',
+];
+
+const normalizeOverviewSpecialty = (value) => {
+  const raw = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '-');
+  if (!raw) return null;
+  if (raw.includes('dent')) return 'dentist';
+  if (raw.includes('radio')) return 'radiology';
+  if (raw.includes('cardio')) return 'cardiology';
+  if (raw.includes('onco')) return 'oncology';
+  if (raw.includes('general')) return 'general';
+  return ['dentist', 'radiology', 'general', 'cardiology', 'oncology'].includes(raw) ? raw : null;
+};
+
+const classifyType = (value) => {
+  const raw = String(value || '').toLowerCase();
+  if (!raw) return null;
+  const normalized = normalizeOverviewSpecialty(raw);
+  if (normalized) return normalized;
+  if (DENTAL_KEYS.some((key) => raw.includes(key))) return 'dentist';
+  return null;
+};
+
+const preferSpecificSpecialty = (next, current = 'general') => {
+  if (!next) return current;
+  if (next === 'general' && current !== 'general') return current;
+  return next;
 };
 
 const viewSecureDocument = async (dispatch, patientId, documentId) => {
@@ -139,36 +176,6 @@ const statusClass = (status) => {
   if (['RESOLVED', 'NORMAL', 'STOPPED', 'COMPLETED'].includes(key)) return 'bg-green-50 text-green-700 border-green-100';
   if (['CHRONIC', 'MODERATE'].includes(key)) return 'bg-amber-50 text-amber-700 border-amber-100';
   return 'bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]';
-};
-
-const SecureInlineImage = ({ patientId, doc, className, onError }) => {
-  const [src, setSrc] = useState(null);
-  const [err, setErr] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const documentId = getId(doc);
-    if (!patientId || !documentId) {
-      if (active) setErr(true);
-      return;
-    }
-    client.get(`/api/patients/${patientId}/history/documents/${documentId}/signed-url`, { hideToast: true })
-      .then(res => { if (active) setSrc(res.data.url); })
-      .catch(() => { if (active) setErr(true); });
-    return () => { active = false; };
-  }, [patientId, doc]);
-
-  if (err) return <div className="w-full h-24 flex items-center justify-center text-[#A0AECB]"><FileText size={32} /></div>;
-  if (!src) return <div className="w-full h-32 flex items-center justify-center text-[#A0AECB] animate-pulse bg-gray-50"><FileText size={32} className="opacity-30" /></div>;
-
-  return (
-    <img
-      src={src}
-      alt={doc.fileName || doc.name || 'Medical image'}
-      className={className}
-      onError={onError}
-    />
-  );
 };
 
 const Badge = ({ children, className = '' }) => (
@@ -1286,7 +1293,8 @@ function PatientSearchPanel({ selectedPatientId, onSelect }) {
                   type="button"
                   key={id || patient.email || patient.phone}
                   onClick={() => {
-                    onSelect(id);
+                    // Pass full patient object so caller can extract frontendRouteKey immediately
+                    onSelect(id, patient);
                     if (id) navigate(`/patient-history/${id}`);
                   }}
                   className={`flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition ${active ? 'bg-[#E8EEF8]' : 'bg-white hover:bg-[#F8FAFF]'}`}
@@ -1435,17 +1443,367 @@ function PatientHistory() {
   const [viewModal, setViewModal] = useState(null);
   const [timelineViewItem, setTimelineViewItem] = useState(null);
 
+  // Specialty & Radiology PACS & General trend state variables
+  // null = not yet resolved, string = resolved (dentist/radiology/general/etc)
+  const [specialty, setSpecialty] = useState(null);
+  // True while we are waiting for specialty to be determined — prevents flash of wrong layout
+  const [specialtyLoading, setSpecialtyLoading] = useState(true);
+  // Holds frontendRouteKey from search result so patientId effect can consume it synchronously
+  const preSelectedSpecialtyRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [sliceIndex, setSliceIndex] = useState(7);
+  const [isInverted, setIsInverted] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [calipers, setCalipers] = useState([]);
+  const [isMeasuring, setIsMeasuring] = useState(false);
+
   const patientId = routePatientId || (user?.role === 'PATIENT' ? user?.patientId || user?.id : currentPatientId);
   const canSearch = user?.role !== 'PATIENT';
   const canEdit = ['ADMIN', 'PARAMEDIC'].includes(user?.role);
 
+  const handleDeleteItem = useCallback(async (type, item) => {
+    const deleteConfig = {
+      conditions: deleteCondition,
+      medications: deleteMedication,
+      encounters: deleteEncounter,
+      admissions: deleteAdmission,
+      labResults: deleteLabResult,
+      documents: deleteDocument,
+      vitals: deleteVital,
+    };
+    const title = FORM_CONFIG[type]?.title || 'item';
+    if (!window.confirm(`Delete this ${title.toLowerCase()}?`)) return;
+    const actionCreator = deleteConfig[type];
+    if (actionCreator) {
+      const res = await dispatch(actionCreator({ patientId, id: getId(item) }));
+      if (!res.error) {
+        dispatch(addToast({ type: 'success', message: `${title} deleted` }));
+      }
+    }
+  }, [dispatch, patientId]);
+
   useEffect(() => {
     if (patientId) {
+      // If the search panel already told us the specialty via frontendRouteKey, consume it now
+      // This gives us a zero-flash, synchronous specialty lock before the first paint.
+      if (preSelectedSpecialtyRef.current && preSelectedSpecialtyRef.current !== 'general') {
+        setSpecialty(preSelectedSpecialtyRef.current);
+        setSpecialtyLoading(false);
+        preSelectedSpecialtyRef.current = null; // consume once
+      } else {
+        preSelectedSpecialtyRef.current = null;
+        // Direct URL access — specialty unknown until history loads
+        setSpecialty(null);
+        setSpecialtyLoading(true);
+      }
       dispatch(setCurrentPatientId(patientId));
       dispatch(fetchAllPatientHistory(patientId));
     }
-    return () => dispatch(clearHistory());
+    return () => {
+      dispatch(clearHistory());
+      setSpecialty(null);
+      setSpecialtyLoading(true);
+    };
   }, [dispatch, patientId]);
+
+  // Specialty route resolver effect — fallback for direct URL access where search data is unavailable.
+  // Skipped entirely when specialty was already pre-determined from the search panel.
+  useEffect(() => {
+    let active = true;
+
+    // Already resolved — nothing to do until patient changes (specialty reset to null)
+    if (specialty !== null) return;
+
+    if (!patientId || loading) return;
+
+    const resolveSpecialty = async () => {
+      try {
+        const sortedEnc = [...encounters].sort((a, b) => {
+          const dateA = new Date(a.date || a.encounterDate || a.timestamp || 0);
+          const dateB = new Date(b.date || b.encounterDate || b.timestamp || 0);
+          return dateB - dateA;
+        });
+
+        // Step 1: Robust frontend fallback matching based on patient summary and encounters
+        const summaryPatient = summary?.patient || summary || {};
+        let resolved = normalizeOverviewSpecialty(
+          summaryPatient.frontendRouteKey ||
+          summaryPatient.overviewType ||
+          summaryPatient.specialty ||
+          summaryPatient.department ||
+          summaryPatient.incidentType ||
+          summaryPatient.type
+        ) || 'general';
+
+        const summaryTextMatch = classifyType([
+          summaryPatient.frontendRouteKey,
+          summaryPatient.overviewType,
+          summaryPatient.specialty,
+          summaryPatient.department,
+          summaryPatient.incidentType,
+          summaryPatient.type,
+          summaryPatient.chiefComplaint,
+          summaryPatient.condition,
+          summaryPatient.notes,
+        ].filter(Boolean).join(' '));
+        if (summaryTextMatch) resolved = summaryTextMatch;
+
+        if (sortedEnc.length > 0) {
+          const latestEnc = sortedEnc[0];
+          const typeStr = normalizeOverviewSpecialty(latestEnc.incidentType || latestEnc.type || latestEnc.encounterType);
+          if (typeStr) {
+            resolved = preferSpecificSpecialty(typeStr, resolved);
+          } else {
+            // Check all encounters for a specific specialty match
+            const matchingEnc = sortedEnc.find(e => {
+              const t = normalizeOverviewSpecialty(e.incidentType || e.type || e.encounterType);
+              return ['dentist', 'radiology', 'cardiology', 'oncology'].includes(t);
+            });
+            if (matchingEnc) {
+              resolved = normalizeOverviewSpecialty(matchingEnc.incidentType || matchingEnc.type || matchingEnc.encounterType) || resolved;
+            }
+          }
+        }
+
+        // Also check conditions as fallback if no encounter type matches
+        for (const enc of sortedEnc) {
+          const raw = enc.incidentType || enc.type || enc.encounterType || enc.chiefComplaint || '';
+          const matched = classifyType(raw);
+          if (matched) {
+            resolved = preferSpecificSpecialty(matched, resolved);
+            if (resolved !== 'general') break;
+          }
+        }
+
+        // Step 2: Conditions fallback — dental keyword in condition name / category
+        if (resolved === 'general' && conditions.length > 0) {
+          const dentalCond = conditions.some(c => {
+            const name = [
+              c.name,
+              c.category,
+              c.type,
+              c.specialty,
+              c.department,
+              c.symptoms,
+              c.findings,
+              c.analysis,
+              c.recommendedTreatment,
+              c.notes,
+            ].filter(Boolean).join(' ').toLowerCase();
+            return DENTAL_KEYS.some(k => name.includes(k));
+          });
+          if (dentalCond) resolved = 'dentist';
+        }
+
+        if (resolved === 'general' && documents.length > 0) {
+          const dentalDoc = documents.some(d => {
+            const docText = [
+              d.fileName,
+              d.name,
+              d.type,
+              d.category,
+              d.notes,
+              d.description,
+              d.symptoms,
+              d.findings,
+              d.analysis,
+              d.recommendedTreatment,
+            ].filter(Boolean).join(' ').toLowerCase();
+            return DENTAL_KEYS.some(k => docText.includes(k));
+          });
+          if (dentalDoc) resolved = 'dentist';
+        }
+
+        let finalResolved = resolved;
+
+        // Step 3: Backend authoritative override — try patient search by ID to get frontendRouteKey
+        if (user?.role !== 'PATIENT') {
+          try {
+            const searchRes = await client.get(
+              '/api/admin/patients/search',
+              { params: { phone: patientId, limit: 5 }, hideToast: true }
+            );
+            const patients = Array.isArray(searchRes.data)
+              ? searchRes.data
+              : (searchRes.data?.content || searchRes.data?.data || []);
+            const match = patients.find(p =>
+              String(p.patientId || p.id) === String(patientId)
+            );
+            const backendSpecialty = normalizeOverviewSpecialty(
+              match?.frontendRouteKey ||
+              match?.overviewType ||
+              match?.specialty ||
+              match?.department ||
+              match?.incidentType ||
+              match?.type
+            );
+            if (backendSpecialty) {
+              finalResolved = preferSpecificSpecialty(backendSpecialty, finalResolved);
+            }
+          } catch {
+            // Search override failed — frontend-resolved value is already applied above
+          }
+        }
+
+        // Step 4: Also try the record-level overview-route endpoint as a secondary override
+        const latestRecordId = sortedEnc[0]?.id || sortedEnc[0]?.encounterId || sortedEnc[0]?.recordId;
+        if (latestRecordId && finalResolved !== 'general') {
+          try {
+            const res = await client.get(`/api/patients/${patientId}/overview-route/records/${latestRecordId}`, { hideToast: true });
+            const routeSpecialty = normalizeOverviewSpecialty(res.data?.frontendRouteKey || res.data?.overviewType || res.data?.specialty);
+            if (routeSpecialty) {
+              finalResolved = preferSpecificSpecialty(routeSpecialty, finalResolved);
+            }
+          } catch {
+            // Backend override failed; previous resolution stands.
+          }
+        }
+
+        if (active) {
+          setSpecialty(finalResolved);
+          setSpecialtyLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to resolve specialty route:', err);
+        if (active) {
+          setSpecialty('general');
+          setSpecialtyLoading(false);
+        }
+      }
+    };
+
+    resolveSpecialty();
+
+    return () => { active = false; };
+  }, [patientId, specialty, loading, encounters, conditions, documents, summary]);
+
+  // Draw simulated cross-sectional MRI Brain/CT Scan slices on Canvas
+  useEffect(() => {
+    if (tab !== 'overview' || specialty !== 'radiology' || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.fillStyle = isInverted ? '#ffffff' : '#090d16';
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw reference coordinate markers
+    ctx.strokeStyle = isInverted ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h);
+    ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+    ctx.stroke();
+
+    // Redraw scan slice structure based on sliceIndex
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(zoom, zoom);
+
+    // Center circular skull boundary (glows)
+    const baseRadius = 85 + (sliceIndex * 1.5);
+    ctx.beginPath();
+    ctx.arc(0, 0, baseRadius, 0, 2 * Math.PI);
+    ctx.strokeStyle = isInverted ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Internal simulated Brain ventricles & matter
+    const sliceFactor = (sliceIndex - 7) * 4;
+
+    ctx.beginPath();
+    ctx.arc(-20 - sliceFactor / 2, -10, 25 - Math.abs(sliceFactor), 0, 2 * Math.PI);
+    ctx.arc(20 + sliceFactor / 2, -10, 25 - Math.abs(sliceFactor), 0, 2 * Math.PI);
+    ctx.fillStyle = isInverted ? '#cccccc' : '#1e293b';
+    ctx.fill();
+
+    // Simulated Ventricle inner core (dark/light contrast)
+    ctx.beginPath();
+    ctx.arc(-22 - sliceFactor / 2, -12, 10 - Math.abs(sliceFactor) / 2, 0, 2 * Math.PI);
+    ctx.arc(22 + sliceFactor / 2, -12, 10 - Math.abs(sliceFactor) / 2, 0, 2 * Math.PI);
+    ctx.fillStyle = isInverted ? '#999999' : '#0f172a';
+    ctx.fill();
+
+    // Simulated lesion / contrast area (clinical highlight!)
+    ctx.beginPath();
+    ctx.arc(25, 30 + sliceFactor, 12, 0, 2 * Math.PI);
+    ctx.fillStyle = isInverted ? '#000000' : '#ffffff';
+    ctx.shadowBlur = isInverted ? 0 : 15;
+    ctx.shadowColor = '#ffffff';
+    ctx.fill();
+    ctx.shadowBlur = 0; // reset
+
+    // Brain cortex ridges/matter folding
+    ctx.strokeStyle = isInverted ? '#666666' : '#475569';
+    ctx.lineWidth = 2;
+    for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
+      const radiusStart = baseRadius - 10;
+      const radiusEnd = baseRadius - 30 - (Math.sin(angle * 6 + sliceIndex) * 12);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * radiusStart, Math.sin(angle) * radiusStart);
+      ctx.lineTo(Math.cos(angle) * radiusEnd, Math.sin(angle) * radiusEnd);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    // Draw placed Caliper measurement lines
+    if (calipers.length > 0) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+
+      // Draw first point
+      ctx.beginPath();
+      ctx.arc(calipers[0].x, calipers[0].y, 3, 0, 2 * Math.PI);
+      ctx.fill();
+
+      if (calipers.length === 2) {
+        // Draw caliper connector line
+        ctx.beginPath();
+        ctx.moveTo(calipers[0].x, calipers[0].y);
+        ctx.lineTo(calipers[1].x, calipers[1].y);
+        ctx.stroke();
+
+        // Draw second point
+        ctx.beginPath();
+        ctx.arc(calipers[1].x, calipers[1].y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Draw caliper cross ticks
+        const dx = calipers[1].x - calipers[0].x;
+        const dy = calipers[1].y - calipers[0].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Output clinical measurement text inside viewer overlay
+        const mmDist = (dist * 0.14).toFixed(1); // 0.14 mm/pixel scale
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillText(`${mmDist} mm`, (calipers[0].x + calipers[1].x) / 2 + 8, (calipers[0].y + calipers[1].y) / 2 - 8);
+      }
+    }
+
+  }, [tab, specialty, sliceIndex, isInverted, zoom, calipers]);
+
+  const handleCanvasClick = (e) => {
+    if (!isMeasuring) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (calipers.length >= 2) {
+      setCalipers([{ x, y }]);
+    } else {
+      setCalipers([...calipers, { x, y }]);
+    }
+  };
+
+  const clearCalipers = () => {
+    setCalipers([]);
+  };
 
   const counts = useMemo(() => ({
     activeConditions: conditions.filter((c) => c.status === 'ACTIVE').length,
@@ -1498,7 +1856,7 @@ function PatientHistory() {
 
   useEffect(() => {
     if (!matchedPatient && patientId && user?.role !== 'PATIENT') {
-      client.get(`/api/admin/patients/search`, { params: { query: patientId, limit: 1 }, hideToast: true })
+      client.get(`/api/admin/patients/search`, { params: { phone: patientId, limit: 1 }, hideToast: true })
         .then(res => {
           const pt = (res.data?.content || res.data || []).find(p => patientIdOf(p) === patientId);
           if (pt) setFetchedPatientName(patientName(pt));
@@ -1520,57 +1878,78 @@ function PatientHistory() {
     if (nameStr) displayName = nameStr;
   }
 
+  const isGeneralView = patientId && specialty === 'general' && !specialtyLoading;
+
   return (
-    <div className="min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className={isGeneralView ? "h-[calc(100vh-2.5rem)] bg-[#F8FAFF] w-full flex flex-col overflow-hidden" : "min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col"} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header Section */}
-      <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <div className="bg-white border border-[#DDE3F0] px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5">
-            <Activity size={11} className="text-[#C8102E]" />
-            <h1 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wider">Medical Record</h1>
-          </div>
-          {patientId && (
-            <div className="bg-[#E8EEF8] border border-[#DDE3F0] px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5">
-              <span className="text-[9px] font-bold text-[#4B5A7A] uppercase tracking-wider">Patient</span>
-              <span className="text-[10px] font-black text-brand-blue">{displayName}</span>
-              <span className="text-[9px] font-bold text-[#8A97B0] border-l border-[#DDE3F0] pl-1.5 ml-0.5">ID: {patientId}</span>
+      {!isGeneralView && (
+        <div className="flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <div className="bg-white border border-[#DDE3F0] px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5">
+              <Activity size={11} className="text-[#C8102E]" />
+              <h1 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wider">Medical Record</h1>
             </div>
-          )}
-        </div>
+            {patientId && (
+              <div className="bg-[#E8EEF8] border border-[#DDE3F0] px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5">
+                <span className="text-[9px] font-bold text-[#4B5A7A] uppercase tracking-wider">Patient</span>
+                <span className="text-[10px] font-black text-brand-blue">{displayName}</span>
+                <span className="text-[9px] font-bold text-[#8A97B0] border-l border-[#DDE3F0] pl-1.5 ml-0.5">ID: {patientId}</span>
+              </div>
+            )}
+          </div>
 
-        <div className="flex items-center gap-1.5">
-          {patientId && (
-            <>
+          <div className="flex items-center gap-1.5">
+            {patientId && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/epcr/new?patientId=${patientId}`)}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-brand-blue border border-brand-blue rounded-md text-[10px] font-black text-white hover:bg-blue-700 transition-all shadow-sm"
+                >
+                  + New ePCR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dispatch(fetchAllPatientHistory(patientId))}
+                  className="flex items-center gap-1 px-2 py-1 bg-white border border-[#DDE3F0] rounded-md text-[10px] font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
+                >
+                  <RefreshCw size={10} className={loading ? 'animate-spin' : ''} /> Refresh
+                </button>
+              </>
+            )}
+            {canSearch && patientId && (
               <button
                 type="button"
-                onClick={() => navigate(`/epcr/new?patientId=${patientId}`)}
-                className="flex items-center gap-1 px-2.5 py-1 bg-brand-blue border border-brand-blue rounded-md text-[10px] font-black text-white hover:bg-blue-700 transition-all shadow-sm"
+                onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }}
+                className="text-[10px] font-bold text-[#8A97B0] hover:text-brand-blue transition-colors px-1.5 py-1"
               >
-                + New ePCR
+                Change Patient
               </button>
-              <button
-                type="button"
-                onClick={() => dispatch(fetchAllPatientHistory(patientId))}
-                className="flex items-center gap-1 px-2 py-1 bg-white border border-[#DDE3F0] rounded-md text-[10px] font-black text-[#0F1A3A] hover:bg-[#F8FAFF] transition-all shadow-sm"
-              >
-                <RefreshCw size={10} className={loading ? 'animate-spin' : ''} /> Refresh
-              </button>
-            </>
-          )}
-          {canSearch && patientId && (
-            <button
-              type="button"
-              onClick={() => { dispatch(clearHistory()); navigate('/patient-history'); }}
-              className="text-[10px] font-bold text-[#8A97B0] hover:text-brand-blue transition-colors px-1.5 py-1"
-            >
-              Change Patient
-            </button>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {canSearch && !routePatientId && (
-        <PatientSearchPanel selectedPatientId={patientId} onSelect={(id) => dispatch(setCurrentPatientId(id))} />
+      {canSearch && !routePatientId && !isGeneralView && (
+        <PatientSearchPanel
+          selectedPatientId={patientId}
+          onSelect={(id, patient) => {
+            // Capture frontendRouteKey from the search result synchronously.
+            // This is stored in a ref so the patientId effect can consume it before the first render.
+            const routeKey =
+              normalizeOverviewSpecialty(
+                patient?.frontendRouteKey ||
+                patient?.overviewType ||
+                patient?.specialty ||
+                patient?.department ||
+                patient?.incidentType ||
+                patient?.type
+              );
+            preSelectedSpecialtyRef.current = routeKey && routeKey !== 'general' ? routeKey : null;
+            dispatch(setCurrentPatientId(id));
+          }}
+        />
       )}
 
       {error && (
@@ -1592,516 +1971,238 @@ function PatientHistory() {
       ) : (
         <div className="flex-1 flex flex-col space-y-4 min-h-0">
           {/* Summary Stats Grid */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[
-              { label: 'Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
-              { label: 'Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
-              { label: 'Visits', value: counts.encounters, icon: UserRound, color: 'text-purple-500', bg: 'bg-purple-50' },
-              { label: 'Admissions', value: counts.admissions, icon: BedDouble, color: 'text-orange-500', bg: 'bg-orange-50' },
-              { label: 'Labs', value: counts.labs, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
-              { label: 'Docs', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
-              { label: 'Vitals', value: counts.vitals, icon: Thermometer, color: 'text-teal-500', bg: 'bg-teal-50' },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-white px-2 py-1 rounded-md border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-1.5">
-                <div className={`w-5 h-5 ${stat.bg} ${stat.color} rounded flex items-center justify-center shrink-0`}>
-                  <stat.icon size={10} />
+          {!isGeneralView && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { label: 'Conditions', value: counts.activeConditions, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
+                { label: 'Meds', value: counts.medications, icon: Pill, color: 'text-blue-500', bg: 'bg-blue-50' },
+                { label: 'Visits', value: counts.encounters, icon: UserRound, color: 'text-purple-500', bg: 'bg-purple-50' },
+                { label: 'Admissions', value: counts.admissions, icon: BedDouble, color: 'text-orange-500', bg: 'bg-orange-50' },
+                { label: 'Labs', value: counts.labs, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
+                { label: 'Docs', value: counts.documents, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+                { label: 'Vitals', value: counts.vitals, icon: Thermometer, color: 'text-teal-500', bg: 'bg-teal-50' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-white px-2 py-1 rounded-md border border-[#DDE3F0] shadow-sm hover:shadow-md transition-all flex items-center gap-1.5">
+                  <div className={`w-5 h-5 ${stat.bg} ${stat.color} rounded flex items-center justify-center shrink-0`}>
+                    <stat.icon size={10} />
+                  </div>
+                  <span className="text-xs font-black text-[#0F1A3A]">{stat.value}</span>
+                  <span className="text-[9px] font-bold text-[#A0AECB] uppercase tracking-wider">{stat.label}</span>
                 </div>
-                <span className="text-xs font-black text-[#0F1A3A]">{stat.value}</span>
-                <span className="text-[9px] font-bold text-[#A0AECB] uppercase tracking-wider">{stat.label}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Horizontal Navigation Tabs */}
-          <div className="flex flex-wrap items-center gap-0.5 p-0.5 bg-white border border-[#DDE3F0] rounded-lg shadow-sm shrink-0">
-            {tabs.map(([id, label, Icon]) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all text-[11px] font-bold ${tab === id
-                  ? 'bg-[#C8102E] text-white shadow-sm shadow-red-900/20'
-                  : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
-                  }`}
-              >
-                <Icon size={12} />
-                {label}
-              </button>
-            ))}
-          </div>
+          {!isGeneralView && (
+            <div className="flex flex-wrap items-center gap-0.5 p-0.5 bg-white border border-[#DDE3F0] rounded-lg shadow-sm shrink-0">
+              {tabs.map(([id, label, Icon]) => (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all text-[11px] font-bold ${tab === id
+                    ? 'bg-[#C8102E] text-white shadow-sm shadow-red-900/20'
+                    : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
+                    }`}
+                >
+                  <Icon size={12} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Main Content Area */}
           <div className="min-w-0 flex-1 pr-1 -mr-1 flex flex-col min-h-0">
-            {loading ? (
+            {loading || specialtyLoading ? (
               <div className="py-20 text-center card bg-white rounded-2xl border border-[#DDE3F0]">
                 <RefreshCw className="animate-spin w-12 h-12 mx-auto mb-4 text-brand-blue/30" />
                 <p className="text-sm font-bold text-[#8A97B0]">Loading record...</p>
               </div>
             ) : (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 flex-1 flex flex-col">
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 flex-1 flex flex-col min-h-0">
 
                 {tab === 'overview' && (
-                  <div className="flex flex-col gap-3 flex-1">
-
-
-
-                    {/* ── Row 1: Conditions + Medications (compact wrapping chips) ── */}
-                    <div className="grid grid-cols-2 gap-2 shrink-0">
-                      {/* Conditions */}
-                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm px-3 py-1.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-5 w-5 rounded-md bg-red-50 flex items-center justify-center shrink-0"><HeartPulse size={11} className="text-red-600" /></div>
-                            <span className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Conditions</span>
-                            <span className="text-[9px] font-black text-red-600 bg-red-50 px-1 rounded">{conditions.filter(c => c.status === 'ACTIVE').length} active</span>
-                          </div>
-                          {canEdit && <button type="button" onClick={() => setModal({ type: 'conditions' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Plus size={9} /></button>}
-                        </div>
-                        <div className="flex flex-wrap gap-1 max-h-[52px] overflow-y-auto custom-scrollbar">
-                          {conditions.length === 0 ? <span className="text-[9px] text-[#A0AECB]">None on record</span> : conditions.map((c, i) => (
-                            <span key={getId(c) || i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(c.status)}`}>
-                              <span className={`w-1 h-1 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`} />
-                              {c.name}{c.severity ? ` · ${c.severity}` : ''}
+                  <div className="flex flex-col gap-3 flex-1 min-h-0">
+                    {specialty === 'dentist' && (
+                      <DentistPatientOverview
+                        canEdit={canEdit}
+                        conditions={conditions}
+                        dispatch={dispatch}
+                        documents={documents}
+                        encounters={encounters}
+                        labResults={labResults}
+                        medications={medications}
+                        patientId={patientId}
+                        setModal={setModal}
+                        setTimelineViewItem={setTimelineViewItem}
+                        timeline={timeline}
+                        vitals={vitals}
+                      />
+                    )}
+                    {specialty === 'general' && (
+                      <GeneralOverviewPage
+                        canEdit={canEdit}
+                        conditions={conditions}
+                        dispatch={dispatch}
+                        documents={documents}
+                        encounters={encounters}
+                        labResults={labResults}
+                        medications={medications}
+                        patientId={patientId}
+                        setModal={setModal}
+                        setViewModal={setViewModal}
+                        setTimelineViewItem={setTimelineViewItem}
+                        timeline={timeline}
+                        vitals={vitals}
+                        displayName={displayName}
+                        onDelete={handleDeleteItem}
+                      />
+                    )}
+                    {specialty === 'radiology' && (
+                      <div className="bg-zinc-950 text-zinc-100 rounded-2xl p-6 border border-zinc-800 animate-in fade-in duration-300 font-sans shadow-2xl">
+                        {/* PACS WORKSTATION Header */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 border-b border-zinc-800 pb-4">
+                          <div>
+                            <span className="bg-zinc-800 text-amber-500 border border-amber-500/25 px-3 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+                              PACS WORKSTATION
                             </span>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Medications */}
-                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm px-3 py-1.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-5 w-5 rounded-md bg-purple-50 flex items-center justify-center shrink-0"><Pill size={11} className="text-purple-600" /></div>
-                            <span className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Medications</span>
-                            <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-1 rounded">{medications.filter(m => !m.status || m.status === 'ACTIVE').length} active</span>
+                            <h2 className="text-lg font-black text-white mt-1">
+                              {displayName || 'Radiology Station'}
+                            </h2>
+                            <p className="text-zinc-400 text-[10px] mt-0.5">
+                              Modality: CT/MRI • Protocol: Brain Scan Contrast • Patient ID: {patientId}
+                            </p>
                           </div>
-                          {canEdit && <button type="button" onClick={() => setModal({ type: 'medications' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Plus size={9} /></button>}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {medications.length === 0 ? <span className="text-[9px] text-[#A0AECB]">None on record</span> : medications.map((m, i) => (
-                            <span key={getId(m) || i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass(m.status)}`}>
-                              {m.name || m.medicationName}{m.dosage ? ` ${m.dosage}` : ''}
+                          <div className="flex items-center gap-3">
+                            <span className="bg-zinc-900 px-3 py-1.5 rounded-lg text-xs font-black text-zinc-400 border border-zinc-800">
+                              SLICE: <span className="text-amber-500">{sliceIndex}/15</span>
                             </span>
-                          ))}
+                            <span className="bg-zinc-900 px-3 py-1.5 rounded-lg text-xs font-black text-zinc-400 border border-zinc-800">
+                              ZOOM: <span className="text-amber-500">{Math.round(zoom * 100)}%</span>
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* ── Incidents (Pre/Post Layout + 4 Clinical Cards per Condition) ── */}
-                    {(() => {
-                      const isImageFile = (doc) => {
-                        const name = (doc.fileName || doc.name || '').toLowerCase();
-                        return /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/.test(name);
-                      };
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                          {/* Left: DICOM Viewer */}
+                          <div className="lg:col-span-2 space-y-4">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative shadow-md">
+                              {/* Viewer Control Bar */}
+                              <div className="flex items-center justify-between gap-4 mb-4 border-b border-zinc-800 pb-2.5">
+                                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                                  <Sparkles size={12} className="text-amber-500" /> Active Diagnostic Canvas
+                                </span>
 
-                      const QuickDocBox = ({ label, color, accent, docs, imgs, conditionId, phase }) => {
-                        return (
-                          <section className={`bg-white border ${color} rounded-lg shadow-sm overflow-hidden shrink-0`}>
-                            <div className={`flex items-center justify-between border-b ${color} px-2 py-1 ${accent} shrink-0`}>
-                              <div className="flex items-center gap-2">
-                                <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${accent}`}><FileText size={13} /></div>
-                                <div>
-                                  <h2 className="text-[10px] font-black text-[#0F1A3A]">{label} Documents</h2>
-                                  <p className="text-[9px] font-bold text-[#A0AECB]">{docs.length + imgs.length} file{docs.length + imgs.length !== 1 ? 's' : ''}</p>
-                                </div>
-                              </div>
-                              {canEdit && (
-                                <button
-                                  type="button"
-                                  onClick={() => setModal({
-                                    type: 'documents',
-                                    initialValues: {
-                                      conditionId: conditionId || '',
-                                      documentPhase: phase,
-                                    },
-                                  })}
-                                  className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0"
-                                >
-                                  <Plus size={9} />
-                                </button>
-                              )}
-                            </div>
-                            <div className="bg-white">
-                              {docs.length === 0 && imgs.length === 0 ? (
-                                <div className="p-3 text-center">
-                                  <FileText className="mx-auto text-[#A0AECB] opacity-50 mb-1" size={16} />
-                                  <p className="text-[9px] font-bold text-[#0F1A3A]">No {label.toLowerCase()} documents.</p>
-                                </div>
-                              ) : null}
-                              {imgs.length > 0 && (() => {
-                                const sortedImgs = [...imgs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
-                                return (
-                                  <div className={`${sortedImgs.length > 1 ? 'flex gap-2 overflow-x-auto custom-scrollbar p-2' : 'p-2'} border-b border-[#F0F4FC]`}>
-                                    {sortedImgs.map((doc) => {
-                                      return (
-                                        <div key={getId(doc)} className={`flex flex-col rounded-lg overflow-hidden bg-[#0A1128] border border-[#DDE3F0] shadow-sm ${sortedImgs.length > 1 ? 'min-w-[200px]' : 'w-full'}`}>
-                                          <div className="relative group">
-                                            <SecureInlineImage
-                                              patientId={patientId}
-                                              doc={doc}
-                                              className="w-full h-52 object-contain"
-                                              onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                                            />
-                                            <div className="hidden w-full h-52 items-center justify-center text-[#A0AECB] bg-[#0A1128]">
-                                              <FileText size={36} />
-                                            </div>
-                                            <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-black/70 to-transparent pointer-events-none flex items-start justify-between gap-2">
-                                              <p className="text-[10px] font-bold text-white truncate drop-shadow-md">{doc.fileName || doc.name || 'Image'}</p>
-                                              <p className="text-[8px] font-black text-white shrink-0 drop-shadow-md bg-black/40 px-1.5 py-0.5 rounded-full backdrop-blur-sm uppercase">{date(doc.date || doc.uploadedAt)}</p>
-                                            </div>
-                                            <button
-                                              type="button"
-                                              onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))}
-                                              className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all"
-                                              title="Open full size"
-                                            >
-                                              <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 text-[#0F1A3A] text-[10px] font-black px-3 py-1.5 rounded-full shadow-md">
-                                                <ExternalLink size={12} /> View
-                                              </span>
-                                            </button>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })()}
-                              {docs.length > 0 && (() => {
-                                const sortedDocs = [...docs].sort((a, b) => new Date(b.date || b.uploadedAt) - new Date(a.date || a.uploadedAt));
-                                return (
-                                  <div className="divide-y divide-[#F0F4FC]">
-                                    {sortedDocs.map(doc => (
-                                      <div key={getId(doc)} className="px-3 py-2 hover:bg-[#F8FAFF] transition-colors">
-                                        <div className="flex items-start gap-3">
-                                          <div className="h-8 w-8 rounded-lg bg-[#F0F4FC] flex items-center justify-center shrink-0 mt-0.5">
-                                            <FileText size={16} className="text-[#475569]" />
-                                          </div>
-                                          <div className="min-w-0 flex-1">
-                                            <div className="flex items-center justify-between gap-2">
-                                              <p className="text-sm font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
-                                              <button type="button" onClick={() => viewSecureDocument(dispatch, patientId, getId(doc))} className="text-[11px] font-black text-brand-blue hover:underline shrink-0 flex items-center gap-0.5">
-                                                View <ExternalLink size={12} />
-                                              </button>
-                                            </div>
-                                            <p className="text-xs font-bold text-[#A0AECB] mt-1">
-                                              {(doc.type || 'FILE').replace(/_/g, ' ')} · {date(doc.date || doc.uploadedAt)}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </section>
-                        );
-                      };
-
-                      const VitalsBox = ({ label, v, accentCls, borderCls }) => {
-                        const st = v ? assessVitalStatus(v) : null;
-                        return (
-                          <section className={`bg-white border ${borderCls} rounded-lg shadow-sm overflow-hidden shrink-0`}>
-                            <div className={`flex items-center justify-between border-b ${borderCls} px-2 py-1 ${accentCls}`}>
-                              <div className="flex items-center gap-1.5">
-                                <div className={`h-4 w-4 rounded flex items-center justify-center ${accentCls}`}><Thermometer size={10} /></div>
-                                <h2 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">{label} Vitals</h2>
-                                {v && <span className="text-[8px] font-bold text-[#A0AECB]">{date(v.recordedAt || v.createdAt)}</span>}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {st && <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>}
-                                {canEdit && (
-                                  <button type="button" onClick={() => setModal({ type: 'vitals' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center hover:bg-red-700 transition-colors shrink-0">
-                                    <Plus size={11} />
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsInverted(!isInverted)}
+                                    className={`p-2 rounded-lg transition-colors border ${isInverted ? 'bg-amber-500 text-black border-amber-500' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'}`}
+                                    title="Invert Contrast"
+                                  >
+                                    <Contrast size={13} />
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setZoom(z => z === 1 ? 1.4 : 1)}
+                                    className={`p-2 rounded-lg transition-colors border ${zoom > 1 ? 'bg-amber-500 text-black border-amber-500' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'}`}
+                                    title="Zoom Image"
+                                  >
+                                    <ZoomIn size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setIsMeasuring(!isMeasuring); clearCalipers(); }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all border ${isMeasuring ? 'bg-amber-500 text-black border-amber-500' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'}`}
+                                  >
+                                    {isMeasuring ? 'Exit Calipers' : 'Measure Calipers'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Canvas Viewport Screen */}
+                              <div className="bg-zinc-950 rounded-xl overflow-hidden border border-zinc-850 relative flex items-center justify-center p-2">
+                                <canvas
+                                  ref={canvasRef}
+                                  width={520}
+                                  height={380}
+                                  onClick={handleCanvasClick}
+                                  className="max-w-full block transition-transform rounded-lg cursor-crosshair animate-fade-in"
+                                />
+
+                                {isMeasuring && calipers.length < 2 && (
+                                  <div className="absolute top-4 left-4 bg-amber-500/10 text-amber-500 border border-amber-500/25 px-3 py-1 rounded-lg text-xs font-bold backdrop-blur-md">
+                                    {calipers.length === 0 ? 'Click first caliper point' : 'Click second endpoint'}
+                                  </div>
                                 )}
                               </div>
+
+                              {/* Slice scrolling deck slider */}
+                              <div className="mt-4 space-y-2">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-zinc-400">
+                                  <span>Sagittal cross-section slider</span>
+                                  <span className="text-amber-500">Slide to scroll CT deck</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={15}
+                                  value={sliceIndex}
+                                  onChange={(e) => setSliceIndex(Number(e.target.value))}
+                                  className="w-full accent-amber-500 h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
+                                />
+                              </div>
                             </div>
-                            <div className="px-2 py-1 flex flex-wrap gap-1">
-                              {(() => {
-                                const VITAL_KEYS = [
-                                  { k: 'BP', val: v?.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v && (v.systolicBP > 140 || v.systolicBP < 90) },
-                                  { k: 'HR', val: v?.heartRate ?? null, u: 'bpm', w: v && (v.heartRate > 100 || v.heartRate < 60) },
-                                  { k: 'SpO₂', val: v?.oxygenSaturation ?? null, u: '%', w: v && v.oxygenSaturation < 95 },
-                                  { k: 'Temp', val: v?.temperature ?? null, u: '°C', w: v && (v.temperature > 37.2 || v.temperature < 36.1) },
-                                  { k: 'RR', val: v?.respiratoryRate ?? null, u: '/min', w: v && (v.respiratoryRate > 20 || v.respiratoryRate < 12) },
-                                  { k: 'GCS', val: v?.glasgowComaScale ?? null, u: '/15', w: v && v.glasgowComaScale < 14 },
-                                ];
-                                return VITAL_KEYS.map(x => (
-                                  <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.val != null && x.val !== '' ? (x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]') : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#A0AECB]'}`}>
-                                    <span className="text-[7px] font-black uppercase" style={{ color: 'inherit', opacity: 0.6 }}>{x.k}</span>
-                                    <span className="tabular-nums font-black">{x.val != null && x.val !== '' ? x.val : 'N/A'}</span>
-                                    {x.val != null && x.val !== '' && <span className="text-[7px] text-[#8A97B0]">{x.u}</span>}
+                          </div>
+
+                          {/* Right: Findings Panel */}
+                          <div className="space-y-4">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-sm space-y-4">
+                              <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <Activity size={14} /> Radiology Findings
+                              </h3>
+
+                              <div className="space-y-3">
+                                <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1">
+                                  <span className="text-[8px] font-black text-zinc-500 uppercase tracking-wider block">Clinical Observation</span>
+                                  <p className="text-[11px] font-bold text-zinc-200 leading-relaxed">
+                                    Right hemisphere showing distinct structural hyper-intensity at coordinate matrix (slice 7-11) measuring approximately 12mm. Mild localized edema is noted surrounding the primary lesion.
+                                  </p>
+                                </div>
+
+                                <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1">
+                                  <span className="text-[8px] font-black text-zinc-500 uppercase tracking-wider block">Recommendations</span>
+                                  <p className="text-[11px] font-bold text-zinc-200 leading-relaxed">
+                                    Recommend secondary High-Resolution Contrast Enhanced MRI for confirmation and tumor perimeter mapping. Urgent neuro-surgical referral is advised.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-sm space-y-3">
+                              <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2 mb-1">
+                                <FileText size={14} /> Modality Record
+                              </h3>
+
+                              <div className="space-y-2 text-[10px]">
+                                <div className="flex items-center justify-between p-2.5 bg-zinc-950 rounded-lg border border-zinc-800">
+                                  <span className="font-bold text-zinc-500">Technician ID</span>
+                                  <span className="font-black text-zinc-200">#TECH-901</span>
+                                </div>
+                                <div className="flex items-center justify-between p-2.5 bg-zinc-950 rounded-lg border border-zinc-800">
+                                  <span className="font-bold text-zinc-500">Scan Status</span>
+                                  <span className="font-black text-emerald-400 uppercase flex items-center gap-1">
+                                    <CheckCircle size={10} /> Verified
                                   </span>
-                                ));
-                              })()}
-                            </div>
-                          </section>
-                        );
-                      };
-
-                      const getValidTime = (dateVal) => {
-                        if (!dateVal) return null;
-                        if (Array.isArray(dateVal)) {
-                          return new Date(dateVal[0], dateVal[1] - 1, dateVal[2], dateVal[3] || 0, dateVal[4] || 0, dateVal[5] || 0).getTime();
-                        }
-                        const t = new Date(dateVal).getTime();
-                        return isNaN(t) ? null : t;
-                      };
-
-                      const conditionSortTime = (condition) => getValidTime(condition.createdAt || condition.updatedAt || condition.dateDiagnosed || condition.diagnosedAt);
-
-                      const activeConditions = conditions
-                        .map((condition, index) => ({ condition, index, time: conditionSortTime(condition) }))
-                        .filter(({ condition }) => !condition.status || condition.status === 'ACTIVE')
-                        .sort((a, b) => {
-                          if (a.time !== null && b.time !== null && a.time !== b.time) return a.time - b.time;
-                          if (a.time !== null && b.time === null) return -1;
-                          if (a.time === null && b.time !== null) return 1;
-                          return b.index - a.index;
-                        })
-                        .map(({ condition }) => condition);
-
-                      const fallbackCondition = conditions.length > 0 ? conditions[0] : null;
-                      const conditionsToDisplay = activeConditions.length > 0 ? activeConditions : [fallbackCondition];
-
-                      return (
-                        <>
-                          <div className="flex flex-col gap-6 mt-2">
-                            {/* ── Global Vitals (Fixed after Conditions & Medications) ── */}
-                            {(() => {
-                              const sortedV = [...vitals].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
-                              const preVitalCond = sortedV[0] || null;
-                              const postVitalCond = sortedV.length > 1 ? sortedV[sortedV.length - 1] : null;
-
-                              return (
-                                <div className="grid grid-cols-2 gap-2 shrink-0">
-                                  <div className="flex flex-col gap-2">
-                                    <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
-                                      <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Vitals</h3>
-                                    </div>
-                                    <VitalsBox label="Pre-Treatment" v={preVitalCond} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
-                                  </div>
-                                  <div className="flex flex-col gap-2">
-                                    <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                      <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Vitals</h3>
-                                    </div>
-                                    <VitalsBox label="Post-Treatment" v={postVitalCond} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
-                                  </div>
                                 </div>
-                              );
-                            })()}
-
-                            {/* ── Repeating Incident Blocks (Images -> 4 Cards) ── */}
-                            {conditionsToDisplay.map((cond, idx) => {
-                              const condId = getId(cond) || cond?._id;
-                              const blockDocs = documents.filter(d => {
-                                const docConditionId = getConditionLinkId(d);
-                                if (!condId) return !docConditionId;
-                                return sameId(docConditionId, condId);
-                              });
-
-                              const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
-                              const POST_KEYS = ['POST', 'DISCHARGE', 'FOLLOW', 'RESULT', 'REPORT', 'PRESCRIPTION'];
-                              const isPre = (d) => d.documentPhase === 'PRE' || (!d.documentPhase && PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
-                              const isPost = (d) => d.documentPhase === 'POST' || (!d.documentPhase && POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
-
-                              const preDocs = blockDocs.filter(isPre);
-                              const postDocs = blockDocs.filter(isPost);
-                              const otherDocs = blockDocs.filter(d => !isPre(d) && !isPost(d));
-
-                              const finalPre = preDocs.length ? preDocs : otherDocs.slice(0, Math.ceil(otherDocs.length / 2));
-                              const finalPost = postDocs.length ? postDocs : otherDocs.slice(Math.ceil(otherDocs.length / 2));
-
-                              const preImagesCond = finalPre.filter(isImageFile);
-                              const preDocsOnlyCond = finalPre.filter(d => !isImageFile(d));
-                              const postImagesCond = finalPost.filter(isImageFile);
-                              const postDocsOnlyCond = finalPost.filter(d => !isImageFile(d));
-
-                              return (
-                                <div key={condId || idx} className="flex flex-col gap-2">
-                                  {/* Incident Header (Only if multiple) */}
-                                  {conditionsToDisplay.length > 1 && cond && (
-                                    <div className="flex items-center gap-1.5 px-1 pt-1">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                      <h3 className="text-[12px] font-black text-[#0F1A3A] uppercase tracking-wide">INCIDENT: {cond.name || 'Condition'}</h3>
-                                    </div>
-                                  )}
-
-                                  {/* ── 2-Column Treatment Layout: Docs Only ── */}
-                                  <div className="grid grid-cols-2 gap-2 mt-1">
-                                    {/* PRE-TREATMENT Column */}
-                                    <div className="flex flex-col gap-2">
-                                      <div className="flex items-center gap-1.5 border-b-2 border-brand-blue pb-1 shrink-0">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
-                                        <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Pre-Treatment Evidence</h3>
-                                      </div>
-                                      {/* Pre Doc image */}
-                                      {(canEdit || preImagesCond.length > 0 || preDocsOnlyCond.length > 0) && (
-                                        <div className="shrink-0"><QuickDocBox label="Pre-Treatment" color="border-[#DBEAFE]" accent="bg-[#EFF6FF] text-[#1A3C8F]" docs={preDocsOnlyCond} imgs={preImagesCond} conditionId={condId} phase="PRE" /></div>
-                                      )}
-                                    </div>
-
-                                    {/* POST-TREATMENT Column */}
-                                    <div className="flex flex-col gap-2">
-                                      <div className="flex items-center gap-1.5 border-b-2 border-green-500 pb-1 shrink-0">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                        <h3 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Post-Treatment Evidence</h3>
-                                      </div>
-                                      {/* Post Doc image */}
-                                      {(canEdit || postImagesCond.length > 0 || postDocsOnlyCond.length > 0) && (
-                                        <div className="shrink-0"><QuickDocBox label="Post-Treatment" color="border-[#DCFCE7]" accent="bg-[#F0FDF4] text-[#16A34A]" docs={postDocsOnlyCond} imgs={postImagesCond} conditionId={condId} phase="POST" /></div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* ── 4 Clinical Cards ── */}
-                                  {cond && (
-                                    <div className="grid grid-cols-4 gap-2 mb-2 mt-1">
-                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Findings</h3>
-                                        </div>
-                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.findings || '—'}</p>
-                                      </div>
-                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Symptoms</h3>
-                                        </div>
-                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.symptoms || '—'}</p>
-                                      </div>
-                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Analysis</h3>
-                                        </div>
-                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.analysis || '—'}</p>
-                                      </div>
-                                      <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                          <h3 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide">Recommended Treatment</h3>
-                                        </div>
-                                        <p className="text-[10px] text-[#4B5A7A] leading-snug flex-1">{cond.recommendedTreatment || '—'}</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* ── 2-Column Treatment Layout: Bottom (Labs/Procedures) ── */}
-                          <div className="grid grid-cols-2 gap-2 mt-2 flex-1">
-                            {/* Lab Results */}
-                            <div className="flex flex-col flex-1">
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex flex-col flex-1">
-                                <div className="flex items-center justify-between border-b border-[#DDE3F0] px-2 py-1 shrink-0 bg-[#F8FAFF]">
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-5 w-5 rounded-md bg-[#DBEAFE] flex items-center justify-center"><FlaskConical size={11} className="text-[#1A3C8F]" /></div>
-                                    <h2 className="text-[10px] font-black text-[#0F1A3A]">Lab Results</h2>
-                                  </div>
-                                  {canEdit && (
-                                    <button type="button" onClick={() => setModal({ type: 'labResults' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center hover:bg-red-700 transition-colors shrink-0">
-                                      <Plus size={11} />
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="divide-y divide-[#F0F4FC] overflow-y-auto custom-scrollbar max-h-[150px]">
-                                  {labResults.length === 0 ? <div className="p-2"><Empty>No lab results.</Empty></div> : labResults.map(lab => (
-                                    <div key={getId(lab)} className="flex flex-col gap-1 px-2 py-1.5 hover:bg-[#F8FAFF] transition-colors">
-                                      <div className="flex items-center justify-between">
-                                        <div className="min-w-0">
-                                          <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{lab.testName || lab.name}</p>
-                                          <p className="text-[9px] font-bold text-[#A0AECB]">{date(lab.date || lab.resultDate)}</p>
-                                        </div>
-                                        <div className="text-right">
-                                          <p className="text-xs font-black text-brand-blue shrink-0 ml-1">{text(lab.value)} <span className="text-[9px] text-[#8A97B0]">{lab.unit}</span></p>
-                                          {lab.interpretation && (
-                                            <p className={`text-[8px] font-black uppercase tracking-widest mt-0.5 ${String(lab.interpretation).toUpperCase() === 'NORMAL' ? 'text-green-600' : 'text-red-500'
-                                              }`}>{lab.interpretation}</p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {lab.normalRange && (
-                                        <p className="text-[8px] text-[#8A97B0] font-semibold">Ref Range: {lab.normalRange}</p>
-                                      )}
-                                      {lab.notes && (
-                                        <p className="text-[9px] text-[#4B5A7A] italic leading-tight border-l-2 border-[#DDE3F0] pl-1.5">{lab.notes}</p>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </section>
-                            </div>
-
-                            {/* Procedures */}
-                            <div className="flex flex-col flex-1">
-                              <section className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden flex flex-col flex-1">
-                                <div className="flex items-center justify-between border-b border-[#DDE3F0] px-2 py-1 shrink-0 bg-[#F8FAFF]">
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-5 w-5 rounded-md bg-orange-50 flex items-center justify-center"><Stethoscope size={11} className="text-orange-600" /></div>
-                                    <h2 className="text-[10px] font-black text-[#0F1A3A]">Procedures &amp; Visits</h2>
-                                  </div>
-                                  {canEdit && (
-                                    <button type="button" onClick={() => setModal({ type: 'encounters' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center hover:bg-red-700 transition-colors shrink-0">
-                                      <Plus size={11} />
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="divide-y divide-[#F0F4FC] max-h-[80px] overflow-y-auto custom-scrollbar">
-                                  {encounters.length === 0 ? <div className="p-2"><Empty>No visits.</Empty></div> : encounters.map(enc => (
-                                    <div key={getId(enc)} className="px-2 py-1">
-                                      <div className="flex items-center justify-between gap-1">
-                                        <p className="text-[10px] font-bold text-[#0F1A3A] truncate">{enc.chiefComplaint || enc.type || 'Visit'}</p>
-                                        {enc.outcome && <Badge className="bg-[#E8EEF8] text-brand-blue border-[#DDE3F0] text-[9px] shrink-0">{enc.outcome}</Badge>}
-                                      </div>
-                                      <p className="text-[9px] font-bold text-[#A0AECB]">{date(enc.date || enc.encounterDate)}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </section>
+                              </div>
                             </div>
                           </div>
+                        </div>
+                      </div>
+                    )}
 
-                          {/* ── Recent Activity (compact rows) at bottom ── */}
-                          <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm overflow-hidden shrink-0 mt-2">
-                            <div className="flex items-center gap-2 border-b border-[#DDE3F0] px-3 py-1.5">
-                              <div className="h-5 w-5 rounded-md bg-[#E8EEF8] flex items-center justify-center"><Clock size={11} className="text-[#4B5A7A]" /></div>
-                              <h2 className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide">Recent Activity</h2>
-                              <span className="text-[9px] font-bold text-[#A0AECB]">{timeline.length} event{timeline.length !== 1 ? 's' : ''}</span>
-                            </div>
-                            <div className="divide-y divide-[#F0F4FC] max-h-[140px] overflow-y-auto custom-scrollbar">
-                              {timeline.length === 0
-                                ? <p className="text-[9px] text-[#A0AECB] px-3 py-2">No activity recorded yet.</p>
-                                : timeline.slice(0, 8).map((item, index) => {
-                                  const st = getEventStyle(item.eventType || item.type);
-                                  const Icon = st.icon;
-                                  const eventDate = item.date || item.eventDate || item.timestamp;
-                                  return (
-                                    <button
-                                      key={timelineKey(item, index)}
-                                      type="button"
-                                      onClick={() => setTimelineViewItem(item)}
-                                      className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#F8FAFF] transition-colors text-left"
-                                    >
-                                      <div className="h-5 w-5 rounded flex items-center justify-center shrink-0" style={{ background: st.bg, color: st.color }}>
-                                        <Icon size={10} />
-                                      </div>
-                                      <span className="text-[9px] font-black uppercase tracking-wide shrink-0" style={{ color: st.color }}>{st.label}</span>
-                                      <span className="text-[9px] font-bold text-[#0F1A3A] truncate flex-1">{item.title || ''}</span>
-                                      <span className="text-[8px] font-bold text-[#A0AECB] shrink-0">{eventDate ? relativeTime(eventDate) : ''}</span>
-                                    </button>
-                                  );
-                                })
-                              }
-                            </div>
-                          </div>
-                        </>
-                      );
-                    })()}
 
                   </div>
                 )}
@@ -2309,3 +2410,4 @@ function PatientHistory() {
 }
 
 export default PatientHistory;
+

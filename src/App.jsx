@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectIsInitializing, checkAuth } from './store/slices/authSlice';
-import { hasMenuAccess } from './constants/permissions';
 import { RefreshCw } from 'lucide-react';
 
 // Layout
@@ -36,6 +35,10 @@ import BreakGlass    from './pages/BreakGlass';
 import BusinessAssociate from './pages/BusinessAssociate';
 import DeIdentification from './pages/DeIdentification';
 import PatientHistory   from './pages/PatientHistory';
+import GeneralOverviewPage from './pages/overview/GeneralOverviewPage';
+import CardiologyOverviewPage from './pages/overview/CardiologyOverviewPage';
+import RadiologyOverviewPage from './pages/overview/RadiologyOverviewPage';
+import OncologyOverviewPage from './pages/overview/OncologyOverviewPage';
 
 // Route guard: wraps ProtectedRoute + RoleGate
 const GuardedRoute = ({ menuItem, roles, children }) => (
@@ -103,6 +106,13 @@ const AppRoutes = () => {
         <Route path="patient-portal"  element={<GuardedRoute menuItem="Patient Portal"><PatientPortal /></GuardedRoute>} />
         <Route path="patient-history/:patientId" element={<GuardedRoute menuItem="Patient History"><PatientHistory /></GuardedRoute>} />
         <Route path="patient-history" element={<GuardedRoute menuItem="Patient History"><PatientHistory /></GuardedRoute>} />
+        
+        {/* Dynamic Patient Specialty Overviews */}
+        <Route path="patients/:patientId/overview/general" element={<ProtectedRoute><GeneralOverviewPage /></ProtectedRoute>} />
+        <Route path="patients/:patientId/overview/cardiology" element={<ProtectedRoute><CardiologyOverviewPage /></ProtectedRoute>} />
+        <Route path="patients/:patientId/overview/radiology" element={<ProtectedRoute><RadiologyOverviewPage /></ProtectedRoute>} />
+        <Route path="patients/:patientId/overview/oncology" element={<ProtectedRoute><OncologyOverviewPage /></ProtectedRoute>} />
+
         <Route path="break-glass"     element={<GuardedRoute menuItem="Break-Glass"><BreakGlass /></GuardedRoute>} />
 
         {/* Legacy redirect */}

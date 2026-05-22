@@ -15,7 +15,7 @@ import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
 import DynamicFormRenderer from '../components/forms/DynamicFormRenderer';
 import client from '../api/client';
 
-const INCIDENT_TYPES = ['TRAUMA', 'CARDIAC', 'RESPIRATORY', 'NEUROLOGICAL', 'OBSTETRIC', 'PEDIATRIC', 'BEHAVIORAL', 'OTHER'];
+const INCIDENT_TYPES = ['GENERAL', 'TRAUMA', 'CARDIOLOGY', 'RESPIRATORY', 'NEUROLOGY', 'OBSTETRIC', 'PEDIATRIC', 'BEHAVIORAL', 'DENTIST', 'ONCOLOGY', 'RADIOLOGY'];
 const TRANSPORT_MODES = ['ALS', 'BLS', 'CRITICAL_CARE', 'AIR', 'WATER', 'WHEELCHAIR', 'WALK_IN'];
 const CARE_LEVELS = ['ALS', 'BLS', 'CCT', 'SCT', 'MFR', 'EMT', 'PARAMEDIC'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -251,29 +251,29 @@ const CreateRecord = () => {
          patientDateOfBirth: pat.patientDateOfBirth ?? pat.dateOfBirth ?? pat.dob ?? '',
          patientGender: pat.patientGender ?? pat.gender ?? '',
          patientPhone: pat.patientPhone ?? pat.phone ?? pat.phoneNumber ?? searchPhone,
-         email: pat.email ?? '',
-         age: pat.age ?? '',
-         bloodGroup: pat.bloodGroup ?? '',
-         height: pat.height ?? '',
-         weight: pat.weight ?? '',
+         email: pat.patientEmail ?? pat.email ?? '',
+         age: pat.patientAge ?? pat.age ?? '',
+         bloodGroup: pat.patientBloodGroup ?? pat.bloodGroup ?? '',
+         height: pat.patientHeight ?? pat.height ?? '',
+         weight: pat.patientWeight ?? pat.weight ?? '',
          patientAddress: pat.patientAddress ?? pat.address ?? '',
          patientSSNLast4: pat.patientSSNLast4 ?? pat.ssnLast4 ?? '',
-         spo2: pat.spo2 ?? '',
-         respirationRate: pat.respirationRate ?? '',
-         bloodSugar: pat.bloodSugar ?? '',
-         heartRate: pat.heartRate ?? '',
-         diastolicBp: pat.diastolicBp ?? '',
-         systolicBp: pat.systolicBp ?? '',
-         pulseRate: pat.pulseRate ?? '',
-         temperature: pat.temperature ?? pat.temperaturehemoglobin ?? '',
-         hemoglobin: pat.hemoglobin ?? '',
+         spo2: pat.patientSpo2 ?? pat.spo2 ?? '',
+         respirationRate: pat.patientRespirationRate ?? pat.respirationRate ?? '',
+         bloodSugar: pat.patientBloodSugar ?? pat.bloodSugar ?? '',
+         heartRate: pat.patientHeartRate ?? pat.heartRate ?? '',
+         diastolicBp: pat.patientDiastolicBp ?? pat.diastolicBp ?? '',
+         systolicBp: pat.patientSystolicBp ?? pat.systolicBp ?? '',
+         pulseRate: pat.patientPulseRate ?? pat.pulseRate ?? '',
+         temperature: pat.patientTemperature ?? pat.temperature ?? pat.temperaturehemoglobin ?? '',
+         hemoglobin: pat.patientHemoglobin ?? pat.hemoglobin ?? '',
          medicalHistory: {
             ...prev.medicalHistory,
             ...patMh,
-            comorbidity: pat.comorbidity ?? patMh.comorbidity ?? prev.medicalHistory.comorbidity ?? '',
-            allergy: pat.allergy ?? patMh.allergy ?? prev.medicalHistory.allergy ?? '',
-            doctor: pat.doctor ?? patMh.doctor ?? prev.medicalHistory.doctor ?? '',
-            currentMedicines: pat.currentMedicines ?? patMh.currentMedicines ?? prev.medicalHistory.currentMedicines ?? '',
+            comorbidity: pat.patientComorbidity ?? pat.comorbidity ?? patMh.comorbidity ?? prev.medicalHistory.comorbidity ?? '',
+            allergy: pat.patientAllergy ?? pat.allergy ?? patMh.allergy ?? prev.medicalHistory.allergy ?? '',
+            doctor: pat.patientDoctor ?? pat.doctor ?? patMh.doctor ?? prev.medicalHistory.doctor ?? '',
+            currentMedicines: pat.patientCurrentMedicines ?? pat.currentMedicines ?? patMh.currentMedicines ?? prev.medicalHistory.currentMedicines ?? '',
          }
       }));
       setSearchResults([]);
@@ -588,7 +588,13 @@ const CreateRecord = () => {
          
          const generatedId = created?.incidentNumber || created?.patientId || created?.id;
          dispatch(addToast({ type: 'success', message: generatedId ? `Record ${recordId ? 'Updated' : 'Saved'}: ${generatedId}` : `Record ${recordId ? 'Updated' : 'Saved'}` }));
-         navigate('/epcr');
+         
+         const finalPatientId = formData.patientId || created?.patientId || created?.patient?.id;
+         if (finalPatientId) {
+            navigate(`/patient-history/${finalPatientId}`);
+         } else {
+            navigate('/epcr');
+         }
       } catch (err) {
          const msg = typeof err === 'string' ? err : (err?.message || 'Transmission Interrupted');
          setError(msg);
