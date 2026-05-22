@@ -595,13 +595,15 @@ const FORM_CONFIG = {
     create: createVital,
     update: updateVital,
     defaults: {
-      recordedAt: new Date().toISOString().slice(0, 16), systolicBP: '', diastolicBP: '', heartRate: '',
+      treatmentPhase: 'PRE', vitalPhase: 'PRE', recordedAt: new Date().toISOString().slice(0, 16), systolicBP: '', diastolicBP: '', heartRate: '',
       oxygenSaturation: '', respiratoryRate: '', temperature: '', bloodGlucose: '', glasgowComaScale: '',
       gcEye: '', gcVerbal: '', gcMotor: '', painScore: '', painLocation: '', oxygenDeliveryMethod: '',
       temperatureRoute: '', hemoglobin: '', avpu: '', pupilLeft: '', pupilRight: '', skinColor: '', notes: '',
       linkedEpcrId: '', linkedEncounterId: '',
     },
+    transform: (data) => ({ ...data, vitalPhase: data.treatmentPhase || data.vitalPhase || 'PRE' }),
     fields: [
+      field('treatmentPhase', 'Treatment Phase', 'select', { options: ['PRE', 'POST'], required: true }),
       field('recordedAt', 'Recorded At', 'datetime-local', { required: true }),
       field('systolicBP', 'Systolic BP (mmHg)', 'number', { placeholder: '120' }),
       field('diastolicBP', 'Diastolic BP (mmHg)', 'number', { placeholder: '80' }),
@@ -628,7 +630,7 @@ const FORM_CONFIG = {
       field('notes', 'Notes', 'textarea', { placeholder: 'Additional observations...' }),
     ],
     sections: [
-      { title: 'Recording Info', fieldNames: ['recordedAt'] },
+      { title: 'Recording Info', fieldNames: ['treatmentPhase', 'recordedAt'] },
       { title: 'Cardiovascular', fieldNames: ['systolicBP', 'diastolicBP', 'heartRate', 'oxygenSaturation', 'respiratoryRate'] },
       { title: 'Temperature & Glucose', fieldNames: ['temperature', 'temperatureRoute', 'oxygenDeliveryMethod', 'bloodGlucose', 'hemoglobin'] },
       { title: 'Neurological', fieldNames: ['glasgowComaScale', 'gcEye', 'gcVerbal', 'gcMotor', 'avpu', 'painScore', 'painLocation'] },

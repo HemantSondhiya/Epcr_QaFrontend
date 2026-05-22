@@ -188,6 +188,14 @@ const getLatestDocument = (documents) => {
   return [...documents].sort((a, b) => getDocumentSortTime(b) - getDocumentSortTime(a))[0] || null;
 };
 
+const getVitalPhase = (vital) => String(
+  vital?.treatmentPhase ||
+  vital?.vitalPhase ||
+  vital?.phase ||
+  vital?.documentPhase ||
+  ''
+).toUpperCase();
+
 /* ─── main component ─── */
 export default function GeneralOverviewPage({
   patientId: patientIdProp,
@@ -640,10 +648,13 @@ export default function GeneralOverviewPage({
           {/* Vitals Box */}
           {(() => {
             const sortedV = [...vits].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
-            const initialVital = sortedV[0] || null;
-            const latestVital = sortedV.length > 1 ? sortedV[sortedV.length - 1] : null;
+            const preVitals = sortedV.filter(v => getVitalPhase(v) === 'PRE');
+            const postVitals = sortedV.filter(v => getVitalPhase(v) === 'POST');
+            const unphasedVitals = sortedV.filter(v => !getVitalPhase(v));
+            const initialVital = preVitals[0] || unphasedVitals[0] || null;
+            const latestVital = postVitals[postVitals.length - 1] || (unphasedVitals.length > 1 ? unphasedVitals[unphasedVitals.length - 1] : null);
 
-            const VitalsBox = ({ label, v, accentCls, borderCls }) => {
+            const VitalsBox = ({ label, v, accentCls, borderCls, phase }) => {
               const st = v ? assessVitalStatus(v) : null;
               return (
                 <div className={`bg-white border ${borderCls} rounded-lg shadow-sm overflow-hidden flex-1`}>
@@ -655,6 +666,23 @@ export default function GeneralOverviewPage({
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {st && <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>}
+                      {canEditProp && (
+                        <button
+                          type="button"
+                          onClick={() => setModal({
+                            type: 'vitals',
+                            initialValues: {
+                              treatmentPhase: phase,
+                              vitalPhase: phase,
+                              recordedAt: new Date().toISOString().slice(0, 16),
+                            },
+                          })}
+                          className="w-4 h-4 rounded bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors"
+                          title={`Add ${label} vitals`}
+                        >
+                          <Plus size={8} />
+                        </button>
+                      )}
                       {v && (
                         <div className="flex gap-1">
                           <button onClick={() => setViewModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
@@ -703,14 +731,14 @@ export default function GeneralOverviewPage({
                     <Thermometer size={12} className="text-red-500" /> Patient Vitals Comparison
                   </span>
                   {canEditProp && (
-                    <button type="button" onClick={() => setModal({ type: 'vitals' })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors">
+                    <button type="button" onClick={() => setModal({ type: 'vitals', initialValues: { treatmentPhase: 'PRE', vitalPhase: 'PRE', recordedAt: new Date().toISOString().slice(0, 16) } })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors" title="Add pre-treatment vitals">
                       <Plus size={10} />
                     </button>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <VitalsBox label="Initial" v={initialVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" />
-                  <VitalsBox label="Latest" v={latestVital || initialVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" />
+                  <VitalsBox label="Pre-Treatment" v={initialVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" phase="PRE" />
+                  <VitalsBox label="Post-Treatment" v={latestVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" phase="POST" />
                 </div>
               </div>
             );
@@ -752,21 +780,21 @@ export default function GeneralOverviewPage({
 
                   {/* Findings / Symptoms / Analysis / Plan */}
                   <div className="grid grid-cols-4 gap-1.5">
-                    <div className="bg-white border border-[#DDE3F0] rounded p-1.5 flex flex-col min-h-[48px]">
+                    <div className="bg-white border border-[#DDE3F0] rounded p-3 flex flex-col min-h-[140px]">
                       <span className="text-[7px] font-black text-[#A0AECB] uppercase tracking-wider mb-0.5 leading-none">Findings</span>
-                      <p className="text-[9px] text-[#4B5A7A] leading-snug flex-1 overflow-y-auto max-h-[48px] custom-scrollbar">{cond.findings || '—'}</p>
+                      <p className="text-[10px] text-[#4B5A7A] leading-relaxed flex-1 overflow-y-auto max-h-[112px] custom-scrollbar">{cond.findings || '—'}</p>
                     </div>
-                    <div className="bg-white border border-[#DDE3F0] rounded p-1.5 flex flex-col min-h-[48px]">
+                    <div className="bg-white border border-[#DDE3F0] rounded p-3 flex flex-col min-h-[140px]">
                       <span className="text-[7px] font-black text-[#A0AECB] uppercase tracking-wider mb-0.5 leading-none">Symptoms</span>
-                      <p className="text-[9px] text-[#4B5A7A] leading-snug flex-1 overflow-y-auto max-h-[48px] custom-scrollbar">{cond.symptoms || '—'}</p>
+                      <p className="text-[10px] text-[#4B5A7A] leading-relaxed flex-1 overflow-y-auto max-h-[112px] custom-scrollbar">{cond.symptoms || '—'}</p>
                     </div>
-                    <div className="bg-white border border-[#DDE3F0] rounded p-1.5 flex flex-col min-h-[48px]">
+                    <div className="bg-white border border-[#DDE3F0] rounded p-3 flex flex-col min-h-[140px]">
                       <span className="text-[7px] font-black text-[#A0AECB] uppercase tracking-wider mb-0.5 leading-none">Analysis</span>
-                      <p className="text-[9px] text-[#4B5A7A] leading-snug flex-1 overflow-y-auto max-h-[48px] custom-scrollbar">{cond.analysis || '—'}</p>
+                      <p className="text-[10px] text-[#4B5A7A] leading-relaxed flex-1 overflow-y-auto max-h-[112px] custom-scrollbar">{cond.analysis || '—'}</p>
                     </div>
-                    <div className="bg-white border border-[#DDE3F0] rounded p-1.5 flex flex-col min-h-[48px]">
+                    <div className="bg-white border border-[#DDE3F0] rounded p-3 flex flex-col min-h-[140px]">
                       <span className="text-[7px] font-black text-[#A0AECB] uppercase tracking-wider mb-0.5 leading-none">Plan</span>
-                      <p className="text-[9px] text-[#4B5A7A] leading-snug flex-1 overflow-y-auto max-h-[48px] custom-scrollbar">{cond.recommendedTreatment || '—'}</p>
+                      <p className="text-[10px] text-[#4B5A7A] leading-relaxed flex-1 overflow-y-auto max-h-[112px] custom-scrollbar">{cond.recommendedTreatment || '—'}</p>
                     </div>
                   </div>
                 </div>

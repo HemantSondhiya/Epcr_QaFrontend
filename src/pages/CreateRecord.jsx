@@ -417,6 +417,23 @@ const CreateRecord = () => {
       const tl = data.timeline || {};
       const tr = data.transport || {};
       const cn = data.consent || {};
+      const clinicalVitals = {
+         treatmentPhase: 'PRE',
+         vitalPhase: 'PRE',
+         recordedAt: toIso(data.incidentDateTime) || new Date().toISOString(),
+         systolicBP: toNum(data.systolicBp),
+         diastolicBP: toNum(data.diastolicBp),
+         heartRate: toNum(data.heartRate) || toNum(data.pulseRate),
+         pulseRate: toNum(data.pulseRate),
+         respiratoryRate: toNum(data.respirationRate),
+         oxygenSaturation: toNum(data.spo2),
+         temperature: toNum(data.temperature),
+         bloodGlucose: toNum(data.bloodSugar),
+         hemoglobin: toNum(data.hemoglobin),
+         glasgowComaScale: toNum(data.glasgowComaScale),
+         mentalStatus: cv(data.mentalStatus) || '',
+      };
+      const hasClinicalVitals = Object.entries(clinicalVitals).some(([key, value]) => !['treatmentPhase', 'vitalPhase', 'recordedAt'].includes(key) && value !== null && value !== '');
 
       return {
          patientId: cv(data.patientId) || '',
@@ -446,9 +463,22 @@ const CreateRecord = () => {
          temperature: toNum(data.temperature),
          bloodSugar: toNum(data.bloodSugar),
          hemoglobin: toNum(data.hemoglobin),
+         // Patient-history friendly aliases
+         systolicBP: clinicalVitals.systolicBP,
+         diastolicBP: clinicalVitals.diastolicBP,
+         respiratoryRate: clinicalVitals.respiratoryRate,
+         oxygenSaturation: clinicalVitals.oxygenSaturation,
+         bloodGlucose: clinicalVitals.bloodGlucose,
+         glasgowComaScale: clinicalVitals.glasgowComaScale,
          // Clinical
          diagnosis: cv(data.diagnosis) || '',
          treatmentProvided: cv(data.treatmentProvided) || '',
+         mentalStatus: cv(data.mentalStatus) || '',
+         ecgRhythm: cv(data.ecgRhythm) || '',
+         pupilsResponse: cv(data.pupilsResponse) || '',
+         skinCondition: cv(data.skinCondition) || '',
+         airwayManaged: data.airwayManaged ?? false,
+         diagnosticFindings: cv(data.diagnosticFindings) || '',
          // Incident
          incidentDateTime: toIso(data.incidentDateTime),
          incidentLocation: cv(data.incidentLocation) || '',
@@ -461,7 +491,7 @@ const CreateRecord = () => {
          proceduresPerformed: toArr(data.proceduresPerformed),
          crew: data.crew || [],
          structuredComplaints: data.structuredComplaints || [],
-         structuredVitals: data.structuredVitals || [],
+         structuredVitals: data.structuredVitals?.length ? data.structuredVitals : (hasClinicalVitals ? [clinicalVitals] : []),
          structuredMedications: data.structuredMedications || [],
          structuredProcedures: data.structuredProcedures || [],
          // Transport-derived top-level
@@ -558,7 +588,22 @@ const CreateRecord = () => {
          paramedicsId: data.paramedicsId || '',
          organizationId: data.organizationId || '',
          status: data.status || 'PENDING',
-         clinicalData: {},
+         clinicalData: {
+            vitals: hasClinicalVitals ? [clinicalVitals] : [],
+            assessment: {
+               diagnosis: cv(data.diagnosis) || '',
+               treatmentProvided: cv(data.treatmentProvided) || '',
+               mentalStatus: cv(data.mentalStatus) || '',
+               ecgRhythm: cv(data.ecgRhythm) || '',
+               pupilsResponse: cv(data.pupilsResponse) || '',
+               skinCondition: cv(data.skinCondition) || '',
+               airwayManaged: data.airwayManaged ?? false,
+               diagnosticFindings: cv(data.diagnosticFindings) || '',
+            },
+            complaints: toArr(data.complaints),
+            medicationsAdministered: toArr(data.medicationsAdministered),
+            proceduresPerformed: toArr(data.proceduresPerformed),
+         },
          dynamicFormResponses: dynamicData || {},
       };
    };
