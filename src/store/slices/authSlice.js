@@ -98,7 +98,9 @@ const authSlice = createSlice({
             email: data.email || data.identifier, // patient might not have email
             organizationId: data.organizationId,
             role: data.role,
-            patientId: data.patientId // Explicitly save patientId
+            patientId: data.patientId, // Explicitly save patientId
+            accessToken: data.accessToken || data.token || state.user?.accessToken,
+            refreshToken: data.refreshToken || state.user?.refreshToken,
           };
         } else {
           state.user = null;

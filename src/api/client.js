@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { logout } from '../store/slices/authSlice';
+import { loginSuccess, logout } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 
 // Store reference — set via injectStore() called from main.jsx
@@ -153,7 +153,25 @@ client.interceptors.response.use(
 
       return new Promise((resolve, reject) => {
         client.post('/api/auth/refresh', {}, { hideToast: true })
-          .then(() => {
+          .then((refreshRes) => {
+            const data = refreshRes.data || {};
+            const accessToken = data.accessToken || data.token;
+            const refreshToken = data.refreshToken;
+            const currentUser = _store?.getState()?.auth?.user || {};
+            if (accessToken) {
+              _store?.dispatch(loginSuccess({
+                user: {
+                  ...currentUser,
+                  ...data,
+                  id: data.userId || currentUser.id || currentUser.userId,
+                  userId: data.userId || currentUser.userId || currentUser.id,
+                  role: data.role || currentUser.role,
+                  organizationId: data.organizationId || currentUser.organizationId,
+                  accessToken,
+                  refreshToken: refreshToken || currentUser.refreshToken,
+                },
+              }));
+            }
             isRefreshing = false;
             onRefreshed();
             resolve(client(originalRequest));
@@ -198,4 +216,3 @@ client.interceptors.response.use(
 );
 
 export default client;
-
