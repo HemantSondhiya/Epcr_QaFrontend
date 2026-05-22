@@ -51,14 +51,32 @@ export const logoutUser = createAsyncThunk('auth/logout', async (_, { dispatch }
 });
 
 // ── Persistence helpers (DISABLED for prod-ready security) ──────────────────────────
+const AUTH_SESSION_KEY = 'medepcr.auth.session';
+
+const loadUser = () => {
+  try {
+    const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 const saveUser = (user) => {
-  // Do nothing to keep tokens out of localStorage
+  try {
+    if (user) sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(user));
+    else sessionStorage.removeItem(AUTH_SESSION_KEY);
+  } catch {
+    // Ignore storage failures; in-memory auth still works for the current page.
+  }
 };
 // ────────────────────────────────────────────────────────────────────
 
+const initialUser = loadUser();
+
 const initialState = {
-  user: null,
-  isAuthenticated: false,
+  user: initialUser,
+  isAuthenticated: !!initialUser,
   isInitializing: true,
   isChecking: false,
 };
