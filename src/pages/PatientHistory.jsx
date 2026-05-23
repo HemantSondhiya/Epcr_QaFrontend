@@ -52,6 +52,7 @@ import { selectUser } from '../store/slices/authSlice';
 import client from '../api/client';
 import DentistPatientOverview from './overview/DentistPatientOverview';
 import GeneralOverviewPage from './overview/GeneralOverviewPage';
+import OncologyOverviewPage from './overview/OncologyOverviewPage';
 import {
   Activity,
   AlertCircle,
@@ -1912,7 +1913,7 @@ function PatientHistory() {
     if (nameStr) displayName = nameStr;
   }
 
-  const isGeneralView = patientId && specialty === 'general' && !specialtyLoading;
+  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology') && !specialtyLoading;
 
   return (
     <div className={isGeneralView ? "h-[calc(100vh-2.5rem)] bg-[#F8FAFF] w-full flex flex-col overflow-hidden" : "min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col"} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -2076,6 +2077,25 @@ function PatientHistory() {
                     )}
                     {specialty === 'general' && (
                       <GeneralOverviewPage
+                        canEdit={canEdit}
+                        conditions={conditions}
+                        dispatch={dispatch}
+                        documents={documents}
+                        encounters={encounters}
+                        labResults={labResults}
+                        medications={medications}
+                        patientId={patientId}
+                        setModal={setModal}
+                        setViewModal={setViewModal}
+                        setTimelineViewItem={setTimelineViewItem}
+                        timeline={timeline}
+                        vitals={vitals}
+                        displayName={displayName}
+                        onDelete={handleDeleteItem}
+                      />
+                    )}
+                    {specialty === 'oncology' && (
+                      <OncologyOverviewPage
                         canEdit={canEdit}
                         conditions={conditions}
                         dispatch={dispatch}
