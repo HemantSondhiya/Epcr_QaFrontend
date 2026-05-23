@@ -171,6 +171,12 @@ const CreateRecord = () => {
          destinationName: '',
          destinationAddress: '',
          destinationType: 'HOSPITAL',
+         destinationGeoLocation: {
+            latitude: null,
+            longitude: null,
+            altitude: null,
+            geohash: ''
+         },
          receivingPhysicianName: '',
          receivingNurseName: '',
          handoffReport: '',
@@ -189,10 +195,18 @@ const CreateRecord = () => {
          refusalOfCare: false,
          refusalReason: '',
          refusalWitnessed: false,
+         witnessName: '',
+         witnessContact: '',
          patientInformedOfRisks: true,
          patientHasDecisionCapacity: true,
          capacityAssessmentNotes: '',
          guardianConsentObtained: false,
+         guardianName: '',
+         guardianRelationship: '',
+         guardianPhone: '',
+         patientSignatureAttachmentId: '',
+         guardianSignatureAttachmentId: '',
+         crewSignatureAttachmentId: '',
       },
       // Meta
       status: 'PENDING',
@@ -502,10 +516,38 @@ const CreateRecord = () => {
          medicationsAdministered: toArr(data.medicationsAdministered),
          proceduresPerformed: toArr(data.proceduresPerformed),
          crew: data.crew || [],
-         structuredComplaints: data.structuredComplaints || [],
-         structuredVitals: data.structuredVitals?.length ? data.structuredVitals : (hasClinicalVitals ? [clinicalVitals] : []),
-         structuredMedications: data.structuredMedications || [],
-         structuredProcedures: data.structuredProcedures || [],
+         structuredComplaints: (data.structuredComplaints || []).map(sc => ({
+            ...sc,
+            onsetTime: toIso(sc.onsetTime),
+            severity: toNum(sc.severity)
+         })),
+         structuredVitals: data.structuredVitals?.length ? data.structuredVitals.map(sv => ({
+            ...sv,
+            recordedAt: toIso(sv.recordedAt),
+            heartRate: toNum(sv.heartRate),
+            systolicBP: toNum(sv.systolicBP),
+            diastolicBP: toNum(sv.diastolicBP),
+            respiratoryRate: toNum(sv.respiratoryRate),
+            oxygenSaturation: toNum(sv.oxygenSaturation),
+            temperature: toNum(sv.temperature),
+            glasgowComaScale: toNum(sv.glasgowComaScale),
+            gcEye: toNum(sv.gcEye),
+            gcVerbal: toNum(sv.gcVerbal),
+            gcMotor: toNum(sv.gcMotor),
+            painScore: toNum(sv.painScore),
+            bloodGlucose: toNum(sv.bloodGlucose)
+         })) : (hasClinicalVitals ? [clinicalVitals] : []),
+         structuredMedications: (data.structuredMedications || []).map(sm => ({
+            ...sm,
+            dosage: toNum(sm.dosage),
+            administrationAttempts: toNum(sm.administrationAttempts),
+            administeredAt: toIso(sm.administeredAt)
+         })),
+         structuredProcedures: (data.structuredProcedures || []).map(sp => ({
+            ...sp,
+            attempts: toNum(sp.attempts),
+            performedAt: toIso(sp.performedAt)
+         })),
          // Transport-derived top-level
          transportMode: cv(tr.transportMode) || '',
          transportDestination: cv(tr.destinationName) || '',
@@ -551,7 +593,12 @@ const CreateRecord = () => {
             bystanderCPRPerformed: sa.bystanderCPRPerformed ?? false,
             aedUsedByBystander: sa.aedUsedByBystander ?? false,
             patientAccessDifficulty: cv(sa.patientAccessDifficulty) || '',
-            geoLocation: (sa.geoLocation?.latitude && sa.geoLocation?.longitude) ? sa.geoLocation : null,
+            geoLocation: (sa.geoLocation?.latitude || sa.geoLocation?.longitude) ? {
+               latitude: toNum(sa.geoLocation.latitude),
+               longitude: toNum(sa.geoLocation.longitude),
+               altitude: toNum(sa.geoLocation.altitude),
+               geohash: cv(sa.geoLocation.geohash) || ''
+            } : null,
          },
          // Nested: timeline
          timeline: {
@@ -574,6 +621,12 @@ const CreateRecord = () => {
             destinationName: cv(tr.destinationName) || '',
             destinationAddress: cv(tr.destinationAddress) || '',
             destinationType: cv(tr.destinationType) || 'HOSPITAL',
+            destinationGeoLocation: (tr.destinationGeoLocation?.latitude || tr.destinationGeoLocation?.longitude) ? {
+               latitude: toNum(tr.destinationGeoLocation.latitude),
+               longitude: toNum(tr.destinationGeoLocation.longitude),
+               altitude: toNum(tr.destinationGeoLocation.altitude),
+               geohash: cv(tr.destinationGeoLocation.geohash) || ''
+            } : null,
             receivingPhysicianName: cv(tr.receivingPhysicianName) || '',
             receivingNurseName: cv(tr.receivingNurseName) || '',
             handoffReport: cv(tr.handoffReport) || '',
@@ -592,10 +645,18 @@ const CreateRecord = () => {
             refusalOfCare: cn.refusalOfCare ?? false,
             refusalReason: cv(cn.refusalReason) || '',
             refusalWitnessed: cn.refusalWitnessed ?? false,
+            witnessName: cv(cn.witnessName) || '',
+            witnessContact: cv(cn.witnessContact) || '',
             patientInformedOfRisks: cn.patientInformedOfRisks ?? true,
             patientHasDecisionCapacity: cn.patientHasDecisionCapacity ?? true,
             capacityAssessmentNotes: cv(cn.capacityAssessmentNotes) || '',
             guardianConsentObtained: cn.guardianConsentObtained ?? false,
+            guardianName: cv(cn.guardianName) || '',
+            guardianRelationship: cv(cn.guardianRelationship) || '',
+            guardianPhone: cv(cn.guardianPhone) || '',
+            patientSignatureAttachmentId: cv(cn.patientSignatureAttachmentId) || '',
+            guardianSignatureAttachmentId: cv(cn.guardianSignatureAttachmentId) || '',
+            crewSignatureAttachmentId: cv(cn.crewSignatureAttachmentId) || '',
          },
          // Meta
          paramedicsId: data.paramedicsId || '',
@@ -908,6 +969,10 @@ const CreateRecord = () => {
                               {TRIAGE_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
                            </select>
                         </div>
+                        <Field label="Latitude" field="sceneAssessment.geoLocation.latitude" value={formData.sceneAssessment.geoLocation?.latitude || ''} update={updateField} type="number" />
+                        <Field label="Longitude" field="sceneAssessment.geoLocation.longitude" value={formData.sceneAssessment.geoLocation?.longitude || ''} update={updateField} type="number" />
+                        <Field label="Altitude" field="sceneAssessment.geoLocation.altitude" value={formData.sceneAssessment.geoLocation?.altitude || ''} update={updateField} type="number" />
+                        <Field label="Geohash" field="sceneAssessment.geoLocation.geohash" value={formData.sceneAssessment.geoLocation?.geohash || ''} update={updateField} />
                      </div>
 
                      {/* Scene Toggles */}
@@ -938,17 +1003,27 @@ const CreateRecord = () => {
                      <SectionTitle title="Response Timeline" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Field label="Call Received At" field="timeline.callReceivedAt" value={formData.timeline.callReceivedAt} update={updateField} type="datetime-local" />
+                        <Field label="Dispatched At" field="timeline.dispatchedAt" value={formData.timeline.dispatchedAt} update={updateField} type="datetime-local" />
+                        <Field label="En Route At" field="timeline.enRouteAt" value={formData.timeline.enRouteAt} update={updateField} type="datetime-local" />
                         <Field label="Arrived Scene At" field="timeline.arrivedSceneAt" value={formData.timeline.arrivedSceneAt} update={updateField} type="datetime-local" />
+                        <Field label="Patient Contact At" field="timeline.patientContactAt" value={formData.timeline.patientContactAt} update={updateField} type="datetime-local" />
                         <Field label="Departed Scene At" field="timeline.departedSceneAt" value={formData.timeline.departedSceneAt} update={updateField} type="datetime-local" />
                         <Field label="Arrived Destination At" field="timeline.arrivedDestinationAt" value={formData.timeline.arrivedDestinationAt} update={updateField} type="datetime-local" />
                         <Field label="Transfer of Care At" field="timeline.transferOfCareAt" value={formData.timeline.transferOfCareAt} update={updateField} type="datetime-local" />
+                        <Field label="Unit Available At" field="timeline.unitAvailableAt" value={formData.timeline.unitAvailableAt} update={updateField} type="datetime-local" />
                      </div>
 
                      {/* Complaints */}
                      <SectionTitle title="Chief Complaints" />
-                     <div className="space-y-1.5">
-                        <label className={labelCls}>Complaints</label>
-                        <textarea rows={3} value={formData.complaints} onChange={e => updateField('complaints', e.target.value)} className={inputCls + ' resize-none'} />
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Narrative Complaints (Legacy)</label>
+                           <textarea rows={6} value={formData.complaints} onChange={e => updateField('complaints', e.target.value)} className={inputCls + ' resize-none'} placeholder="Enter complaints narrative..." />
+                        </div>
+                        <StructuredComplaintsListField
+                           values={formData.structuredComplaints}
+                           onChange={(next) => updateField('structuredComplaints', next)}
+                        />
                      </div>
                   </div>
                )}
@@ -956,9 +1031,8 @@ const CreateRecord = () => {
                {/* ── STEP 3: CLINICAL ── */}
                {currentStep === 3 && (
                   <div className="space-y-12">
-
                      <SectionTitle title="Clinical Vitals" />
-                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6">
                         <Field label="BP Systolic" field="systolicBp" value={formData.systolicBp} update={updateField} type="number" />
                         <Field label="BP Diastolic" field="diastolicBp" value={formData.diastolicBp} update={updateField} type="number" />
                         <Field label="Pulse (BPM)" field="pulseRate" value={formData.pulseRate} update={updateField} type="number" />
@@ -967,7 +1041,12 @@ const CreateRecord = () => {
                         <Field label="Temp (°C)" field="temperature" value={formData.temperature} update={updateField} type="number" />
                         <Field label="Blood Sugar" field="bloodSugar" value={formData.bloodSugar} update={updateField} type="number" />
                         <Field label="GCS" field="glasgowComaScale" value={formData.glasgowComaScale} update={updateField} type="number" />
+                        <Field label="Hemoglobin (g/dL)" field="hemoglobin" value={formData.hemoglobin} update={updateField} type="number" />
                      </div>
+                     <StructuredVitalsListField
+                        values={formData.structuredVitals}
+                        onChange={(next) => updateField('structuredVitals', next)}
+                     />
 
                      {/* Clinical Assessment */}
                      <SectionTitle title="Clinical Assessment" />
@@ -990,13 +1069,25 @@ const CreateRecord = () => {
                         <label className={labelCls}>Diagnostic Findings</label>
                         <textarea rows={3} value={formData.diagnosticFindings} onChange={e => updateField('diagnosticFindings', e.target.value)} className={inputCls + ' resize-none'} />
                      </div>
-                     <div className="space-y-1.5 mt-6">
-                        <label className={labelCls}>Procedures Performed</label>
-                        <textarea rows={3} value={formData.proceduresPerformed} onChange={e => updateField('proceduresPerformed', e.target.value)} className={inputCls + ' resize-none'} />
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Procedures Performed (Legacy)</label>
+                           <textarea rows={6} value={formData.proceduresPerformed} onChange={e => updateField('proceduresPerformed', e.target.value)} className={inputCls + ' resize-none'} placeholder="Enter procedures narrative..." />
+                        </div>
+                        <StructuredProceduresListField
+                           values={formData.structuredProcedures}
+                           onChange={(next) => updateField('structuredProcedures', next)}
+                        />
                      </div>
-                     <div className="space-y-1.5 mt-6">
-                        <label className={labelCls}>Medications Administered</label>
-                        <textarea rows={3} value={formData.medicationsAdministered} onChange={e => updateField('medicationsAdministered', e.target.value)} className={inputCls + ' resize-none'} />
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Medications Administered (Legacy)</label>
+                           <textarea rows={6} value={formData.medicationsAdministered} onChange={e => updateField('medicationsAdministered', e.target.value)} className={inputCls + ' resize-none'} placeholder="Enter medications narrative..." />
+                        </div>
+                        <StructuredMedicationsListField
+                           values={formData.structuredMedications}
+                           onChange={(next) => updateField('structuredMedications', next)}
+                        />
                      </div>
                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <BulletListField
@@ -1068,6 +1159,48 @@ const CreateRecord = () => {
                               <option value="CANCELLED">Cancelled</option>
                            </select>
                         </div>
+                        <Field label="Transport Reason" field="transport.transportReason" value={formData.transport.transportReason} update={updateField} />
+                        <Field label="Refusal of Transport Reason" field="transport.refusalOfTransportReason" value={formData.transport.refusalOfTransportReason} update={updateField} />
+                        <Field label="Destination Facility ID" field="transport.destinationFacilityId" value={formData.transport.destinationFacilityId} update={updateField} />
+                        <Field label="Destination Address" field="transport.destinationAddress" value={formData.transport.destinationAddress} update={updateField} />
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Destination Type</label>
+                           <select value={formData.transport.destinationType} onChange={e => updateField('transport.destinationType', e.target.value)} className={inputCls}>
+                              <option value="HOSPITAL">Hospital</option>
+                              <option value="CLINIC">Clinic</option>
+                              <option value="NURSING_HOME">Nursing Home</option>
+                              <option value="RESIDENCE">Residence</option>
+                              <option value="OTHER">Other</option>
+                           </select>
+                        </div>
+                        <Field label="Receiving Physician Name" field="transport.receivingPhysicianName" value={formData.transport.receivingPhysicianName} update={updateField} />
+                        <Field label="Receiving Nurse Name" field="transport.receivingNurseName" value={formData.transport.receivingNurseName} update={updateField} />
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Patient Condition on Departure</label>
+                           <select value={formData.transport.patientConditionOnDeparture} onChange={e => updateField('transport.patientConditionOnDeparture', e.target.value)} className={inputCls}>
+                              <option value="STABLE">Stable</option>
+                              <option value="URGENT">Urgent</option>
+                              <option value="CRITICAL">Critical</option>
+                           </select>
+                        </div>
+                        <Field label="Hospital Notified At" field="transport.hospitalNotifiedAt" value={formData.transport.hospitalNotifiedAt} update={updateField} type="datetime-local" />
+                        <ToggleField label="Hospital Notified" field="transport.hospitalNotified" value={formData.transport.hospitalNotified} update={updateField} />
+                        <ToggleField label="Continued CPR During Transport" field="transport.continuedCPRDuringTransport" value={formData.transport.continuedCPRDuringTransport} update={updateField} />
+                        <ToggleField label="AED Used During Transport" field="transport.aedUsedDuringTransport" value={formData.transport.aedUsedDuringTransport} update={updateField} />
+
+                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                           <div className="md:col-span-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Destination Geo-Coordinates</div>
+                           <Field label="Destination Latitude" field="transport.destinationGeoLocation.latitude" value={formData.transport.destinationGeoLocation?.latitude || ''} update={updateField} type="number" />
+                           <Field label="Destination Longitude" field="transport.destinationGeoLocation.longitude" value={formData.transport.destinationGeoLocation?.longitude || ''} update={updateField} type="number" />
+                           <Field label="Destination Altitude" field="transport.destinationGeoLocation.altitude" value={formData.transport.destinationGeoLocation?.altitude || ''} update={updateField} type="number" />
+                           <Field label="Destination Geohash" field="transport.destinationGeoLocation.geohash" value={formData.transport.destinationGeoLocation?.geohash || ''} update={updateField} />
+                        </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                           <label className={labelCls}>Handoff Report</label>
+                           <textarea rows={3} value={formData.transport.handoffReport} onChange={e => updateField('transport.handoffReport', e.target.value)} className={inputCls + ' resize-none'} placeholder="Handoff report details..." />
+                        </div>
+
                         <div className="space-y-1.5 md:col-span-2 mt-6">
                            <label className={labelReqCls}>Patient Condition on Arrival</label>
                            <div className="flex gap-3">
@@ -1080,6 +1213,61 @@ const CreateRecord = () => {
                                     {t.label}
                                  </button>
                               ))}
+                           </div>
+                        </div>
+                     </div>
+
+                     <SectionTitle title="Incident Crew" />
+                     <CrewMembersListField
+                        values={formData.crew}
+                        onChange={(next) => updateField('crew', next)}
+                     />
+
+                     <SectionTitle title="Patient Consent & Signatures" />
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="space-y-1.5">
+                           <label className={labelCls}>Consent Type</label>
+                           <select value={formData.consent.consentType} onChange={e => updateField('consent.consentType', e.target.value)} className={inputCls}>
+                              <option value="VERBAL">Verbal</option>
+                              <option value="WRITTEN">Written</option>
+                              <option value="IMPLIED">Implied</option>
+                              <option value="GUARDIAN">Guardian</option>
+                              <option value="REFUSED">Refused</option>
+                           </select>
+                        </div>
+                        <ToggleField label="Patient Consent Obtained" field="consent.patientConsentObtained" value={formData.consent.patientConsentObtained} update={updateField} />
+                        <ToggleField label="Patient Informed of Risks" field="consent.patientInformedOfRisks" value={formData.consent.patientInformedOfRisks} update={updateField} />
+                        <ToggleField label="Patient Has Decision Capacity" field="consent.patientHasDecisionCapacity" value={formData.consent.patientHasDecisionCapacity} update={updateField} />
+                        <ToggleField label="Refusal of Care" field="consent.refusalOfCare" value={formData.consent.refusalOfCare} update={updateField} />
+                        
+                        {formData.consent.refusalOfCare && (
+                           <>
+                              <Field label="Refusal Reason" field="consent.refusalReason" value={formData.consent.refusalReason} update={updateField} />
+                              <ToggleField label="Refusal Witnessed" field="consent.refusalWitnessed" value={formData.consent.refusalWitnessed} update={updateField} />
+                              <Field label="Refusal Witness Name" field="consent.witnessName" value={formData.consent.witnessName} update={updateField} />
+                              <Field label="Refusal Witness Contact" field="consent.witnessContact" value={formData.consent.witnessContact} update={updateField} />
+                           </>
+                        )}
+
+                        <div className="md:col-span-2 lg:col-span-3">
+                           <Field label="Decision Capacity Assessment Notes" field="consent.capacityAssessmentNotes" value={formData.consent.capacityAssessmentNotes} update={updateField} />
+                        </div>
+
+                        <ToggleField label="Guardian Consent Obtained" field="consent.guardianConsentObtained" value={formData.consent.guardianConsentObtained} update={updateField} />
+                        {formData.consent.guardianConsentObtained && (
+                           <>
+                              <Field label="Guardian Name" field="consent.guardianName" value={formData.consent.guardianName} update={updateField} />
+                              <Field label="Guardian Relationship" field="consent.guardianRelationship" value={formData.consent.guardianRelationship} update={updateField} />
+                              <Field label="Guardian Phone" field="consent.guardianPhone" value={formData.consent.guardianPhone} update={updateField} />
+                           </>
+                        )}
+
+                        <div className="md:col-span-2 lg:col-span-3 border-t border-slate-100 pt-6 mt-6">
+                           <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Signature Attachments</h4>
+                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <Field label="Patient Signature Attachment ID" field="consent.patientSignatureAttachmentId" value={formData.consent.patientSignatureAttachmentId} update={updateField} placeholder="att-patient-sig" />
+                              <Field label="Guardian Signature Attachment ID" field="consent.guardianSignatureAttachmentId" value={formData.consent.guardianSignatureAttachmentId} update={updateField} placeholder="att-guardian-sig" />
+                              <Field label="Crew Signature Attachment ID" field="consent.crewSignatureAttachmentId" value={formData.consent.crewSignatureAttachmentId} update={updateField} placeholder="att-crew-sig" />
                            </div>
                         </div>
                      </div>
@@ -1183,5 +1371,755 @@ const ToggleField = ({ label, field, value, update }) => (
       </button>
    </div>
 );
+
+const CrewMembersListField = ({ values = [], onChange }) => {
+   const list = Array.isArray(values) ? values : [];
+   const [newCrew, setNewCrew] = useState({
+      paramedicsId: '',
+      name: '',
+      role: 'Lead Paramedic',
+      certificationLevel: 'ALS',
+      certificationNumber: '',
+      certificationExpiryDate: '',
+      primaryClinician: false
+   });
+
+   const addCrew = () => {
+      if (!newCrew.name) return;
+      onChange([...list, { ...newCrew, paramedicsId: newCrew.paramedicsId || `paramedic-${Date.now()}` }]);
+      setNewCrew({
+         paramedicsId: '',
+         name: '',
+         role: 'Lead Paramedic',
+         certificationLevel: 'ALS',
+         certificationNumber: '',
+         certificationExpiryDate: '',
+         primaryClinician: false
+      });
+   };
+
+   const removeCrew = (index) => {
+      onChange(list.filter((_, i) => i !== index));
+   };
+
+   return (
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-6">
+         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h4 className="text-sm font-bold text-slate-800">Crew Members</h4>
+            <span className="text-xs bg-brand-blue/10 text-brand-blue font-bold px-2.5 py-1 rounded-full">{list.length} Members</span>
+         </div>
+         {list.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {list.map((c, index) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 relative shadow-sm hover:shadow transition-all">
+                     <button type="button" onClick={() => removeCrew(index)} className="absolute top-3 right-3 text-slate-400 hover:text-brand-red text-xs font-bold transition-colors">
+                        Remove
+                     </button>
+                     <p className="font-bold text-slate-800 text-sm">{c.name}</p>
+                     <p className="text-xs font-semibold text-brand-blue mt-1 uppercase tracking-wider">{c.role} | {c.certificationLevel}</p>
+                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500 font-medium">
+                        <div>Cert #: {c.certificationNumber || 'N/A'}</div>
+                        <div>Expires: {c.certificationExpiryDate || 'N/A'}</div>
+                     </div>
+                     {c.primaryClinician && (
+                        <span className="mt-2.5 inline-block text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded uppercase tracking-wider">Primary Clinician</span>
+                     )}
+                  </div>
+               ))}
+            </div>
+         )}
+
+         {/* Sub-form to add a new member */}
+         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-inner">
+            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add Crew Member</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Full Name</label>
+                  <input type="text" value={newCrew.name} onChange={e => setNewCrew(prev => ({ ...prev, name: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="Alex Carter" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Paramedic ID</label>
+                  <input type="text" value={newCrew.paramedicsId} onChange={e => setNewCrew(prev => ({ ...prev, paramedicsId: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="ALS-1001" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Role</label>
+                  <select value={newCrew.role} onChange={e => setNewCrew(prev => ({ ...prev, role: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none">
+                     <option value="Lead Paramedic">Lead Paramedic</option>
+                     <option value="Second Paramedic">Second Paramedic</option>
+                     <option value="Driver">Driver</option>
+                     <option value="Observer">Observer</option>
+                     <option value="Attending Paramedic">Attending Paramedic</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Cert Level</label>
+                  <select value={newCrew.certificationLevel} onChange={e => setNewCrew(prev => ({ ...prev, certificationLevel: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none">
+                     <option value="ALS">ALS (Advanced Life Support)</option>
+                     <option value="BLS">BLS (Basic Life Support)</option>
+                     <option value="CCT">Critical Care Transport</option>
+                     <option value="EMT">EMT</option>
+                     <option value="Paramedic">Paramedic</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Cert #</label>
+                  <input type="text" value={newCrew.certificationNumber} onChange={e => setNewCrew(prev => ({ ...prev, certificationNumber: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="ALS-1001" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Expiry Date</label>
+                  <input type="date" value={newCrew.certificationExpiryDate} onChange={e => setNewCrew(prev => ({ ...prev, certificationExpiryDate: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+            </div>
+            <div className="flex justify-between items-center pt-2">
+               <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                  <input type="checkbox" checked={newCrew.primaryClinician} onChange={e => setNewCrew(prev => ({ ...prev, primaryClinician: e.target.checked }))} className="rounded text-brand-blue border-slate-300 focus:ring-brand-blue" />
+                  Primary Clinician
+               </label>
+               <button type="button" onClick={addCrew} disabled={!newCrew.name} className="bg-brand-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
+                  + Add Member
+               </button>
+            </div>
+         </div>
+      </div>
+   );
+};
+
+const StructuredComplaintsListField = ({ values = [], onChange }) => {
+   const list = Array.isArray(values) ? values : [];
+   const [newComp, setNewComp] = useState({
+      complaint: '',
+      onset: 'Sudden',
+      onsetTime: '',
+      provocation: '',
+      quality: '',
+      radiation: '',
+      severity: 5,
+      timing: 'Constant',
+      associatedSymptoms: '',
+      traumaRelated: false
+   });
+
+   const addComp = () => {
+      if (!newComp.complaint) return;
+      onChange([...list, { ...newComp, severity: Number(newComp.severity) }]);
+      setNewComp({
+         complaint: '',
+         onset: 'Sudden',
+         onsetTime: '',
+         provocation: '',
+         quality: '',
+         radiation: '',
+         severity: 5,
+         timing: 'Constant',
+         associatedSymptoms: '',
+         traumaRelated: false
+      });
+   };
+
+   const removeComp = (index) => {
+      onChange(list.filter((_, i) => i !== index));
+   };
+
+   return (
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-6">
+         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h4 className="text-sm font-bold text-slate-800">Structured Complaints</h4>
+            <span className="text-xs bg-brand-blue/10 text-brand-blue font-bold px-2.5 py-1 rounded-full">{list.length} Complaints</span>
+         </div>
+         {list.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
+               {list.map((c, index) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 relative shadow-sm hover:shadow transition-all">
+                     <button type="button" onClick={() => removeComp(index)} className="absolute top-3 right-3 text-slate-400 hover:text-brand-red text-xs font-bold transition-colors">
+                        Remove
+                     </button>
+                     <p className="font-bold text-slate-800 text-sm">{c.complaint} {c.traumaRelated && <span className="text-[9px] bg-brand-red/10 text-brand-red font-black px-1.5 py-0.5 rounded ml-1 uppercase">TRAUMA</span>}</p>
+                     <p className="text-xs font-medium text-slate-500 mt-1">Onset: {c.onset} | Severity: <span className="font-bold text-brand-blue">{c.severity}/10</span></p>
+                     <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-500 font-medium">
+                        {c.provocation && <div>Provoked by: {c.provocation}</div>}
+                        {c.quality && <div>Quality: {c.quality}</div>}
+                        {c.radiation && <div>Radiation: {c.radiation}</div>}
+                        {c.timing && <div>Timing: {c.timing}</div>}
+                        {c.associatedSymptoms && <div className="col-span-2">Symptoms: {c.associatedSymptoms}</div>}
+                        {c.onsetTime && <div className="col-span-2">Onset Time: {c.onsetTime.replace('T', ' ')}</div>}
+                     </div>
+                  </div>
+               ))}
+            </div>
+         )}
+
+         {/* Sub-form to add a new complaint */}
+         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-inner">
+            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add Structured Complaint</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Complaint</label>
+                  <input type="text" value={newComp.complaint} onChange={e => setNewComp(prev => ({ ...prev, complaint: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Chest pain" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Onset</label>
+                  <select value={newComp.onset} onChange={e => setNewComp(prev => ({ ...prev, onset: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none">
+                     <option value="Sudden">Sudden</option>
+                     <option value="Gradual">Gradual</option>
+                     <option value="N/A">N/A</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Onset Timestamp</label>
+                  <input type="datetime-local" value={newComp.onsetTime} onChange={e => setNewComp(prev => ({ ...prev, onsetTime: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Provocation</label>
+                  <input type="text" value={newComp.provocation} onChange={e => setNewComp(prev => ({ ...prev, provocation: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Exertion" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Quality</label>
+                  <input type="text" value={newComp.quality} onChange={e => setNewComp(prev => ({ ...prev, quality: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Sharp / Pressure" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Radiation</label>
+                  <input type="text" value={newComp.radiation} onChange={e => setNewComp(prev => ({ ...prev, radiation: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Left arm / Jaw" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Severity (0-10): <span className="font-extrabold text-brand-blue">{newComp.severity}</span></label>
+                  <input type="range" min="0" max="10" value={newComp.severity} onChange={e => setNewComp(prev => ({ ...prev, severity: e.target.value }))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-blue focus:outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Timing</label>
+                  <input type="text" value={newComp.timing} onChange={e => setNewComp(prev => ({ ...prev, timing: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Constant / Intermittent" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Associated Symptoms</label>
+                  <input type="text" value={newComp.associatedSymptoms} onChange={e => setNewComp(prev => ({ ...prev, associatedSymptoms: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Sweating, nausea" />
+               </div>
+            </div>
+            <div className="flex justify-between items-center pt-2">
+               <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                  <input type="checkbox" checked={newComp.traumaRelated} onChange={e => setNewComp(prev => ({ ...prev, traumaRelated: e.target.checked }))} className="rounded text-brand-blue border-slate-300 focus:ring-brand-blue" />
+                  Trauma Related
+               </label>
+               <button type="button" onClick={addComp} disabled={!newComp.complaint} className="bg-brand-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
+                  + Add Complaint
+               </button>
+            </div>
+         </div>
+      </div>
+   );
+};
+
+const StructuredVitalsListField = ({ values = [], onChange }) => {
+   const list = Array.isArray(values) ? values : [];
+   const [newV, setNewV] = useState({
+      recordedAt: '',
+      heartRate: '',
+      systolicBP: '',
+      diastolicBP: '',
+      respiratoryRate: '',
+      oxygenSaturation: '',
+      oxygenDeliveryMethod: '',
+      temperature: '',
+      temperatureRoute: 'ORAL',
+      glasgowComaScale: '',
+      gcEye: '',
+      gcVerbal: '',
+      gcMotor: '',
+      avpu: 'A',
+      painScore: '',
+      painLocation: '',
+      bloodGlucose: '',
+      skinColor: '',
+      skinCondition: '',
+      skinTemperature: '',
+      pupilLeft: '',
+      pupilRight: '',
+      pupilsEqual: true,
+      pupilsReactive: true
+   });
+
+   const addV = () => {
+      const gcsVal = (Number(newV.gcEye) || 0) + (Number(newV.gcVerbal) || 0) + (Number(newV.gcMotor) || 0);
+      onChange([...list, {
+         ...newV,
+         recordedAt: newV.recordedAt || new Date().toISOString().substring(0, 16),
+         heartRate: newV.heartRate ? Number(newV.heartRate) : null,
+         systolicBP: newV.systolicBP ? Number(newV.systolicBP) : null,
+         diastolicBP: newV.diastolicBP ? Number(newV.diastolicBP) : null,
+         respiratoryRate: newV.respiratoryRate ? Number(newV.respiratoryRate) : null,
+         oxygenSaturation: newV.oxygenSaturation ? Number(newV.oxygenSaturation) : null,
+         temperature: newV.temperature ? Number(newV.temperature) : null,
+         glasgowComaScale: gcsVal || (newV.glasgowComaScale ? Number(newV.glasgowComaScale) : null),
+         gcEye: newV.gcEye ? Number(newV.gcEye) : null,
+         gcVerbal: newV.gcVerbal ? Number(newV.gcVerbal) : null,
+         gcMotor: newV.gcMotor ? Number(newV.gcMotor) : null,
+         painScore: newV.painScore ? Number(newV.painScore) : null,
+         bloodGlucose: newV.bloodGlucose ? Number(newV.bloodGlucose) : null
+      }]);
+      setNewV({
+         recordedAt: '',
+         heartRate: '',
+         systolicBP: '',
+         diastolicBP: '',
+         respiratoryRate: '',
+         oxygenSaturation: '',
+         oxygenDeliveryMethod: '',
+         temperature: '',
+         temperatureRoute: 'ORAL',
+         glasgowComaScale: '',
+         gcEye: '',
+         gcVerbal: '',
+         gcMotor: '',
+         avpu: 'A',
+         painScore: '',
+         painLocation: '',
+         bloodGlucose: '',
+         skinColor: '',
+         skinCondition: '',
+         skinTemperature: '',
+         pupilLeft: '',
+         pupilRight: '',
+         pupilsEqual: true,
+         pupilsReactive: true
+      });
+   };
+
+   const removeV = (index) => {
+      onChange(list.filter((_, i) => i !== index));
+   };
+
+   return (
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-6">
+         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h4 className="text-sm font-bold text-slate-800">Structured Vitals Logs</h4>
+            <span className="text-xs bg-brand-blue/10 text-brand-blue font-bold px-2.5 py-1 rounded-full">{list.length} Logs</span>
+         </div>
+         {list.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
+               {list.map((c, index) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 relative shadow-sm hover:shadow transition-all">
+                     <button type="button" onClick={() => removeV(index)} className="absolute top-3 right-3 text-slate-400 hover:text-brand-red text-xs font-bold transition-colors">
+                        Remove
+                     </button>
+                     <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wider text-slate-400">Log #{index+1} | {c.recordedAt.replace('T', ' ')}</p>
+                     <div className="mt-2.5 grid grid-cols-3 gap-2 text-xs font-semibold text-slate-800">
+                        {c.systolicBP && c.diastolicBP && <div>BP: <span className="text-brand-blue">{c.systolicBP}/{c.diastolicBP}</span></div>}
+                        {c.heartRate && <div>HR: <span className="text-brand-blue">{c.heartRate} bpm</span></div>}
+                        {c.respiratoryRate && <div>RR: <span className="text-brand-blue">{c.respiratoryRate}/min</span></div>}
+                        {c.oxygenSaturation && <div>SpO2: <span className="text-emerald-600">{c.oxygenSaturation}%</span></div>}
+                        {c.temperature && <div>Temp: <span className="text-brand-blue">{c.temperature}°C ({c.temperatureRoute})</span></div>}
+                        {c.bloodGlucose && <div>Glucose: <span className="text-brand-blue">{c.bloodGlucose} mg/dL</span></div>}
+                     </div>
+                     <div className="mt-3.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px] text-slate-500 font-medium">
+                        {c.glasgowComaScale && <div>GCS: <span className="font-bold text-brand-blue">{c.glasgowComaScale}</span> (E{c.gcEye} V{c.gcVerbal} M{c.gcMotor})</div>}
+                        {c.avpu && <div>AVPU: <span className="font-bold">{c.avpu}</span></div>}
+                        {c.painScore !== null && c.painScore !== undefined && <div>Pain: <span className="font-bold text-brand-red">{c.painScore}/10</span> {c.painLocation ? `(${c.painLocation})` : ''}</div>}
+                        {c.skinColor && <div>Skin: {c.skinColor}, {c.skinCondition}, {c.skinTemperature}</div>}
+                        {(c.pupilLeft || c.pupilRight) && <div>Pupils: L{c.pupilLeft} R{c.pupilRight} {c.pupilsEqual ? '(Equal' : '(Unequal'} {c.pupilsReactive ? 'Reactive)' : 'Nonreactive)'}</div>}
+                     </div>
+                  </div>
+               ))}
+            </div>
+         )}
+
+         {/* Sub-form to add a new vital */}
+         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-inner">
+            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add Vitals Log</h5>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Recorded At</label>
+                  <input type="datetime-local" value={newV.recordedAt} onChange={e => setNewV(prev => ({ ...prev, recordedAt: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Heart Rate (BPM)</label>
+                  <input type="number" value={newV.heartRate} onChange={e => setNewV(prev => ({ ...prev, heartRate: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="88" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">BP Systolic</label>
+                  <input type="number" value={newV.systolicBP} onChange={e => setNewV(prev => ({ ...prev, systolicBP: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="120" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">BP Diastolic</label>
+                  <input type="number" value={newV.diastolicBP} onChange={e => setNewV(prev => ({ ...prev, diastolicBP: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="80" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Resp Rate (RR)</label>
+                  <input type="number" value={newV.respiratoryRate} onChange={e => setNewV(prev => ({ ...prev, respiratoryRate: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="18" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">SpO2 (%)</label>
+                  <input type="number" value={newV.oxygenSaturation} onChange={e => setNewV(prev => ({ ...prev, oxygenSaturation: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="96" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">O2 Delivery Method</label>
+                  <input type="text" value={newV.oxygenDeliveryMethod} onChange={e => setNewV(prev => ({ ...prev, oxygenDeliveryMethod: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="Nasal cannula" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Temp (°C)</label>
+                  <input type="number" step="0.1" value={newV.temperature} onChange={e => setNewV(prev => ({ ...prev, temperature: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="37.1" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Temp Route</label>
+                  <select value={newV.temperatureRoute} onChange={e => setNewV(prev => ({ ...prev, temperatureRoute: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none">
+                     <option value="ORAL">Oral</option>
+                     <option value="TYMPANIC">Tympanic</option>
+                     <option value="RECTAL">Rectal</option>
+                     <option value="AXILLARY">Axillary</option>
+                     <option value="TEMPORAL">Temporal</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Blood Glucose</label>
+                  <input type="number" value={newV.bloodGlucose} onChange={e => setNewV(prev => ({ ...prev, bloodGlucose: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="108" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">AVPU</label>
+                  <select value={newV.avpu} onChange={e => setNewV(prev => ({ ...prev, avpu: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none">
+                     <option value="A">Alert</option>
+                     <option value="V">Verbal</option>
+                     <option value="P">Pain</option>
+                     <option value="U">Unresponsive</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pain Score (0-10)</label>
+                  <input type="number" min="0" max="10" value={newV.painScore} onChange={e => setNewV(prev => ({ ...prev, painScore: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="7" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pain Location</label>
+                  <input type="text" value={newV.painLocation} onChange={e => setNewV(prev => ({ ...prev, painLocation: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="Chest" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">GCS Eye (1-4)</label>
+                  <input type="number" min="1" max="4" value={newV.gcEye} onChange={e => setNewV(prev => ({ ...prev, gcEye: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="4" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">GCS Verbal (1-5)</label>
+                  <input type="number" min="1" max="5" value={newV.gcVerbal} onChange={e => setNewV(prev => ({ ...prev, gcVerbal: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="5" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">GCS Motor (1-6)</label>
+                  <input type="number" min="1" max="6" value={newV.gcMotor} onChange={e => setNewV(prev => ({ ...prev, gcMotor: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="6" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Skin Color</label>
+                  <input type="text" value={newV.skinColor} onChange={e => setNewV(prev => ({ ...prev, skinColor: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="Normal" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Skin Condition</label>
+                  <input type="text" value={newV.skinCondition} onChange={e => setNewV(prev => ({ ...prev, skinCondition: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="Dry" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Skin Temp</label>
+                  <input type="text" value={newV.skinTemperature} onChange={e => setNewV(prev => ({ ...prev, skinTemperature: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="Warm" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pupil Left</label>
+                  <input type="text" value={newV.pupilLeft} onChange={e => setNewV(prev => ({ ...prev, pupilLeft: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="3mm" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pupil Right</label>
+                  <input type="text" value={newV.pupilRight} onChange={e => setNewV(prev => ({ ...prev, pupilRight: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:border-brand-blue outline-none" placeholder="3mm" />
+               </div>
+            </div>
+            <div className="flex flex-wrap gap-6 pt-2">
+               <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                  <input type="checkbox" checked={newV.pupilsEqual} onChange={e => setNewV(prev => ({ ...prev, pupilsEqual: e.target.checked }))} className="rounded text-brand-blue border-slate-300 focus:ring-brand-blue" />
+                  Pupils Equal
+               </label>
+               <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                  <input type="checkbox" checked={newV.pupilsReactive} onChange={e => setNewV(prev => ({ ...prev, pupilsReactive: e.target.checked }))} className="rounded text-brand-blue border-slate-300 focus:ring-brand-blue" />
+                  Pupils Reactive
+               </label>
+               <div className="flex-1 flex justify-end">
+                  <button type="button" onClick={addV} className="bg-brand-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all">
+                     + Add Vitals Log
+                  </button>
+               </div>
+            </div>
+         </div>
+      </div>
+   );
+};
+
+const StructuredMedicationsListField = ({ values = [], onChange }) => {
+   const list = Array.isArray(values) ? values : [];
+   const [newM, setNewM] = useState({
+      medicationName: '',
+      brandName: '',
+      dosage: '',
+      unit: 'mg',
+      route: 'IV',
+      administeredAt: '',
+      administeredBy: '',
+      administrationAttempts: 1,
+      patientResponse: '',
+      adverseReactionDetails: 'None',
+      rxNormCode: '',
+      indication: '',
+      contraindications: 'None known',
+      notes: ''
+   });
+
+   const addM = () => {
+      if (!newM.medicationName) return;
+      onChange([...list, {
+         ...newM,
+         dosage: newM.dosage ? Number(newM.dosage) : null,
+         administrationAttempts: Number(newM.administrationAttempts) || 1,
+         administeredAt: newM.administeredAt || new Date().toISOString().substring(0, 16)
+      }]);
+      setNewM({
+         medicationName: '',
+         brandName: '',
+         dosage: '',
+         unit: 'mg',
+         route: 'IV',
+         administeredAt: '',
+         administeredBy: '',
+         administrationAttempts: 1,
+         patientResponse: '',
+         adverseReactionDetails: 'None',
+         rxNormCode: '',
+         indication: '',
+         contraindications: 'None known',
+         notes: ''
+      });
+   };
+
+   const removeM = (index) => {
+      onChange(list.filter((_, i) => i !== index));
+   };
+
+   return (
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-6">
+         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h4 className="text-sm font-bold text-slate-800">Structured Medications Administered</h4>
+            <span className="text-xs bg-brand-blue/10 text-brand-blue font-bold px-2.5 py-1 rounded-full">{list.length} Medications</span>
+         </div>
+         {list.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
+               {list.map((c, index) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 relative shadow-sm hover:shadow transition-all">
+                     <button type="button" onClick={() => removeM(index)} className="absolute top-3 right-3 text-slate-400 hover:text-brand-red text-xs font-bold transition-colors">
+                        Remove
+                     </button>
+                     <p className="font-bold text-slate-800 text-sm">{c.medicationName} {c.brandName ? `(${c.brandName})` : ''}</p>
+                     <p className="text-xs font-semibold text-brand-blue mt-1 uppercase tracking-wider">{c.dosage} {c.unit} via {c.route}</p>
+                     <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-500 font-medium">
+                        {c.administeredAt && <div>Time: {c.administeredAt.replace('T', ' ')}</div>}
+                        {c.administeredBy && <div>By: {c.administeredBy}</div>}
+                        <div>Attempts: {c.administrationAttempts}</div>
+                        {c.patientResponse && <div>Response: {c.patientResponse}</div>}
+                        {c.indication && <div className="col-span-2">Indication: {c.indication}</div>}
+                        {c.adverseReactionDetails && <div className="col-span-2">Adverse Reaction: {c.adverseReactionDetails}</div>}
+                        {c.notes && <div className="col-span-2 text-slate-400 italic">Notes: {c.notes}</div>}
+                     </div>
+                  </div>
+               ))}
+            </div>
+         )}
+
+         {/* Sub-form to add a new medication */}
+         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-inner">
+            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add Medication</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Medication Name</label>
+                  <input type="text" value={newM.medicationName} onChange={e => setNewM(prev => ({ ...prev, medicationName: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Midazolam" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Brand Name</label>
+                  <input type="text" value={newM.brandName} onChange={e => setNewM(prev => ({ ...prev, brandName: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Versed" />
+               </div>
+               <div className="flex gap-2">
+                  <div className="flex-1">
+                     <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Dosage</label>
+                     <input type="number" step="0.01" value={newM.dosage} onChange={e => setNewM(prev => ({ ...prev, dosage: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="2.0" />
+                  </div>
+                  <div>
+                     <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Unit</label>
+                     <input type="text" value={newM.unit} onChange={e => setNewM(prev => ({ ...prev, unit: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="mg" />
+                  </div>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Route</label>
+                  <select value={newM.route} onChange={e => setNewM(prev => ({ ...prev, route: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none">
+                     <option value="IV">IV</option>
+                     <option value="IM">IM</option>
+                     <option value="IN">IN</option>
+                     <option value="PO">PO</option>
+                     <option value="PR">PR</option>
+                     <option value="SubQ">SubQ</option>
+                     <option value="IO">IO</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Administered At</label>
+                  <input type="datetime-local" value={newM.administeredAt} onChange={e => setNewM(prev => ({ ...prev, administeredAt: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Administered By</label>
+                  <input type="text" value={newM.administeredBy} onChange={e => setNewM(prev => ({ ...prev, administeredBy: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="Clinician Name" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Attempts</label>
+                  <input type="number" value={newM.administrationAttempts} onChange={e => setNewM(prev => ({ ...prev, administrationAttempts: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Patient Response</label>
+                  <input type="text" value={newM.patientResponse} onChange={e => setNewM(prev => ({ ...prev, patientResponse: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Improved" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Indication</label>
+                  <input type="text" value={newM.indication} onChange={e => setNewM(prev => ({ ...prev, indication: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Anxiety" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">RxNorm Code</label>
+                  <input type="text" value={newM.rxNormCode} onChange={e => setNewM(prev => ({ ...prev, rxNormCode: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. 6960" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Adverse Reaction Details</label>
+                  <input type="text" value={newM.adverseReactionDetails} onChange={e => setNewM(prev => ({ ...prev, adverseReactionDetails: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Contraindications</label>
+                  <input type="text" value={newM.contraindications} onChange={e => setNewM(prev => ({ ...prev, contraindications: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+            </div>
+            <div className="space-y-1">
+               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Medication Notes</label>
+               <textarea rows={2} value={newM.notes} onChange={e => setNewM(prev => ({ ...prev, notes: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none resize-none" placeholder="e.g. Monitor respiratory status" />
+            </div>
+            <div className="flex justify-end pt-2">
+               <button type="button" onClick={addM} disabled={!newM.medicationName} className="bg-brand-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
+                  + Add Medication
+               </button>
+            </div>
+         </div>
+      </div>
+   );
+};
+
+const StructuredProceduresListField = ({ values = [], onChange }) => {
+   const list = Array.isArray(values) ? values : [];
+   const [newP, setNewP] = useState({
+      procedureName: '',
+      performedAt: '',
+      performedBy: '',
+      successful: true,
+      attempts: 1,
+      bodysite: '',
+      complications: 'None',
+      patientResponse: 'Stable',
+      snomedCode: '',
+      notes: ''
+   });
+
+   const addP = () => {
+      if (!newP.procedureName) return;
+      onChange([...list, {
+         ...newP,
+         attempts: Number(newP.attempts) || 1,
+         performedAt: newP.performedAt || new Date().toISOString().substring(0, 16)
+      }]);
+      setNewP({
+         procedureName: '',
+         performedAt: '',
+         performedBy: '',
+         successful: true,
+         attempts: 1,
+         bodysite: '',
+         complications: 'None',
+         patientResponse: 'Stable',
+         snomedCode: '',
+         notes: ''
+      });
+   };
+
+   const removeP = (index) => {
+      onChange(list.filter((_, i) => i !== index));
+   };
+
+   return (
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-6">
+         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h4 className="text-sm font-bold text-slate-800">Structured Procedures Performed</h4>
+            <span className="text-xs bg-brand-blue/10 text-brand-blue font-bold px-2.5 py-1 rounded-full">{list.length} Procedures</span>
+         </div>
+         {list.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
+               {list.map((c, index) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 relative shadow-sm hover:shadow transition-all">
+                     <button type="button" onClick={() => removeP(index)} className="absolute top-3 right-3 text-slate-400 hover:text-brand-red text-xs font-bold transition-colors">
+                        Remove
+                     </button>
+                     <p className="font-bold text-slate-800 text-sm">{c.procedureName} {c.successful ? <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded ml-1 uppercase">SUCCESSFUL</span> : <span className="text-[9px] bg-brand-red/10 text-brand-red font-black px-1.5 py-0.5 rounded ml-1 uppercase">FAILED</span>}</p>
+                     <p className="text-xs font-semibold text-brand-blue mt-1 uppercase tracking-wider">{c.bodysite ? `Site: ${c.bodysite}` : 'Site: Unspecified'} | Attempts: {c.attempts}</p>
+                     <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-500 font-medium">
+                        {c.performedAt && <div>Time: {c.performedAt.replace('T', ' ')}</div>}
+                        {c.performedBy && <div>By: {c.performedBy}</div>}
+                        {c.patientResponse && <div>Response: {c.patientResponse}</div>}
+                        {c.snomedCode && <div>SNOMED: {c.snomedCode}</div>}
+                        {c.complications && <div className="col-span-2">Complications: {c.complications}</div>}
+                        {c.notes && <div className="col-span-2 text-slate-400 italic">Notes: {c.notes}</div>}
+                     </div>
+                  </div>
+               ))}
+            </div>
+         )}
+
+         {/* Sub-form to add a new procedure */}
+         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-inner">
+            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add Procedure</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Procedure Name</label>
+                  <input type="text" value={newP.procedureName} onChange={e => setNewP(prev => ({ ...prev, procedureName: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Mechanical ventilation" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Performed At</label>
+                  <input type="datetime-local" value={newP.performedAt} onChange={e => setNewP(prev => ({ ...prev, performedAt: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Performed By</label>
+                  <input type="text" value={newP.performedBy} onChange={e => setNewP(prev => ({ ...prev, performedBy: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="Clinician Name" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Attempts</label>
+                  <input type="number" value={newP.attempts} onChange={e => setNewP(prev => ({ ...prev, attempts: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Body Site</label>
+                  <input type="text" value={newP.bodysite} onChange={e => setNewP(prev => ({ ...prev, bodysite: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Airway" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">SNOMED Code</label>
+                  <input type="text" value={newP.snomedCode} onChange={e => setNewP(prev => ({ ...prev, snomedCode: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. 40617009" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Complications</label>
+                  <input type="text" value={newP.complications} onChange={e => setNewP(prev => ({ ...prev, complications: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Patient Response</label>
+                  <input type="text" value={newP.patientResponse} onChange={e => setNewP(prev => ({ ...prev, patientResponse: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none" placeholder="e.g. Stable" />
+               </div>
+            </div>
+            <div className="space-y-1">
+               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Procedure Notes</label>
+               <textarea rows={2} value={newP.notes} onChange={e => setNewP(prev => ({ ...prev, notes: e.target.value }))} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-brand-blue outline-none resize-none" placeholder="e.g. No complications" />
+            </div>
+            <div className="flex justify-between items-center pt-2">
+               <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                  <input type="checkbox" checked={newP.successful} onChange={e => setNewP(prev => ({ ...prev, successful: e.target.checked }))} className="rounded text-brand-blue border-slate-300 focus:ring-brand-blue" />
+                  Successful Procedure
+               </label>
+               <button type="button" onClick={addP} disabled={!newP.procedureName} className="bg-brand-blue text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
+                  + Add Procedure
+               </button>
+            </div>
+         </div>
+      </div>
+   );
+};
 
 export default CreateRecord;

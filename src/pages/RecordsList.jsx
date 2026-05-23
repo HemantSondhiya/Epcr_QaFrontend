@@ -82,7 +82,7 @@ const RecordsList = () => {
   const canDeleteRecord = (r) => {
     if (isAdmin) return true;
     if (isParamedic) {
-      return !r.status || ['DRAFT', 'PENDING', 'ACTIVE', 'APPROVED'].includes(r.status);
+      return !r.status || ['DRAFT', 'PENDING', 'ACTIVE'].includes(r.status);
     }
     return false;
   };
@@ -375,10 +375,27 @@ const RecordsList = () => {
                         <DetailRow label="Mass Casualty" value={viewRecord.sceneAssessment.massCasualtyIncident ? 'YES' : 'NO'} />
                         <DetailRow label="Trauma Call" value={viewRecord.sceneAssessment.traumaCall ? 'YES' : 'NO'} />
                         <DetailRow label="Scene Safe" value={viewRecord.sceneAssessment.sceneSafe ? 'YES' : 'NO'} />
+                        <DetailRow label="Weather" value={viewRecord.sceneAssessment.weatherConditions} />
+                        <DetailRow label="Lighting" value={viewRecord.sceneAssessment.lightingConditions} />
+                        <DetailRow label="Access Difficulty" value={viewRecord.sceneAssessment.patientAccessDifficulty} />
+                        <DetailRow label="Bystander CPR" value={viewRecord.sceneAssessment.bystanderCPRPerformed ? 'YES' : 'NO'} />
+                        <DetailRow label="AED Used" value={viewRecord.sceneAssessment.aedUsedByBystander ? 'YES' : 'NO'} />
                         <DetailRow label="Mech. of Injury" value={viewRecord.sceneAssessment.mechanismOfInjury} colSpan={2} />
                         <DetailRow label="Injury Location" value={viewRecord.sceneAssessment.injuryLocation} colSpan={2} />
                         <DetailRow label="Hazards" value={viewRecord.sceneAssessment.sceneHazards} colSpan={2} />
                         <DetailRow label="Witness Present" value={viewRecord.sceneAssessment.witnessPresent ? `YES - ${viewRecord.sceneAssessment.witnessName}` : 'NO'} colSpan={2} />
+                        {viewRecord.sceneAssessment.witnessPresent && (
+                          <DetailRow label="Witness Contact" value={viewRecord.sceneAssessment.witnessContact} colSpan={2} />
+                        )}
+                        {viewRecord.sceneAssessment.geoLocation && (
+                          <div className="col-span-2 grid grid-cols-2 gap-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                            <p className="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-wider">Scene Geo-coordinates</p>
+                            <DetailRow label="Latitude" value={viewRecord.sceneAssessment.geoLocation.latitude} />
+                            <DetailRow label="Longitude" value={viewRecord.sceneAssessment.geoLocation.longitude} />
+                            <DetailRow label="Altitude" value={viewRecord.sceneAssessment.geoLocation.altitude ? `${viewRecord.sceneAssessment.geoLocation.altitude} m` : ''} />
+                            <DetailRow label="Geohash" value={viewRecord.sceneAssessment.geoLocation.geohash} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -394,6 +411,7 @@ const RecordsList = () => {
                         <DetailRow label="Patient Contact" value={viewRecord.timeline.patientContactAt ? new Date(viewRecord.timeline.patientContactAt).toLocaleTimeString() : ''} />
                         <DetailRow label="Departed Scene" value={viewRecord.timeline.departedSceneAt ? new Date(viewRecord.timeline.departedSceneAt).toLocaleTimeString() : ''} />
                         <DetailRow label="Arrived Dest." value={viewRecord.timeline.arrivedDestinationAt ? new Date(viewRecord.timeline.arrivedDestinationAt).toLocaleTimeString() : ''} />
+                        <DetailRow label="Transfer of Care" value={viewRecord.timeline.transferOfCareAt ? new Date(viewRecord.timeline.transferOfCareAt).toLocaleTimeString() : ''} />
                         <DetailRow label="Unit Available" value={viewRecord.timeline.unitAvailableAt ? new Date(viewRecord.timeline.unitAvailableAt).toLocaleTimeString() : ''} />
                       </div>
                     </div>
@@ -437,11 +455,32 @@ const RecordsList = () => {
                   <SectionHeader icon={Truck} title="Disposition & Transport" color="text-indigo-500" />
                   <div className="grid grid-cols-2 gap-4">
                     <DetailRow label="Destination" value={viewRecord.transportDestination || viewRecord.transport?.destinationName} colSpan={2} />
+                    <DetailRow label="Facility ID" value={viewRecord.transport?.destinationFacilityId} />
+                    <DetailRow label="Facility Address" value={viewRecord.transport?.destinationAddress} colSpan={2} />
+                    <DetailRow label="Facility Type" value={viewRecord.transport?.destinationType} />
                     <DetailRow label="Mode" value={viewRecord.transportMode || viewRecord.transport?.transportMode} />
                     <DetailRow label="Care Level" value={viewRecord.careLevel || viewRecord.transport?.careLevel} />
                     <DetailRow label="Transport Reason" value={viewRecord.transport?.transportReason} colSpan={2} />
+                    {viewRecord.transport?.refusalOfTransportReason && (
+                      <DetailRow label="Refusal Reason" value={viewRecord.transport.refusalOfTransportReason} colSpan={2} />
+                    )}
+                    <DetailRow label="Receiving Physician" value={viewRecord.transport?.receivingPhysicianName} />
+                    <DetailRow label="Receiving Nurse" value={viewRecord.transport?.receivingNurseName} />
                     <DetailRow label="Condition Depart" value={viewRecord.transport?.patientConditionOnDeparture} />
                     <DetailRow label="Condition Arrive" value={viewRecord.transport?.patientConditionOnArrival} />
+                    <DetailRow label="Hospital Notified" value={viewRecord.transport?.hospitalNotified ? `YES - ${viewRecord.transport?.hospitalNotifiedAt ? new Date(viewRecord.transport.hospitalNotifiedAt).toLocaleTimeString() : ''}` : 'NO'} />
+                    <DetailRow label="Continued CPR" value={viewRecord.transport?.continuedCPRDuringTransport ? 'YES' : 'NO'} />
+                    <DetailRow label="AED Used Transport" value={viewRecord.transport?.aedUsedDuringTransport ? 'YES' : 'NO'} />
+                    {viewRecord.transport?.destinationGeoLocation && (
+                      <div className="col-span-2 grid grid-cols-2 gap-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                        <p className="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-wider">Destination Geo-coordinates</p>
+                        <DetailRow label="Latitude" value={viewRecord.transport.destinationGeoLocation.latitude} />
+                        <DetailRow label="Longitude" value={viewRecord.transport.destinationGeoLocation.longitude} />
+                        <DetailRow label="Altitude" value={viewRecord.transport.destinationGeoLocation.altitude ? `${viewRecord.transport.destinationGeoLocation.altitude} m` : ''} />
+                        <DetailRow label="Geohash" value={viewRecord.transport.destinationGeoLocation.geohash} />
+                      </div>
+                    )}
+                    <DetailRow label="Handoff Report" value={viewRecord.transport?.handoffReport} colSpan={2} />
                     <DetailRow label="Paramedic" value={viewRecord.paramedicsName} />
                     <DetailRow label="Organization" value={viewRecord.organizationName} />
                   </div>
@@ -458,12 +497,169 @@ const RecordsList = () => {
                           <>
                             <DetailRow label="Refused Care" value="YES" />
                             <DetailRow label="Refusal Reason" value={viewRecord.consent.refusalReason} colSpan={2} />
+                            {viewRecord.consent.refusalWitnessed && (
+                              <>
+                                <DetailRow label="Refusal Witnessed" value="YES" />
+                                <DetailRow label="Witness Name" value={viewRecord.consent.witnessName} />
+                                <DetailRow label="Witness Contact" value={viewRecord.consent.witnessContact} colSpan={2} />
+                              </>
+                            )}
                           </>
+                        )}
+                        {viewRecord.consent.capacityAssessmentNotes && (
+                          <DetailRow label="Capacity Notes" value={viewRecord.consent.capacityAssessmentNotes} colSpan={2} />
+                        )}
+                        <DetailRow label="Guardian Consent" value={viewRecord.consent.guardianConsentObtained ? 'YES' : 'NO'} />
+                        {viewRecord.consent.guardianConsentObtained && (
+                          <>
+                            <DetailRow label="Guardian Name" value={viewRecord.consent.guardianName} />
+                            <DetailRow label="Relationship" value={viewRecord.consent.guardianRelationship} />
+                            <DetailRow label="Guardian Phone" value={viewRecord.consent.guardianPhone} colSpan={2} />
+                          </>
+                        )}
+                        {(viewRecord.consent.patientSignatureAttachmentId || viewRecord.consent.guardianSignatureAttachmentId || viewRecord.consent.crewSignatureAttachmentId) && (
+                          <div className="col-span-2 pt-2 border-t border-slate-100 grid grid-cols-3 gap-2">
+                            <DetailRow label="Patient Sig ID" value={viewRecord.consent.patientSignatureAttachmentId} />
+                            <DetailRow label="Guardian Sig ID" value={viewRecord.consent.guardianSignatureAttachmentId} />
+                            <DetailRow label="Crew Sig ID" value={viewRecord.consent.crewSignatureAttachmentId} />
+                          </div>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
+
+                {/* Structured Lists Section */}
+                {((viewRecord.crew && viewRecord.crew.length > 0) ||
+                  (viewRecord.structuredComplaints && viewRecord.structuredComplaints.length > 0) ||
+                  (viewRecord.structuredVitals && viewRecord.structuredVitals.length > 0) ||
+                  (viewRecord.structuredMedications && viewRecord.structuredMedications.length > 0) ||
+                  (viewRecord.structuredProcedures && viewRecord.structuredProcedures.length > 0)) && (
+                  <div className="col-span-1 lg:col-span-2 border-t border-[#DDE3F0] pt-6 space-y-8">
+                    
+                    {/* Incident Crew */}
+                    {viewRecord.crew && viewRecord.crew.length > 0 && (
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                        <SectionHeader icon={User} title="Incident Crew Members" color="text-brand-blue" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {viewRecord.crew.map((c, idx) => (
+                            <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 relative shadow-sm">
+                              <p className="font-bold text-[#0F1A3A] text-sm">{c.name}</p>
+                              <p className="text-xs font-semibold text-brand-blue mt-1 uppercase tracking-wider">{c.role} | {c.certificationLevel}</p>
+                              <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs text-[#4B5A7A] font-medium">
+                                <div>Cert #: {c.certificationNumber || '—'}</div>
+                                <div>Expires: {c.certificationExpiryDate || '—'}</div>
+                              </div>
+                              {c.primaryClinician && (
+                                <span className="mt-2.5 inline-block text-[9px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded uppercase tracking-wider">Primary Clinician</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Complaints */}
+                    {viewRecord.structuredComplaints && viewRecord.structuredComplaints.length > 0 && (
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                        <SectionHeader icon={Activity} title="Structured Complaints Details" color="text-amber-500" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {viewRecord.structuredComplaints.map((c, idx) => (
+                            <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
+                              <p className="font-bold text-[#0F1A3A] text-sm">{c.complaint} {c.traumaRelated && <span className="text-[9px] bg-brand-red/10 text-brand-red font-black px-1.5 py-0.5 rounded ml-1 uppercase">TRAUMA</span>}</p>
+                              <p className="text-xs font-medium text-[#4B5A7A] mt-1">Onset: {c.onset} | Severity: <span className="font-bold text-brand-blue">{c.severity}/10</span></p>
+                              <div className="mt-2.5 pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs text-[#4B5A7A] font-medium">
+                                {c.provocation && <div>Provoked by: {c.provocation}</div>}
+                                {c.quality && <div>Quality: {c.quality}</div>}
+                                {c.radiation && <div>Radiation: {c.radiation}</div>}
+                                {c.timing && <div>Timing: {c.timing}</div>}
+                                {c.associatedSymptoms && <div className="col-span-2">Symptoms: {c.associatedSymptoms}</div>}
+                                {c.onsetTime && <div className="col-span-2">Onset Time: {new Date(c.onsetTime).toLocaleString()}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Vitals Log */}
+                    {viewRecord.structuredVitals && viewRecord.structuredVitals.length > 0 && (
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                        <SectionHeader icon={Heart} title="Structured Vitals History Logs" color="text-emerald-600" />
+                        <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+                          {viewRecord.structuredVitals.map((c, idx) => (
+                            <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
+                              <p className="font-bold text-[#A0AECB] text-[10px] uppercase tracking-wider">Log #{idx+1} | {new Date(c.recordedAt).toLocaleString()}</p>
+                              <div className="mt-2 grid grid-cols-3 md:grid-cols-6 gap-3 text-xs font-semibold text-[#0F1A3A]">
+                                {c.systolicBP && c.diastolicBP && <div>BP: <span className="text-brand-blue">{c.systolicBP}/{c.diastolicBP}</span></div>}
+                                {c.heartRate && <div>HR: <span className="text-brand-blue">{c.heartRate} bpm</span></div>}
+                                {c.respiratoryRate && <div>RR: <span className="text-brand-blue">{c.respiratoryRate}/min</span></div>}
+                                {c.oxygenSaturation && <div>SpO2: <span className="text-emerald-600">{c.oxygenSaturation}%</span></div>}
+                                {c.temperature && <div>Temp: <span className="text-brand-blue">{c.temperature}°C ({c.temperatureRoute})</span></div>}
+                                {c.bloodGlucose && <div>Glucose: <span className="text-brand-blue">{c.bloodGlucose} mg/dL</span></div>}
+                              </div>
+                              <div className="mt-3 pt-2 border-t border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] text-[#4B5A7A] font-medium">
+                                {c.glasgowComaScale && <div>GCS: <span className="font-bold text-brand-blue">{c.glasgowComaScale}</span> (E{c.gcEye} V{c.gcVerbal} M{c.gcMotor})</div>}
+                                {c.avpu && <div>AVPU: <span className="font-bold">{c.avpu}</span></div>}
+                                {c.painScore !== null && c.painScore !== undefined && <div>Pain: <span className="font-bold text-brand-red">{c.painScore}/10</span> {c.painLocation ? `(${c.painLocation})` : ''}</div>}
+                                {c.skinColor && <div>Skin: {c.skinColor}, {c.skinCondition}, {c.skinTemperature}</div>}
+                                {(c.pupilLeft || c.pupilRight) && <div>Pupils: L{c.pupilLeft} R{c.pupilRight} {c.pupilsEqual ? '(Equal' : '(Unequal'} {c.pupilsReactive ? 'Reactive)' : 'Nonreactive)'}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Medications */}
+                    {viewRecord.structuredMedications && viewRecord.structuredMedications.length > 0 && (
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                        <SectionHeader icon={Heart} title="Structured Medications Administered" color="text-indigo-500" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {viewRecord.structuredMedications.map((c, idx) => (
+                            <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
+                              <p className="font-bold text-[#0F1A3A] text-sm">{c.medicationName} {c.brandName ? `(${c.brandName})` : ''}</p>
+                              <p className="text-xs font-semibold text-brand-blue mt-1 uppercase tracking-wider">{c.dosage} {c.unit} via {c.route}</p>
+                              <div className="mt-2.5 pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs text-[#4B5A7A] font-medium">
+                                {c.administeredAt && <div>Time: {new Date(c.administeredAt).toLocaleTimeString()}</div>}
+                                {c.administeredBy && <div>By: {c.administeredBy}</div>}
+                                <div>Attempts: {c.administrationAttempts}</div>
+                                {c.patientResponse && <div>Response: {c.patientResponse}</div>}
+                                {c.indication && <div className="col-span-2">Indication: {c.indication}</div>}
+                                {c.adverseReactionDetails && <div className="col-span-2">Adverse: {c.adverseReactionDetails}</div>}
+                                {c.notes && <div className="col-span-2 text-slate-400 italic">Notes: {c.notes}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Procedures */}
+                    {viewRecord.structuredProcedures && viewRecord.structuredProcedures.length > 0 && (
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
+                        <SectionHeader icon={Activity} title="Structured Procedures Performed" color="text-indigo-600" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {viewRecord.structuredProcedures.map((c, idx) => (
+                            <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
+                              <p className="font-bold text-[#0F1A3A] text-sm">{c.procedureName} {c.successful ? <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded ml-1 uppercase">SUCCESSFUL</span> : <span className="text-[9px] bg-brand-red/10 text-brand-red font-black px-1.5 py-0.5 rounded ml-1 uppercase">FAILED</span>}</p>
+                              <p className="text-xs font-semibold text-brand-blue mt-1 uppercase tracking-wider">{c.bodysite ? `Site: ${c.bodysite}` : 'Site: Unspecified'} | Attempts: {c.attempts}</p>
+                              <div className="mt-2.5 pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs text-[#4B5A7A] font-medium">
+                                {c.performedAt && <div>Time: {new Date(c.performedAt).toLocaleTimeString()}</div>}
+                                {c.performedBy && <div>By: {c.performedBy}</div>}
+                                {c.patientResponse && <div>Response: {c.patientResponse}</div>}
+                                {c.snomedCode && <div>SNOMED: {c.snomedCode}</div>}
+                                {c.complications && <div className="col-span-2">Complications: {c.complications}</div>}
+                                {c.notes && <div className="col-span-2 text-slate-400 italic">Notes: {c.notes}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                )}
               </div>
             </div>
 
