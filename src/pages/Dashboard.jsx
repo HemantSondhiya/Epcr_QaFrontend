@@ -232,16 +232,16 @@ const Dashboard = () => {
   const loading   = useSelector(selectEpcrLoading);
 
   useEffect(() => {
+    if (!user?.accessToken) return;          // wait until auth is confirmed
     if (ROLE_MENU[role]?.includes('EPCR')) {
-      const paramedicId = role === 'PARAMEDIC' ? (user?.id || user?.userId) : null;
-      dispatch(fetchRecords({ page: 0, size: 20, paramedicId }));
+      dispatch(fetchRecords({ page: 0, size: 20 }));
     }
     if (ROLE_MENU[role]?.includes('QA Reviews')) {
       dispatch(fetchQaReviews());
       dispatch(fetchPendingReviews());
     }
     if (role === 'ADMIN' || role === 'MANAGER') dispatch(fetchWorkflows(user?.organizationId));
-  }, [dispatch, role, user]);
+  }, [dispatch, role, user?.accessToken]);
 
   const props = { records, reviews, pending, workflows, unread, loading };
 

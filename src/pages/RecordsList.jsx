@@ -107,10 +107,11 @@ const RecordsList = () => {
   };
 
   useEffect(() => {
+    if (!user?.accessToken) return;          // wait until auth token is ready
     dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE, filters: { ...filters, search: searchTerm } }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
-  }, [dispatch]);
+  }, [dispatch, user?.accessToken]);
 
   const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
 
