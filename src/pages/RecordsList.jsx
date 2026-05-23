@@ -438,6 +438,7 @@ const RecordsList = () => {
                     <DetailRow label="Diagnosis" value={viewRecord.diagnosis} colSpan={2} />
                     <DetailRow label="ICD-10 Code" value={viewRecord.icd10Code} />
                     <DetailRow label="Treatment" value={viewRecord.treatmentProvided} colSpan={2} />
+                    <DetailRow label="Treatment Plan" value={viewRecord.treatmentPlan} colSpan={2} />
                   </div>
 
                   {(viewRecord.complaints?.length > 0 || viewRecord.vitals?.length > 0 || viewRecord.medicationsAdministered?.length > 0 || viewRecord.proceduresPerformed?.length > 0) && (

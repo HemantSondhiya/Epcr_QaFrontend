@@ -38,6 +38,9 @@ const CreateRecord = () => {
    const [isSubmitting, setIsSubmitting] = useState(false);
    const [error, setError] = useState('');
    const [fieldErrors, setFieldErrors] = useState({});
+   const [idempotencyKey, setIdempotencyKey] = useState(() => {
+      return self.crypto?.randomUUID ? self.crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+   });
 
    const workflows = useSelector(selectWorkflows);
    const [selectedWorkflow, setSelectedWorkflow] = useState(null);
@@ -149,6 +152,7 @@ const CreateRecord = () => {
       secondaryImpression: '',
       diagnosis: '',
       treatmentProvided: '',
+      treatmentPlan: '',
       dietAdvice: [],
       notes: [],
       // Complaints
@@ -499,6 +503,7 @@ const CreateRecord = () => {
          secondaryImpression: cv(data.secondaryImpression) || '',
          diagnosis: cv(data.diagnosis) || '',
          treatmentProvided: cv(data.treatmentProvided) || '',
+         treatmentPlan: cv(data.treatmentPlan) || '',
          mentalStatus: cv(data.mentalStatus) || '',
          ecgRhythm: cv(data.ecgRhythm) || '',
          pupilsResponse: cv(data.pupilsResponse) || '',
@@ -671,6 +676,7 @@ const CreateRecord = () => {
                primaryImpression: cv(data.primaryImpression) || '',
                secondaryImpression: cv(data.secondaryImpression) || '',
                treatmentProvided: cv(data.treatmentProvided) || '',
+               treatmentPlan: cv(data.treatmentPlan) || '',
                mentalStatus: cv(data.mentalStatus) || '',
                ecgRhythm: cv(data.ecgRhythm) || '',
                pupilsResponse: cv(data.pupilsResponse) || '',
@@ -709,7 +715,9 @@ const CreateRecord = () => {
          if (recordId) {
             created = await dispatch(updateRecord({ id: recordId, data: payload })).unwrap();
          } else {
-            created = await dispatch(createRecord(payload)).unwrap();
+            created = await dispatch(createRecord({ data: payload, idempotencyKey })).unwrap();
+            // Clear / regenerate the key on success
+            setIdempotencyKey(self.crypto?.randomUUID ? self.crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36)));
          }
          
          const generatedId = created?.incidentNumber || created?.patientId || created?.id;
@@ -1059,6 +1067,7 @@ const CreateRecord = () => {
                         <Field label="Secondary Impression" field="secondaryImpression" value={formData.secondaryImpression} update={updateField} />
                         <Field label="Diagnosis" field="diagnosis" value={formData.diagnosis} update={updateField} />
                         <Field label="Treatment Provided" field="treatmentProvided" value={formData.treatmentProvided} update={updateField} />
+                        <Field label="Treatment Plan" field="treatmentPlan" value={formData.treatmentPlan} update={updateField} />
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

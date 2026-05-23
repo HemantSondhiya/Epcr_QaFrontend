@@ -16,7 +16,17 @@ export const fetchRecords = createAsyncThunk('epcr/fetchAll', async (payload = {
 });
 
 export const createRecord = createAsyncThunk('epcr/create', async (payload, { rejectWithValue }) => {
-  try { return (await client.post('/api/epcr/records', payload)).data; }
+  try {
+    const isObjectPayload = payload && typeof payload === 'object' && 'data' in payload && 'idempotencyKey' in payload;
+    const body = isObjectPayload ? payload.data : payload;
+    const config = {};
+    if (isObjectPayload && payload.idempotencyKey) {
+      config.headers = {
+        'Idempotency-Key': `epcr-create-${payload.idempotencyKey}`
+      };
+    }
+    return (await client.post('/api/epcr/records', body, config)).data;
+  }
   catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 

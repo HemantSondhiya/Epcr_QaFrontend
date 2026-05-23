@@ -665,7 +665,7 @@ const RECORD_CARD_SECTIONS = [
     bgColor: '#D1FAE5',
     fields: [
       'complaints', 'structuredComplaints', 'structuredVitals', 'vitals', 'diastolicBp', 'systolicBp', 'hemoglobin',
-      'treatmentProvided', 'icd10Code', 'primaryImpression', 'secondaryImpression',
+      'treatmentProvided', 'treatmentPlan', 'icd10Code', 'primaryImpression', 'secondaryImpression',
       'mentalStatus', 'diagnosticFindings', 'proceduresPerformed', 'structuredProcedures',
       'medicationsAdministered', 'treatmentOutcome', 'careLevelProvided',
       'structuredMedications', 'fluidsAdministered', 'airwayManaged', 'clinicalData', 'assessmentType', 'physicalExam', 'diagnosis',

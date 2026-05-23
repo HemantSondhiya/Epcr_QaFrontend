@@ -2287,6 +2287,7 @@ function PatientHistory() {
                           const epcrNotes = getMergedList(item, 'notes');
                           const medicalHistoryNotes = getMergedList(item, 'medicalHistoryNotes');
                           const treatmentProvided = item.treatmentProvided || metadata.treatmentProvided;
+                          const treatmentPlan = item.treatmentPlan || metadata.treatmentPlan;
 
                           return (
                             <>
@@ -2295,6 +2296,9 @@ function PatientHistory() {
                               {item.outcome && <Badge className="mt-2 bg-[#E8EEF8] text-brand-blue border-[#DDE3F0]">{item.outcome}</Badge>}
                               {treatmentProvided && (
                                 <p className="mt-3 text-sm text-[#4B5A7A]"><span className="font-black text-[#0F1A3A]">Treatment:</span> {treatmentProvided}</p>
+                              )}
+                              {treatmentPlan && (
+                                <p className="mt-2 text-sm text-[#4B5A7A]"><span className="font-black text-[#0F1A3A]">Treatment Plan:</span> {treatmentPlan}</p>
                               )}
                               {item.notes && <p className="mt-2 text-sm text-[#4B5A7A] whitespace-pre-wrap">{item.notes}</p>}
                               <BulletList title="EPCR Notes" items={epcrNotes} />

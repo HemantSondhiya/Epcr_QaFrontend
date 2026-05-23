@@ -904,6 +904,7 @@ export default function GeneralOverviewPage({
                   const dietAdvice = getMergedList(enc, 'dietAdvice');
                   const epcrNotes = getMergedList(enc, 'notes');
                   const treatmentProvided = enc.treatmentProvided || metadata.treatmentProvided;
+                  const treatmentPlan = enc.treatmentPlan || metadata.treatmentPlan;
                   return (
                     <div key={getId(enc)} className="px-2.5 py-1.5 hover:bg-[#F8FAFF] transition-colors relative group">
                       <div className="flex items-center justify-between gap-1 pr-6">
@@ -912,6 +913,7 @@ export default function GeneralOverviewPage({
                       </div>
                       <p className="text-[8px] font-bold text-[#A0AECB] mt-0.5">{fmtDate(enc.date || enc.encounterDate)}</p>
                       {treatmentProvided && <p className="text-[8px] text-[#4B5A7A] mt-1 line-clamp-2"><span className="font-black">Tx:</span> {treatmentProvided}</p>}
+                      {treatmentPlan && <p className="text-[8px] text-[#4B5A7A] mt-1 line-clamp-2"><span className="font-black">Plan:</span> {treatmentPlan}</p>}
                       {epcrNotes.length > 0 && <p className="text-[8px] text-[#4B5A7A] mt-1 line-clamp-2"><span className="font-black">Notes:</span> {epcrNotes.join(' • ')}</p>}
                       {dietAdvice.length > 0 && <p className="text-[8px] text-green-700 mt-1 line-clamp-2"><span className="font-black">Diet:</span> {dietAdvice.join(' • ')}</p>}
                       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white/95 rounded shadow-sm p-0.5">
