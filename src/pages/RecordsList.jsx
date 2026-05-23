@@ -99,17 +99,15 @@ const RecordsList = () => {
     return false;
   };
 
-  const getParamedicId = () => isParamedic ? (user?.userId || user?.id) : null;
-
   const fetchRecords = (pageNum = 0) => {
     setCurrentPage(pageNum);
-    dispatch(fetchEpcrRecords({ page: pageNum, size: PAGE_SIZE, filters: { ...filters, search: searchTerm }, paramedicId: getParamedicId() }))
+    dispatch(fetchEpcrRecords({ page: pageNum, size: PAGE_SIZE, filters: { ...filters, search: searchTerm } }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })));
   };
 
   useEffect(() => {
-    dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE, filters: { ...filters, search: searchTerm }, paramedicId: getParamedicId() }))
+    dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE, filters: { ...filters, search: searchTerm } }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
   }, [dispatch]);
