@@ -53,6 +53,7 @@ import client from '../api/client';
 import DentistPatientOverview from './overview/DentistPatientOverview';
 import GeneralOverviewPage from './overview/GeneralOverviewPage';
 import OncologyOverviewPage from './overview/OncologyOverviewPage';
+import ObstetricOverviewPage from './overview/ObstetricOverviewPage';
 import {
   Activity,
   AlertCircle,
@@ -165,8 +166,9 @@ const normalizeOverviewSpecialty = (value) => {
   if (raw.includes('radio')) return 'radiology';
   if (raw.includes('cardio')) return 'cardiology';
   if (raw.includes('onco')) return 'oncology';
+  if (raw.includes('obste') || raw.includes('obs')) return 'obstetric';
   if (raw.includes('general')) return 'general';
-  return ['dentist', 'radiology', 'general', 'cardiology', 'oncology'].includes(raw) ? raw : null;
+  return ['dentist', 'radiology', 'general', 'cardiology', 'oncology', 'obstetric'].includes(raw) ? raw : null;
 };
 
 const classifyType = (value) => {
@@ -1592,7 +1594,7 @@ function PatientHistory() {
             // Check all encounters for a specific specialty match
             const matchingEnc = sortedEnc.find(e => {
               const t = normalizeOverviewSpecialty(e.incidentType || e.type || e.encounterType);
-              return ['dentist', 'radiology', 'cardiology', 'oncology'].includes(t);
+              return ['dentist', 'radiology', 'cardiology', 'oncology', 'obstetric'].includes(t);
             });
             if (matchingEnc) {
               resolved = normalizeOverviewSpecialty(matchingEnc.incidentType || matchingEnc.type || matchingEnc.encounterType) || resolved;
@@ -1913,7 +1915,7 @@ function PatientHistory() {
     if (nameStr) displayName = nameStr;
   }
 
-  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology') && !specialtyLoading;
+  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology' || specialty === 'obstetric') && !specialtyLoading;
 
   return (
     <div className={isGeneralView ? "h-[calc(100vh-2.5rem)] bg-[#F8FAFF] w-full flex flex-col overflow-hidden" : "min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col"} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -2096,6 +2098,25 @@ function PatientHistory() {
                     )}
                     {specialty === 'oncology' && (
                       <OncologyOverviewPage
+                        canEdit={canEdit}
+                        conditions={conditions}
+                        dispatch={dispatch}
+                        documents={documents}
+                        encounters={encounters}
+                        labResults={labResults}
+                        medications={medications}
+                        patientId={patientId}
+                        setModal={setModal}
+                        setViewModal={setViewModal}
+                        setTimelineViewItem={setTimelineViewItem}
+                        timeline={timeline}
+                        vitals={vitals}
+                        displayName={displayName}
+                        onDelete={handleDeleteItem}
+                      />
+                    )}
+                    {specialty === 'obstetric' && (
+                      <ObstetricOverviewPage
                         canEdit={canEdit}
                         conditions={conditions}
                         dispatch={dispatch}

@@ -39,6 +39,7 @@ import GeneralOverviewPage from './pages/overview/GeneralOverviewPage';
 import CardiologyOverviewPage from './pages/overview/CardiologyOverviewPage';
 import RadiologyOverviewPage from './pages/overview/RadiologyOverviewPage';
 import OncologyOverviewPage from './pages/overview/OncologyOverviewPage';
+import ObstetricOverviewPage from './pages/overview/ObstetricOverviewPage';
 
 // Route guard: wraps ProtectedRoute + RoleGate
 const GuardedRoute = ({ menuItem, roles, children }) => (
@@ -112,6 +113,7 @@ const AppRoutes = () => {
         <Route path="patients/:patientId/overview/cardiology" element={<ProtectedRoute><CardiologyOverviewPage /></ProtectedRoute>} />
         <Route path="patients/:patientId/overview/radiology" element={<ProtectedRoute><RadiologyOverviewPage /></ProtectedRoute>} />
         <Route path="patients/:patientId/overview/oncology" element={<ProtectedRoute><OncologyOverviewPage /></ProtectedRoute>} />
+        <Route path="patients/:patientId/overview/obstetric" element={<ProtectedRoute><ObstetricOverviewPage /></ProtectedRoute>} />
 
         <Route path="break-glass"     element={<GuardedRoute menuItem="Break-Glass"><BreakGlass /></GuardedRoute>} />
 
