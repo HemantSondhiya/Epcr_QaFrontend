@@ -48,7 +48,13 @@ export const deleteRecord = createAsyncThunk('epcr/delete', async (id, { rejectW
 // ── Slice ───────────────────────────────────────────────────────────
 const epcrSlice = createSlice({
   name: 'epcr',
-  initialState: { records: [], loading: false, error: null, selected: null },
+  initialState: {
+    records: [],
+    loading: false,
+    error: null,
+    selected: null,
+    pagination: { page: 0, totalPages: 0, totalElements: 0, isLast: true },
+  },
   reducers: {
     clearError(state) { state.error = null; },
     setSelected(state, { payload }) { state.selected = payload; },
@@ -60,9 +66,19 @@ const epcrSlice = createSlice({
     b.addCase(fetchRecords.pending,   pending)
      .addCase(fetchRecords.fulfilled, (s, a) => {
        s.loading = false;
-       const newList = asList(a.payload.data);
+       const raw = a.payload.data;
+       const newList = Array.isArray(raw) ? raw : (raw?.content || []);
        if (a.payload.isAppend) s.records = [...s.records, ...newList];
        else s.records = newList;
+       // Store pagination metadata when the response is paginated
+       if (raw && !Array.isArray(raw) && raw.totalElements !== undefined) {
+         s.pagination = {
+           page: raw.page ?? 0,
+           totalPages: raw.totalPages ?? 1,
+           totalElements: raw.totalElements ?? newList.length,
+           isLast: raw.last ?? true,
+         };
+       }
      })
      .addCase(fetchRecords.rejected,  rejected)
 
@@ -90,7 +106,8 @@ const epcrSlice = createSlice({
 });
 
 export const { clearError, setSelected } = epcrSlice.actions;
-export const selectRecords  = (s) => s.epcr.records;
-export const selectEpcrLoading = (s) => s.epcr.loading;
-export const selectEpcrError   = (s) => s.epcr.error;
+export const selectRecords        = (s) => s.epcr.records;
+export const selectEpcrLoading    = (s) => s.epcr.loading;
+export const selectEpcrError      = (s) => s.epcr.error;
+export const selectEpcrPagination = (s) => s.epcr.pagination;
 export default epcrSlice.reducer;

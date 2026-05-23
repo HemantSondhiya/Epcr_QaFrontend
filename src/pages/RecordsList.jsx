@@ -10,7 +10,7 @@ import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import {
   fetchRecords as fetchEpcrRecords, updateRecord, deleteRecord,
-  submitRecord, selectRecords, selectEpcrLoading, selectEpcrError
+  submitRecord, selectRecords, selectEpcrLoading, selectEpcrError, selectEpcrPagination
 } from '../store/slices/epcrSlice';
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import { extractErrorMessage } from '../api/client';
@@ -53,14 +53,18 @@ const SectionHeader = ({ icon: Icon, title, color = "text-brand-blue" }) => (
   </div>
 );
 
+const PAGE_SIZE = 20;
+
 const RecordsList = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
   const records = useSelector(selectRecords);
   const loading = useSelector(selectEpcrLoading);
+  const pagination = useSelector(selectEpcrPagination);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -95,14 +99,17 @@ const RecordsList = () => {
     return false;
   };
 
-  const fetchRecords = (pageNum = 0, isAppend = false) => {
-    dispatch(fetchEpcrRecords({ page: pageNum, size: 20, isAppend, filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }))
+  const getParamedicId = () => isParamedic ? (user?.userId || user?.id) : null;
+
+  const fetchRecords = (pageNum = 0) => {
+    setCurrentPage(pageNum);
+    dispatch(fetchEpcrRecords({ page: pageNum, size: PAGE_SIZE, filters: { ...filters, search: searchTerm }, paramedicId: getParamedicId() }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })));
   };
 
-  useEffect(() => { 
-    dispatch(fetchEpcrRecords({ page: 0, size: 20, filters: { ...filters, search: searchTerm }, paramedicId: isParamedic ? (user?.userId || user?.id) : null }))
+  useEffect(() => {
+    dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE, filters: { ...filters, search: searchTerm }, paramedicId: getParamedicId() }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
   }, [dispatch]);
@@ -130,7 +137,7 @@ const RecordsList = () => {
         if (syncedPatientId) await dispatch(fetchAllPatientHistory(syncedPatientId));
         dispatch(addToast({ type: 'success', message: 'Record submitted for QA' }));
       }
-      fetchRecords(0, false);
+      fetchRecords(0);
       setIsViewOpen(false);
     } catch (err) { dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })); }
   };
@@ -184,8 +191,8 @@ const RecordsList = () => {
               <input type="date" value={filters.endDate} onChange={e => setFilters({ ...filters, endDate: e.target.value })} className="input py-2.5 text-sm" />
             </div>
             <div className="flex items-end gap-2">
-              <button onClick={() => fetchRecords(0, false)} className="btn-primary flex-1 justify-center py-2.5 text-sm">Apply</button>
-              <button onClick={() => { setFilters({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' }); setSearchTerm(''); fetchRecords(0, false); }}
+              <button onClick={() => fetchRecords(0)} className="btn-primary flex-1 justify-center py-2.5 text-sm">Apply</button>
+              <button onClick={() => { setFilters({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' }); setSearchTerm(''); fetchRecords(0); }}
                 className="btn-ghost border border-[#DDE3F0] rounded-xl p-2.5">
                 <RefreshCw size={16} />
               </button>
@@ -203,7 +210,11 @@ const RecordsList = () => {
             <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               placeholder="Search by patient, location, or ID…" className="input pl-10 py-2.5 text-sm" />
           </div>
-          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">{filtered.length} records</span>
+          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">
+            {pagination.totalElements > 0
+              ? `${pagination.totalElements} total records`
+              : `${filtered.length} records`}
+          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -276,6 +287,60 @@ const RecordsList = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-4 border-t border-[#F0F4FC] bg-white">
+            <span className="text-xs text-[#8A97B0] font-medium">
+              Page <span className="font-bold text-[#0F1A3A]">{currentPage + 1}</span> of{' '}
+              <span className="font-bold text-[#0F1A3A]">{pagination.totalPages}</span>
+              {' '}·{' '}
+              <span className="font-bold text-[#0F1A3A]">{pagination.totalElements}</span> total
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => fetchRecords(0)}
+                disabled={currentPage === 0 || loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >«</button>
+              <button
+                onClick={() => fetchRecords(currentPage - 1)}
+                disabled={currentPage === 0 || loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >‹ Prev</button>
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                const half = 2;
+                let start = Math.max(0, currentPage - half);
+                const end = Math.min(pagination.totalPages - 1, start + 4);
+                start = Math.max(0, end - 4);
+                const pg = start + i;
+                if (pg > end) return null;
+                return (
+                  <button
+                    key={pg}
+                    onClick={() => fetchRecords(pg)}
+                    disabled={loading}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      pg === currentPage
+                        ? 'bg-brand-blue text-white border-brand-blue shadow-sm'
+                        : 'border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue'
+                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  >{pg + 1}</button>
+                );
+              })}
+              <button
+                onClick={() => fetchRecords(currentPage + 1)}
+                disabled={pagination.isLast || loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >Next ›</button>
+              <button
+                onClick={() => fetchRecords(pagination.totalPages - 1)}
+                disabled={pagination.isLast || loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >»</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* View Modal */}
