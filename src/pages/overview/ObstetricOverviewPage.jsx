@@ -206,6 +206,151 @@ const getMergedList = (item, key) => {
   return toTextList(item?.[key]).concat(toTextList(metadata?.[key]));
 };
 
+const getVitalsForCondition = (cond, allVitals, allConditions) => {
+  if (!cond) return [];
+  const condId = getId(cond) || cond?._id || '';
+  
+  const condText = JSON.stringify(cond).toLowerCase();
+  const incMatch = condText.match(/inc-[a-z0-9-]+/i);
+  const incId = incMatch ? incMatch[0].toUpperCase() : null;
+  
+  // 1. Explicitly linked to THIS condition/incident
+  let explicitlyLinked = allVitals.filter(v => {
+    const vitalCondId = getConditionLinkId(v);
+    if (vitalCondId && sameId(vitalCondId, condId)) return true;
+    
+    // Check notes for condition ID link
+    if (v.notes && v.notes.includes(condId)) return true;
+    
+    if (incId) {
+      if (v.linkedEpcrId && String(v.linkedEpcrId).toUpperCase() === incId) return true;
+      if (v.notes && v.notes.toLowerCase().includes(incId.toLowerCase())) return true;
+    }
+    return false;
+  });
+
+  if (explicitlyLinked.length > 0) {
+    return explicitlyLinked;
+  }
+
+  // 2. Identify if vital is explicitly linked to any other condition/incident
+  const isLinkedToAnyOtherCondition = (v) => {
+    const vitalCondId = getConditionLinkId(v);
+    if (vitalCondId && !sameId(vitalCondId, condId)) return true;
+    
+    for (const otherCond of allConditions) {
+      const otherCondId = getId(otherCond) || otherCond?._id || '';
+      if (sameId(otherCondId, condId)) continue;
+      
+      const otherText = JSON.stringify(otherCond).toLowerCase();
+      const otherIncMatch = otherText.match(/inc-[a-z0-9-]+/i);
+      const otherIncId = otherIncMatch ? otherIncMatch[0].toUpperCase() : null;
+      
+      if (v.notes && v.notes.includes(otherCondId)) return true;
+      if (otherIncId) {
+        if (v.linkedEpcrId && String(v.linkedEpcrId).toUpperCase() === otherIncId) return true;
+        if (v.notes && v.notes.toLowerCase().includes(otherIncId.toLowerCase())) return true;
+      }
+    }
+    return false;
+  };
+
+  // 3. Fallback: Match by Date proximity ONLY if not linked to any other condition
+  const condDateStr = cond.dateDiagnosed || cond.createdAt || cond.updatedAt;
+  if (condDateStr) {
+    const condDate = new Date(condDateStr).toDateString();
+    const dateMatched = allVitals.filter(v => {
+      if (isLinkedToAnyOtherCondition(v)) return false;
+      
+      const vDateStr = v.recordedAt || v.createdAt;
+      if (!vDateStr) return false;
+      const vDate = new Date(vDateStr).toDateString();
+      return vDate === condDate;
+    });
+    
+    if (dateMatched.length > 0) {
+      return dateMatched;
+    }
+  }
+
+  // 4. Safe Fallback: if there is only 1 condition, distribute unlinked vitals
+  if (allConditions.length <= 1) {
+    return allVitals.filter(v => !isLinkedToAnyOtherCondition(v));
+  }
+
+  return [];
+};
+
+const VitalsBox = ({ label, v, accentCls, borderCls, phase, canEditProp, setModal, setViewModal, handleDelete }) => {
+  const st = v ? assessVitalStatus(v) : null;
+  return (
+    <div className={`bg-white border ${borderCls} rounded-lg shadow-sm overflow-hidden flex-1`}>
+      <div className={`flex items-center justify-between border-b ${borderCls} px-2 py-1 ${accentCls}`}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${accentCls}`}><Thermometer size={10} /></div>
+          <h2 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide truncate">{label} Vitals</h2>
+          {v && <span className="text-[8px] font-bold text-[#8A97B0] shrink-0">{fmtDate(v.recordedAt || v.createdAt)}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {st && <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>}
+          {canEditProp && (
+            <button
+              type="button"
+              onClick={() => setModal({
+                type: 'vitals',
+                initialValues: {
+                  treatmentPhase: phase,
+                  vitalPhase: phase,
+                  recordedAt: new Date().toISOString().slice(0, 16),
+                },
+              })}
+              className="w-4 h-4 rounded bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors"
+              title={`Add ${label} vitals`}
+            >
+              <Plus size={8} />
+            </button>
+          )}
+          {v && (
+            <div className="flex gap-1">
+              <button onClick={() => setViewModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
+              {canEditProp && (
+                <>
+                  <button onClick={() => setModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={11} /></button>
+                  <button onClick={() => handleDelete('vitals', v)} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={11} /></button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="px-2 py-1 flex flex-wrap gap-1 bg-[#FCFDFF]">
+        {(() => {
+          const VITAL_KEYS = [
+            { k: 'BP', val: v?.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v && (v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) },
+            { k: 'HR', val: v?.heartRate ?? null, u: 'bpm', w: v && (v.heartRate > 100 || v.heartRate < 60) },
+            { k: 'SpO₂', val: v?.oxygenSaturation ?? null, u: '%', w: v && v.oxygenSaturation < 95 },
+            { k: 'Temp', val: v?.temperature ?? null, u: '°C', w: v && (v.temperature > 37.2 || v.temperature < 36.1) },
+            { k: 'RR', val: v?.respiratoryRate ?? null, u: '/min', w: v && (v.respiratoryRate > 20 || v.respiratoryRate < 12) },
+            { k: 'GCS', val: v?.glasgowComaScale ?? null, u: '/15', w: v && v.glasgowComaScale < 14 },
+          ];
+          return VITAL_KEYS.map(x => (
+            <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.val != null && x.val !== '' ? (x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]') : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#A0AECB]'}`}>
+              <span className="text-[7px] font-black uppercase opacity-60">{x.k}</span>
+              <span className="tabular-nums font-black">{x.val != null && x.val !== '' ? x.val : 'N/A'}</span>
+              {x.val != null && x.val !== '' && <span className="text-[7px] text-[#8A97B0]">{x.u}</span>}
+            </span>
+          ));
+        })()}
+      </div>
+      {v?.notes && (
+        <div className="px-2 pb-1.5 pt-1.5 bg-[#FCFDFF] border-t border-[#F1F5F9]">
+          <p className="text-[8px] text-slate-500 italic border-l-2 border-slate-200 pl-1 truncate">Note: {v.notes}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ─── main component ─── */
 export default function ObstetricOverviewPage({
   patientId: patientIdProp,
@@ -655,105 +800,6 @@ export default function ObstetricOverviewPage({
             </div>
           </div>
 
-          {/* Vitals Box */}
-          {(() => {
-            const sortedV = [...vits].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
-            const preVitals = sortedV.filter(v => getVitalPhase(v) === 'PRE');
-            const postVitals = sortedV.filter(v => getVitalPhase(v) === 'POST');
-            const unphasedVitals = sortedV.filter(v => !getVitalPhase(v));
-            const initialVital = preVitals[0] || unphasedVitals[0] || null;
-            const latestVital = postVitals[postVitals.length - 1] || (unphasedVitals.length > 1 ? unphasedVitals[unphasedVitals.length - 1] : null);
-
-            const VitalsBox = ({ label, v, accentCls, borderCls, phase }) => {
-              const st = v ? assessVitalStatus(v) : null;
-              return (
-                <div className={`bg-white border ${borderCls} rounded-lg shadow-sm overflow-hidden flex-1`}>
-                  <div className={`flex items-center justify-between border-b ${borderCls} px-2 py-1 ${accentCls}`}>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${accentCls}`}><Thermometer size={10} /></div>
-                      <h2 className="text-[9px] font-black text-[#0F1A3A] uppercase tracking-wide truncate">{label} Vitals</h2>
-                      {v && <span className="text-[8px] font-bold text-[#8A97B0] shrink-0">{fmtDate(v.recordedAt || v.createdAt)}</span>}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {st && <span className={`text-[8px] font-black px-1 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>}
-                      {canEditProp && (
-                        <button
-                          type="button"
-                          onClick={() => setModal({
-                            type: 'vitals',
-                            initialValues: {
-                              treatmentPhase: phase,
-                              vitalPhase: phase,
-                              recordedAt: new Date().toISOString().slice(0, 16),
-                            },
-                          })}
-                          className="w-4 h-4 rounded bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors"
-                          title={`Add ${label} vitals`}
-                        >
-                          <Plus size={8} />
-                        </button>
-                      )}
-                      {v && (
-                        <div className="flex gap-1">
-                          <button onClick={() => setViewModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
-                          {canEditProp && (
-                            <>
-                              <button onClick={() => setModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={11} /></button>
-                              <button onClick={() => handleDelete('vitals', v)} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={11} /></button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="px-2 py-1 flex flex-wrap gap-1">
-                    {(() => {
-                      const VITAL_KEYS = [
-                        { k: 'BP', val: v?.systolicBP ? `${v.systolicBP}/${v.diastolicBP}` : null, u: 'mmHg', w: v && (v.systolicBP > 140 || v.systolicBP < 90 || v.diastolicBP > 90 || v.diastolicBP < 60) },
-                        { k: 'HR', val: v?.heartRate ?? null, u: 'bpm', w: v && (v.heartRate > 100 || v.heartRate < 60) },
-                        { k: 'SpO₂', val: v?.oxygenSaturation ?? null, u: '%', w: v && v.oxygenSaturation < 95 },
-                        { k: 'Temp', val: v?.temperature ?? null, u: '°C', w: v && (v.temperature > 37.2 || v.temperature < 36.1) },
-                        { k: 'RR', val: v?.respiratoryRate ?? null, u: '/min', w: v && (v.respiratoryRate > 20 || v.respiratoryRate < 12) },
-                        { k: 'GCS', val: v?.glasgowComaScale ?? null, u: '/15', w: v && v.glasgowComaScale < 14 },
-                      ];
-                      return VITAL_KEYS.map(x => (
-                        <span key={x.k} className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${x.val != null && x.val !== '' ? (x.w ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#0F1A3A]') : 'bg-[#F8FAFF] border-[#DDE3F0] text-[#A0AECB]'}`}>
-                          <span className="text-[7px] font-black uppercase opacity-60">{x.k}</span>
-                          <span className="tabular-nums font-black">{x.val != null && x.val !== '' ? x.val : 'N/A'}</span>
-                          {x.val != null && x.val !== '' && <span className="text-[7px] text-[#8A97B0]">{x.u}</span>}
-                        </span>
-                      ));
-                    })()}
-                  </div>
-                  {v?.notes && (
-                    <div className="px-2 pb-1.5 pt-0">
-                      <p className="text-[8px] text-slate-500 italic border-l border-slate-200 pl-1 truncate">Note: {v.notes}</p>
-                    </div>
-                  )}
-                </div>
-              );
-            };
-
-            return (
-              <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3">
-                <div className="flex items-center justify-between mb-2 pb-1 border-b border-[#F0F4FC]">
-                  <span className="text-[10px] font-black text-[#0F1A3A] uppercase tracking-wide flex items-center gap-1">
-                    <Thermometer size={12} className="text-red-500" /> Patient Vitals Comparison
-                  </span>
-                  {canEditProp && (
-                    <button type="button" onClick={() => setModal({ type: 'vitals', initialValues: { treatmentPhase: 'PRE', vitalPhase: 'PRE', recordedAt: new Date().toISOString().slice(0, 16) } })} className="w-5 h-5 rounded-md bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors" title="Add pre-treatment vitals">
-                      <Plus size={10} />
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <VitalsBox label="Pre-Treatment" v={initialVital} accentCls="bg-[#EFF6FF] text-[#1A3C8F]" borderCls="border-[#DBEAFE]" phase="PRE" />
-                  <VitalsBox label="Post-Treatment" v={latestVital} accentCls="bg-[#F0FDF4] text-[#16A34A]" borderCls="border-[#DCFCE7]" phase="POST" />
-                </div>
-              </div>
-            );
-          })()}
-
           {/* Incidents / Active Conditions blocks */}
           {conditionsToDisplay.length === 0 ? (
             <div className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-6 text-center">
@@ -787,6 +833,120 @@ export default function ObstetricOverviewPage({
                       )}
                     </div>
                   </div>
+
+                  {/* Pre/Post Treatment Vitals & Evidence Documents Comparison for this Incident */}
+                  {(() => {
+                    const matchedVitals = getVitalsForCondition(cond, vits, conds);
+                    const sortedV = [...matchedVitals].sort((a, b) => new Date(a.recordedAt || a.createdAt) - new Date(b.recordedAt || b.createdAt));
+                    const preVitals = sortedV.filter(v => getVitalPhase(v) === 'PRE');
+                    const postVitals = sortedV.filter(v => getVitalPhase(v) === 'POST');
+                    const unphasedVitals = sortedV.filter(v => !getVitalPhase(v));
+                    const initialVital = preVitals[0] || unphasedVitals[0] || null;
+                    const latestVital = postVitals[postVitals.length - 1] || (unphasedVitals.length > 1 ? unphasedVitals[unphasedVitals.length - 1] : null);
+
+                    const condText = JSON.stringify(cond).toLowerCase();
+                    const incMatch = condText.match(/inc-[a-z0-9-]+/i);
+                    const incId = incMatch ? incMatch[0].toUpperCase() : null;
+
+                    const preInitialValues = {
+                      treatmentPhase: 'PRE',
+                      vitalPhase: 'PRE',
+                      conditionId: condId || '',
+                      linkedEpcrId: incId || '',
+                      notes: incId 
+                        ? `Auto-linked from ePCR ${incId} [Linked Condition: ${condId}]` 
+                        : `[Linked Condition: ${condId}]`,
+                      recordedAt: new Date().toISOString().slice(0, 16),
+                    };
+
+                    const postInitialValues = {
+                      treatmentPhase: 'POST',
+                      vitalPhase: 'POST',
+                      conditionId: condId || '',
+                      linkedEpcrId: incId || '',
+                      notes: incId 
+                        ? `Auto-linked from ePCR ${incId} [Linked Condition: ${condId}]` 
+                        : `[Linked Condition: ${condId}]`,
+                      recordedAt: new Date().toISOString().slice(0, 16),
+                    };
+
+                    const blockDocs = docs.filter(d => {
+                      const docConditionId = getConditionLinkId(d);
+                      if (!condId) return !docConditionId;
+                      return sameId(docConditionId, condId);
+                    });
+
+                    const PRE_KEYS = ['PRE', 'CONSENT', 'XRAY', 'X-RAY', 'REFERRAL', 'INITIAL'];
+                    const POST_KEYS = ['POST', 'DISCHARGE', 'FOLLOW', 'RESULT', 'REPORT', 'PRESCRIPTION'];
+                    const isPre = (d) => d.documentPhase === 'PRE' || (!d.documentPhase && PRE_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
+                    const isPost = (d) => d.documentPhase === 'POST' || (!d.documentPhase && POST_KEYS.some(k => String(d.type || d.category || '').toUpperCase().includes(k)));
+
+                    const preDocs = blockDocs.filter(isPre);
+                    const postDocs = blockDocs.filter(isPost);
+                    const otherDocs = blockDocs.filter(d => !isPre(d) && !isPost(d));
+
+                    const finalPre = preDocs.length ? preDocs : otherDocs.slice(0, Math.ceil(otherDocs.length / 2));
+                    const finalPost = postDocs.length ? postDocs : otherDocs.slice(Math.ceil(otherDocs.length / 2));
+
+                    const preImagesCond = finalPre.filter(isImageFile);
+                    const preDocsOnlyCond = finalPre.filter(d => !isImageFile(d));
+                    const postImagesCond = finalPost.filter(isImageFile);
+                    const postDocsOnlyCond = finalPost.filter(d => !isImageFile(d));
+
+                    return (
+                      <div className="mb-2 flex flex-col gap-2">
+                        {/* Vitals comparison */}
+                        <div className="flex gap-2">
+                          <VitalsBox
+                            label="Pre-Treatment"
+                            v={initialVital}
+                            accentCls="bg-[#EFF6FF] text-[#1A3C8F]"
+                            borderCls="border-[#DBEAFE]"
+                            phase="PRE"
+                            canEditProp={canEditProp}
+                            setModal={(args) => setModal({ ...args, initialValues: { ...preInitialValues, ...args?.initialValues } })}
+                            setViewModal={setViewModal}
+                            handleDelete={handleDelete}
+                          />
+                          <VitalsBox
+                            label="Post-Treatment"
+                            v={latestVital}
+                            accentCls="bg-[#F0FDF4] text-[#16A34A]"
+                            borderCls="border-[#DCFCE7]"
+                            phase="POST"
+                            canEditProp={canEditProp}
+                            setModal={(args) => setModal({ ...args, initialValues: { ...postInitialValues, ...args?.initialValues } })}
+                            setViewModal={setViewModal}
+                            handleDelete={handleDelete}
+                          />
+                        </div>
+
+                        {/* Evidence documents comparison */}
+                        {(canEditProp || preImagesCond.length > 0 || preDocsOnlyCond.length > 0 || postImagesCond.length > 0 || postDocsOnlyCond.length > 0) && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <QuickDocBox
+                              label="Pre-Treatment"
+                              color="border-[#DBEAFE]"
+                              accent="bg-[#EFF6FF] text-[#1A3C8F]"
+                              docs={preDocsOnlyCond}
+                              imgs={preImagesCond}
+                              conditionId={condId}
+                              phase="PRE"
+                            />
+                            <QuickDocBox
+                              label="Post-Treatment"
+                              color="border-[#DCFCE7]"
+                              accent="bg-[#F0FDF4] text-[#16A34A]"
+                              docs={postDocsOnlyCond}
+                              imgs={postImagesCond}
+                              conditionId={condId}
+                              phase="POST"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Findings / Symptoms / Analysis / Plan */}
                   <div className="grid grid-cols-4 gap-1.5">
