@@ -10,13 +10,39 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
-import { createRecord, updateRecord } from '../store/slices/epcrSlice';
+import { createRecord, updateRecord, fetchIncidentTypes, selectIncidentTypes } from '../store/slices/epcrSlice';
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
 import DynamicFormRenderer from '../components/forms/DynamicFormRenderer';
 import client from '../api/client';
 
-const INCIDENT_TYPES = ['GENERAL', 'TRAUMA', 'CARDIOLOGY', 'RESPIRATORY', 'NEUROLOGY', 'OBSTETRIC', 'PEDIATRIC', 'BEHAVIORAL', 'DENTIST', 'ONCOLOGY', 'RADIOLOGY'];
+const INCIDENT_TYPES = [
+  'GENERAL',
+  'EMERGENCY',
+  'TRAUMA',
+  'CARDIOLOGY',
+  'RESPIRATORY',
+  'NEUROLOGY',
+  'OBSTETRIC',
+  'PEDIATRIC',
+  'BEHAVIORAL',
+  'DENTIST',
+  'ONCOLOGY',
+  'RADIOLOGY',
+  'ORTHOPEDIC',
+  'DERMATOLOGY',
+  'OPHTHALMOLOGY',
+  'ENT',
+  'GASTROENTEROLOGY',
+  'UROLOGY',
+  'NEPHROLOGY',
+  'ENDOCRINOLOGY',
+  'PSYCHIATRY',
+  'GERIATRIC',
+  'ALLERGY',
+  'INFECTIOUS_DISEASE',
+  'OTHER',
+];
 const TRANSPORT_MODES = ['ALS', 'BLS', 'CRITICAL_CARE', 'AIR', 'WATER', 'WHEELCHAIR', 'WALK_IN'];
 const CARE_LEVELS = ['ALS', 'BLS', 'CCT', 'SCT', 'MFR', 'EMT', 'PARAMEDIC'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -45,6 +71,10 @@ const CreateRecord = () => {
    const workflows = useSelector(selectWorkflows);
    const [selectedWorkflow, setSelectedWorkflow] = useState(null);
    const [dynamicFormResponses, setDynamicFormResponses] = useState({});
+   const backendIncidentTypes = useSelector(selectIncidentTypes);
+   const incidentTypesOptions = backendIncidentTypes && backendIncidentTypes.length > 0
+      ? backendIncidentTypes
+      : INCIDENT_TYPES;
 
    const [patientMode, setPatientMode] = useState(prefilledPatientId ? 'existing' : 'new');
    const [searchPhone, setSearchPhone] = useState('');
@@ -220,6 +250,7 @@ const CreateRecord = () => {
 
    useEffect(() => {
       dispatch(fetchWorkflows());
+      dispatch(fetchIncidentTypes());
    }, [dispatch]);
 
    useEffect(() => {
@@ -957,7 +988,7 @@ const CreateRecord = () => {
                            <label className={fieldErrors.incidentType ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Incident Type</label>
                            <select value={formData.incidentType} onChange={e => updateField('incidentType', e.target.value)} className={fieldErrors.incidentType ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
                               <option value="">Select Type</option>
-                              {INCIDENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                              {incidentTypesOptions.map(t => <option key={t} value={t}>{t}</option>)}
                            </select>
                            {fieldErrors.incidentType && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.incidentType}</p>}
                         </div>

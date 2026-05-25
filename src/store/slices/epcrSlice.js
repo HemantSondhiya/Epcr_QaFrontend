@@ -45,6 +45,14 @@ export const deleteRecord = createAsyncThunk('epcr/delete', async (id, { rejectW
   catch (e) { return rejectWithValue(extractErrorMessage(e)); }
 });
 
+export const fetchIncidentTypes = createAsyncThunk('epcr/fetchIncidentTypes', async (_, { rejectWithValue }) => {
+  try {
+    const res = await client.get('/api/epcr/incident-types', { hideToast: true });
+    return res.data;
+  }
+  catch (e) { return rejectWithValue(extractErrorMessage(e)); }
+});
+
 // ── Slice ───────────────────────────────────────────────────────────
 const epcrSlice = createSlice({
   name: 'epcr',
@@ -54,6 +62,7 @@ const epcrSlice = createSlice({
     error: null,
     selected: null,
     pagination: { page: 0, totalPages: 0, totalElements: 0, isLast: true },
+    incidentTypes: [],
   },
   reducers: {
     clearError(state) { state.error = null; },
@@ -101,6 +110,9 @@ const epcrSlice = createSlice({
 
      .addCase(deleteRecord.fulfilled, (s, a) => {
        s.records = s.records.filter(r => r.id !== a.payload);
+     })
+     .addCase(fetchIncidentTypes.fulfilled, (s, a) => {
+       s.incidentTypes = Array.isArray(a.payload) ? a.payload : (a.payload?.content || []);
      });
   },
 });
@@ -110,4 +122,5 @@ export const selectRecords        = (s) => s.epcr.records;
 export const selectEpcrLoading    = (s) => s.epcr.loading;
 export const selectEpcrError      = (s) => s.epcr.error;
 export const selectEpcrPagination = (s) => s.epcr.pagination;
+export const selectIncidentTypes   = (s) => s.epcr.incidentTypes;
 export default epcrSlice.reducer;

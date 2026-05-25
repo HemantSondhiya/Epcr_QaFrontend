@@ -10,10 +10,47 @@ import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import {
   fetchRecords as fetchEpcrRecords, updateRecord, deleteRecord,
-  submitRecord, selectRecords, selectEpcrLoading, selectEpcrError, selectEpcrPagination
+  submitRecord, selectRecords, selectEpcrLoading, selectEpcrError, selectEpcrPagination,
+  fetchIncidentTypes, selectIncidentTypes
 } from '../store/slices/epcrSlice';
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import { extractErrorMessage } from '../api/client';
+
+const INCIDENT_TYPES = [
+  'GENERAL', 'EMERGENCY', 'TRAUMA', 'CARDIOLOGY', 'RESPIRATORY', 'NEUROLOGY',
+  'OBSTETRIC', 'PEDIATRIC', 'BEHAVIORAL', 'DENTIST', 'ONCOLOGY', 'RADIOLOGY',
+  'ORTHOPEDIC', 'DERMATOLOGY', 'OPHTHALMOLOGY', 'ENT', 'GASTROENTEROLOGY',
+  'UROLOGY', 'NEPHROLOGY', 'ENDOCRINOLOGY', 'PSYCHIATRY', 'GERIATRIC',
+  'ALLERGY', 'INFECTIOUS_DISEASE', 'OTHER',
+];
+
+const INCIDENT_TYPE_COLORS = {
+  GENERAL: 'bg-blue-50 text-blue-700 border-blue-200',
+  EMERGENCY: 'bg-red-50 text-red-700 border-red-200',
+  TRAUMA: 'bg-orange-50 text-orange-700 border-orange-200',
+  CARDIOLOGY: 'bg-rose-50 text-rose-700 border-rose-200',
+  RESPIRATORY: 'bg-sky-50 text-sky-700 border-sky-200',
+  NEUROLOGY: 'bg-violet-50 text-violet-700 border-violet-200',
+  OBSTETRIC: 'bg-pink-50 text-pink-700 border-pink-200',
+  PEDIATRIC: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  BEHAVIORAL: 'bg-purple-50 text-purple-700 border-purple-200',
+  DENTIST: 'bg-teal-50 text-teal-700 border-teal-200',
+  ONCOLOGY: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+  RADIOLOGY: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  ORTHOPEDIC: 'bg-amber-50 text-amber-700 border-amber-200',
+  DERMATOLOGY: 'bg-lime-50 text-lime-700 border-lime-200',
+  OTHER: 'bg-slate-50 text-slate-600 border-slate-200',
+};
+
+const IncidentTypeBadge = ({ type }) => {
+  if (!type) return <span className="text-[#A0AECB] text-xs">—</span>;
+  const colorCls = INCIDENT_TYPE_COLORS[type] || 'bg-slate-50 text-slate-600 border-slate-200';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider ${colorCls}`}>
+      {type.replace(/_/g, ' ')}
+    </span>
+  );
+};
 
 const STATUS_BADGE = {
   DRAFT: 'badge badge-gray',
@@ -62,6 +99,10 @@ const RecordsList = () => {
   const records = useSelector(selectRecords);
   const loading = useSelector(selectEpcrLoading);
   const pagination = useSelector(selectEpcrPagination);
+  const backendIncidentTypes = useSelector(selectIncidentTypes);
+  const incidentTypesOptions = backendIncidentTypes && backendIncidentTypes.length > 0
+    ? backendIncidentTypes
+    : INCIDENT_TYPES;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
@@ -69,7 +110,7 @@ const RecordsList = () => {
   const [viewRecord, setViewRecord] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' });
+  const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '', incidentType: '', sortBy: 'incidentDateTime', direction: 'DESC' });
 
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
@@ -111,6 +152,7 @@ const RecordsList = () => {
     dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE, filters: { ...filters, search: searchTerm } }))
       .unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
+    dispatch(fetchIncidentTypes());
   }, [dispatch, user?.accessToken]);
 
   const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
@@ -173,12 +215,19 @@ const RecordsList = () => {
       {/* Filters Panel */}
       {isFilterOpen && (
         <div className="card p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Status</label>
               <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} className="input py-2.5 text-sm">
                 <option value="">All Statuses</option>
                 {['DRAFT', 'SUBMITTED', 'QA_PENDING', 'QA_APPROVED'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Incident Type</label>
+              <select value={filters.incidentType} onChange={e => setFilters({ ...filters, incidentType: e.target.value })} className="input py-2.5 text-sm">
+                <option value="">All Types</option>
+                {incidentTypesOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -189,9 +238,9 @@ const RecordsList = () => {
               <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Date To</label>
               <input type="date" value={filters.endDate} onChange={e => setFilters({ ...filters, endDate: e.target.value })} className="input py-2.5 text-sm" />
             </div>
-            <div className="flex items-end gap-2">
-              <button onClick={() => fetchRecords(0)} className="btn-primary flex-1 justify-center py-2.5 text-sm">Apply</button>
-              <button onClick={() => { setFilters({ status: '', startDate: '', endDate: '', sortBy: 'incidentDateTime', direction: 'DESC' }); setSearchTerm(''); fetchRecords(0); }}
+            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+              <button onClick={() => fetchRecords(0)} className="btn-primary justify-center py-2.5 text-sm px-6">Apply Filters</button>
+              <button onClick={() => { setFilters({ status: '', startDate: '', endDate: '', incidentType: '', sortBy: 'incidentDateTime', direction: 'DESC' }); setSearchTerm(''); fetchRecords(0); }}
                 className="btn-ghost border border-[#DDE3F0] rounded-xl p-2.5">
                 <RefreshCw size={16} />
               </button>
@@ -222,6 +271,7 @@ const RecordsList = () => {
               <tr>
                 <th>Patient</th>
                 <th>Location</th>
+                <th>Incident Type</th>
                 <th>Date</th>
                 <th>Status</th>
                 <th className="text-right">Actions</th>
@@ -230,12 +280,12 @@ const RecordsList = () => {
             <tbody>
               {loading && records.length === 0 ? (
                 [...Array(4)].map((_, i) => (
-                  <tr key={i}><td colSpan="5" className="py-3 px-5">
+                  <tr key={i}><td colSpan="6" className="py-3 px-5">
                     <div className="h-10 bg-[#F0F4FC] rounded-xl animate-pulse" />
                   </td></tr>
                 ))
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="5" className="py-16 text-center">
+                <tr><td colSpan="6" className="py-16 text-center">
                   <FileText size={36} className="text-[#DDE3F0] mx-auto mb-3" />
                   <p className="text-sm text-[#A0AECB] font-medium">No records found</p>
                 </td></tr>
@@ -257,6 +307,7 @@ const RecordsList = () => {
                       <MapPin size={13} className="text-[#A0AECB]" /> {r.incidentLocation || '—'}
                     </div>
                   </td>
+                  <td><IncidentTypeBadge type={r.incidentType} /></td>
                   <td className="text-sm text-[#4B5A7A]">
                     {r.incidentDateTime ? new Date(r.incidentDateTime).toLocaleDateString() : '—'}
                   </td>
