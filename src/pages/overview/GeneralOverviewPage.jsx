@@ -296,14 +296,17 @@ const VitalsBox = ({ label, v, accentCls, borderCls, phase, canEditProp, setModa
           {canEditProp && (
             <button
               type="button"
-              onClick={() => setModal({
-                type: 'vitals',
-                initialValues: {
-                  treatmentPhase: phase,
-                  vitalPhase: phase,
-                  recordedAt: new Date().toISOString().slice(0, 16),
-                },
-              })}
+              onClick={(e) => {
+                e.stopPropagation();
+                setModal({
+                  type: 'vitals',
+                  initialValues: {
+                    treatmentPhase: phase,
+                    vitalPhase: phase,
+                    recordedAt: new Date().toISOString().slice(0, 16),
+                  },
+                });
+              }}
               className="w-4 h-4 rounded bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors"
               title={`Add ${label} vitals`}
             >
@@ -312,11 +315,11 @@ const VitalsBox = ({ label, v, accentCls, borderCls, phase, canEditProp, setModa
           )}
           {v && (
             <div className="flex gap-1">
-              <button onClick={() => setViewModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
+              <button onClick={(e) => { e.stopPropagation(); setViewModal({ type: 'vitals', item: v }); }} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
               {canEditProp && (
                 <>
-                  <button onClick={() => setModal({ type: 'vitals', item: v })} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={11} /></button>
-                  <button onClick={() => handleDelete('vitals', v)} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={11} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'vitals', item: v }); }} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={11} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete('vitals', v); }} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={11} /></button>
                 </>
               )}
             </div>
@@ -552,13 +555,16 @@ export default function GeneralOverviewPage({
           {canEditProp && (
             <button
               type="button"
-              onClick={() => setModal({
-                type: 'documents',
-                initialValues: {
-                  conditionId: conditionId || '',
-                  documentPhase: phase,
-                },
-              })}
+              onClick={(e) => {
+                e.stopPropagation();
+                setModal({
+                  type: 'documents',
+                  initialValues: {
+                    conditionId: conditionId || '',
+                    documentPhase: phase,
+                  },
+                });
+              }}
               className="w-4 h-4 rounded bg-[#C8102E] text-white flex items-center justify-center shrink-0 hover:bg-red-700 transition-colors"
             >
               <Plus size={8} />
@@ -574,7 +580,7 @@ export default function GeneralOverviewPage({
           {imgs.length > 0 && (
             <div className="flex gap-1.5 overflow-x-auto custom-scrollbar p-1.5 border-b border-[#F0F4FC]">
               {imgs.map((doc) => (
-                <div key={getId(doc)} className="relative group rounded overflow-hidden border border-[#DDE3F0] w-14 h-10 bg-slate-50 shrink-0">
+                <div key={getId(doc)} className="relative group rounded overflow-hidden border border-[#DDE3F0] w-14 h-10 bg-slate-50 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <SecureInlineImage
                     patientId={patientId}
                     doc={doc}
@@ -585,6 +591,15 @@ export default function GeneralOverviewPage({
                   <div className="hidden w-full h-full items-center justify-center text-[#A0AECB] bg-slate-50" onClick={() => handleSelectDoc(doc)}>
                     <FileText size={12} />
                   </div>
+                  {doc.documentPhase && (
+                    <span className={`absolute top-0.5 left-0.5 text-[6px] font-black px-0.5 rounded-xs uppercase tracking-wide select-none ${
+                      doc.documentPhase === 'PRE' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-green-600 text-white'
+                    }`}>
+                      {doc.documentPhase}
+                    </span>
+                  )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center cursor-pointer" onClick={() => handleSelectDoc(doc)}>
                     <span className="opacity-0 group-hover:opacity-100 text-[7px] font-black text-white bg-black/60 px-1 py-0.5 rounded">View</span>
                   </div>
@@ -595,14 +610,22 @@ export default function GeneralOverviewPage({
           {docs.length > 0 && (
             <div className="divide-y divide-[#F0F4FC]">
               {docs.map(doc => (
-                <div key={getId(doc)} className="px-2 py-1 flex items-center justify-between gap-1 hover:bg-[#F8FAFF] transition-colors">
-                  <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleSelectDoc(doc)}>
-                    <p className="text-[9px] font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
+                <div key={getId(doc)} className="px-2 py-1 flex items-center gap-1 hover:bg-[#F8FAFF] transition-colors">
+                  <div className="min-w-0 flex-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleSelectDoc(doc); }}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-[9px] font-bold text-[#0F1A3A] truncate">{doc.fileName || doc.name || 'Document'}</p>
+                      {doc.documentPhase && (
+                        <span className={`text-[7px] font-black px-1 rounded-sm shrink-0 uppercase tracking-wide ${
+                          doc.documentPhase === 'PRE' 
+                            ? 'bg-blue-50 text-blue-600 border border-blue-100' 
+                            : 'bg-green-50 text-green-600 border border-green-100'
+                        }`}>
+                          {doc.documentPhase}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[8px] text-[#A0AECB]">{(doc.type || 'FILE').replace(/_/g, ' ')}</p>
                   </div>
-                  <button type="button" onClick={() => handleSelectDoc(doc)} className="text-[8px] font-black text-blue-600 hover:underline shrink-0">
-                    View
-                  </button>
                 </div>
               ))}
             </div>
@@ -813,7 +836,20 @@ export default function GeneralOverviewPage({
               const condId = getId(cond) || cond?._id;
 
               return (
-                <div key={condId || idx} className="bg-white border border-[#DDE3F0] rounded-lg shadow-sm p-3 relative group">
+                <div
+                  key={condId || idx}
+                  className="bg-white border border-[#DDE3F0] hover:border-[#C8102E] hover:ring-2 hover:ring-[#C8102E]/10 rounded-lg shadow-sm p-3 relative group transition-all duration-200 cursor-pointer"
+                  onClick={() => {
+                    const blockDocs = docs.filter(d => {
+                      const docConditionId = getConditionLinkId(d);
+                      if (!condId) return !docConditionId;
+                      return sameId(docConditionId, condId);
+                    });
+                    if (blockDocs.length > 0) {
+                      handleSelectDoc(blockDocs[0]);
+                    }
+                  }}
+                >
                   {/* Incident header */}
                   <div className="flex items-center justify-between border-b border-[#F0F4FC] pb-1.5 mb-2">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -826,11 +862,11 @@ export default function GeneralOverviewPage({
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setViewModal({ type: 'conditions', item: cond })} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setViewModal({ type: 'conditions', item: cond }); }} className="p-0.5 text-slate-400 hover:text-blue-600 transition-colors"><Eye size={11} /></button>
                       {canEditProp && (
                         <>
-                          <button onClick={() => setModal({ type: 'conditions', item: cond })} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={11} /></button>
-                          <button onClick={() => handleDelete('conditions', cond)} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={11} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'conditions', item: cond }); }} className="p-0.5 text-slate-400 hover:text-amber-600"><Edit3 size={11} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete('conditions', cond); }} className="p-0.5 text-slate-400 hover:text-red-600"><Trash2 size={11} /></button>
                         </>
                       )}
                     </div>
@@ -923,26 +959,17 @@ export default function GeneralOverviewPage({
                           />
                         </div>
 
-                        {/* Evidence documents comparison */}
-                        {(canEditProp || preImagesCond.length > 0 || preDocsOnlyCond.length > 0 || postImagesCond.length > 0 || postDocsOnlyCond.length > 0) && (
-                          <div className="grid grid-cols-2 gap-2">
+                        {/* Unified Evidence documents */}
+                        {(canEditProp || blockDocs.length > 0) && (
+                          <div className="w-full">
                             <QuickDocBox
-                              label="Pre-Treatment"
-                              color="border-[#DBEAFE]"
-                              accent="bg-[#EFF6FF] text-[#1A3C8F]"
-                              docs={preDocsOnlyCond}
-                              imgs={preImagesCond}
+                              label="Incident"
+                              color="border-[#DDE3F0]"
+                              accent="bg-[#F8FAFF] text-[#0F1A3A]"
+                              docs={blockDocs.filter(d => !isImageFile(d))}
+                              imgs={blockDocs.filter(isImageFile)}
                               conditionId={condId}
                               phase="PRE"
-                            />
-                            <QuickDocBox
-                              label="Post-Treatment"
-                              color="border-[#DCFCE7]"
-                              accent="bg-[#F0FDF4] text-[#16A34A]"
-                              docs={postDocsOnlyCond}
-                              imgs={postImagesCond}
-                              conditionId={condId}
-                              phase="POST"
                             />
                           </div>
                         )}
@@ -1418,15 +1445,19 @@ export default function GeneralOverviewPage({
                   const { bg, fg } = docColor(doc);
                   const isSelected = selectedDoc && getId(selectedDoc) === getId(doc);
                   return (
-                    <div key={getId(doc)} className={`bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3 group relative ${
-                      isSelected ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-[#DDE3F0]'
-                    }`}>
+                    <div
+                      key={getId(doc)}
+                      className={`bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3 group relative cursor-pointer ${
+                        isSelected ? 'border-[#C8102E] ring-2 ring-[#C8102E]/10' : 'border-[#DDE3F0] hover:border-[#C8102E] hover:ring-2 hover:ring-[#C8102E]/10'
+                      }`}
+                      onClick={() => handleSelectDoc(doc)}
+                    >
                       <div className="flex items-start gap-2.5">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm" style={{ background: bg }}>
                           <DocIcon doc={doc} className="w-4 h-4" style={{ color: fg }} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-black text-[#0F1A3A] truncate leading-tight group-hover:text-blue-600 transition-colors" title={doc.fileName || doc.name}>{doc.fileName || doc.name || 'Document'}</p>
+                          <p className="text-[11px] font-black text-[#0F1A3A] truncate leading-tight group-hover:text-[#C8102E] transition-colors" title={doc.fileName || doc.name}>{doc.fileName || doc.name || 'Document'}</p>
                           <div className="flex gap-1 mt-1 flex-wrap">
                             <span className="text-[7px] font-black uppercase tracking-wider bg-slate-100 text-[#4B5A7A] px-1.5 py-0.5 rounded-full border border-slate-200">{(doc.type || 'FILE').replace(/_/g, ' ')}</span>
                             <span className="text-[7px] font-bold text-slate-400 py-0.5">{fmtDate(doc.date)}</span>
@@ -1435,25 +1466,18 @@ export default function GeneralOverviewPage({
                       </div>
                       
                       {doc.notes && (
-                        <p className="text-[9px] text-[#4B5A7A] line-clamp-2 italic bg-slate-50 border-l-2 border-blue-500 pl-2 py-0.5 rounded">{doc.notes}</p>
+                        <p className="text-[9px] text-[#4B5A7A] line-clamp-2 italic bg-slate-50 border-l-2 border-red-500 pl-2 py-0.5 rounded">{doc.notes}</p>
                       )}
 
                       <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 mt-0.5">
                         <div className="flex items-center gap-1">
                           {canEditProp && (
                             <>
-                              <button onClick={() => setModal({ type: 'documents', item: doc })} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded-lg transition-colors" title="Edit Metadata"><Edit3 size={11} /></button>
-                              <button onClick={() => handleDelete('documents', doc)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-50 rounded-lg transition-colors" title="Delete Document"><Trash2 size={11} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'documents', item: doc }); }} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded-lg transition-colors" title="Edit Metadata"><Edit3 size={11} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDelete('documents', doc); }} className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-50 rounded-lg transition-colors" title="Delete Document"><Trash2 size={11} /></button>
                             </>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectDoc(doc)}
-                          className="flex items-center gap-1 bg-[#1A3C8F] hover:bg-[#0F2660] text-white text-[9px] font-black px-3 py-1.5 rounded-lg shadow-xs transition-all animate-pulse-slow"
-                        >
-                          <Eye size={10} /> View Report
-                        </button>
                       </div>
                     </div>
                   );
