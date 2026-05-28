@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  Plus, Filter, Search, FileEdit, Trash2, Eye, RefreshCw, X,
-  Send, AlertCircle, Clock, MapPin, FileText, Activity, User, Heart, Truck, Shield, AlertTriangle
+  Plus, Search, FileEdit, Trash2, Eye, RefreshCw, X,
+  Send, AlertCircle, MapPin, FileText, AlertTriangle
 } from 'lucide-react';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import {
-  fetchRecords as fetchEpcrRecords, updateRecord, deleteRecord,
-  submitRecord, selectRecords, selectEpcrLoading, selectEpcrError, selectEpcrPagination,
+  fetchRecords as fetchEpcrRecords, deleteRecord,
+  submitRecord, selectRecords, selectEpcrLoading, selectEpcrPagination,
   fetchIncidentTypes, selectIncidentTypes
 } from '../store/slices/epcrSlice';
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
@@ -130,8 +130,10 @@ const RecordsList = () => {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '', incidentType: '', sortBy: 'incidentDateTime', direction: 'DESC' });
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
@@ -161,20 +163,42 @@ const RecordsList = () => {
     return false;
   };
 
-  const fetchRecords = (pageNum = 0) => {
+  const fetchPage = (pageNum = 0) => {
     setCurrentPage(pageNum);
-    dispatch(fetchEpcrRecords({ page: pageNum, size: PAGE_SIZE, filters: { ...filters, search: searchTerm } }))
-      .unwrap()
+    dispatch(fetchEpcrRecords({
+      page: pageNum,
+      size: PAGE_SIZE,
+      status:       statusFilter  || undefined,
+      incidentType: typeFilter    || undefined,
+      search:       searchTerm    || undefined,
+      startDate:    dateFrom      || undefined,
+      endDate:      dateTo        || undefined,
+    })).unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })));
   };
 
   useEffect(() => {
-    if (!user?.accessToken) return;          // wait until auth token is ready
-    dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE, filters: { ...filters, search: searchTerm } }))
-      .unwrap()
-      .catch(err => dispatch(addToast({ type: 'error', message: `Failed to load records: ${extractErrorMessage(err)}` })));
+    if (!user?.accessToken) return;
+    dispatch(fetchEpcrRecords({ page: 0, size: PAGE_SIZE }));
     dispatch(fetchIncidentTypes());
   }, [dispatch, user?.accessToken]);
+
+  // Re-fetch from backend whenever filters change (debounce search by 400ms)
+  useEffect(() => {
+    if (!user?.accessToken) return;
+    const timer = setTimeout(() => fetchPage(0), searchTerm ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [searchTerm, statusFilter, typeFilter, dateFrom, dateTo, user?.accessToken]);
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('');
+    setTypeFilter('');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const hasFilters = !!(searchTerm || statusFilter || typeFilter || dateFrom || dateTo);
 
   const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
 
@@ -204,15 +228,17 @@ const RecordsList = () => {
     } catch (err) { dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })); }
   };
 
-  const filtered = records.filter(r =>
-    !searchTerm ||
-    r.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.incidentLocation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.id?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // All filtering is now done server-side — records from Redux are already the filtered page
+  const pagedRecords = records;
+  const totalFiltered = pagination.totalElements || records.length;
+  const totalPages    = pagination.totalPages    || 1;
+  const handlePage    = (p) => {
+    const next = Math.max(0, Math.min(p, totalPages - 1));
+    fetchPage(next);
+  };
 
   return (
-    <div className="space-y-6 pb-10 animate-fade-in">
+    <div className="space-y-5 pb-10 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -220,70 +246,84 @@ const RecordsList = () => {
           <h1 className="text-2xl font-black text-[#0F1A3A] tracking-tight">EPCR <span className="text-brand-blue">Registry</span></h1>
           <p className="text-sm text-[#8A97B0] mt-0.5">Electronic Patient Care Records</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => setIsFilterOpen(o => !o)}
-            className={`btn-ghost border rounded-xl px-3 py-2.5 ${isFilterOpen ? 'border-brand-blue text-brand-blue bg-[#EEF2FF]' : 'border-[#DDE3F0]'}`}>
-            <Filter size={16} /> Filters
+        {['ADMIN', 'PARAMEDIC'].includes(user?.role) && (
+          <button onClick={() => navigate('/epcr/new')} className="btn-primary text-sm px-4 py-2.5 shrink-0">
+            <Plus size={16} /> New Record
           </button>
-          {['ADMIN', 'PARAMEDIC'].includes(user?.role) && (
-            <button onClick={() => navigate('/epcr/new')} className="btn-primary text-sm px-4 py-2.5">
-              <Plus size={16} /> New Record
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Filters Panel */}
-      {isFilterOpen && (
-        <div className="card p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Status</label>
-              <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} className="input py-2.5 text-sm">
-                <option value="">All Statuses</option>
-                {['DRAFT', 'SUBMITTED', 'QA_PENDING', 'QA_APPROVED'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Incident Type</label>
-              <select value={filters.incidentType} onChange={e => setFilters({ ...filters, incidentType: e.target.value })} className="input py-2.5 text-sm">
-                <option value="">All Types</option>
-                {incidentTypesOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Date From</label>
-              <input type="date" value={filters.startDate} onChange={e => setFilters({ ...filters, startDate: e.target.value })} className="input py-2.5 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#4B5A7A] uppercase tracking-wider">Date To</label>
-              <input type="date" value={filters.endDate} onChange={e => setFilters({ ...filters, endDate: e.target.value })} className="input py-2.5 text-sm" />
-            </div>
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-              <button onClick={() => fetchRecords(0)} className="btn-primary justify-center py-2.5 text-sm px-6">Apply Filters</button>
-              <button onClick={() => { setFilters({ status: '', startDate: '', endDate: '', incidentType: '', sortBy: 'incidentDateTime', direction: 'DESC' }); setSearchTerm(''); fetchRecords(0); }}
-                className="btn-ghost border border-[#DDE3F0] rounded-xl p-2.5">
-                <RefreshCw size={16} />
+      {/* Filter Bar */}
+      <div className="card p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+          {/* Search */}
+          <div className="lg:col-span-2 relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search patient, location, ID…"
+              className="input pl-9 py-2.5 text-sm w-full"
+            />
+          </div>
+
+          {/* Status */}
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="input py-2.5 text-sm"
+          >
+            <option value="">All Statuses</option>
+            {['DRAFT','SUBMITTED','QA_PENDING','QA_APPROVED','APPROVED','REJECTED'].map(s => (
+              <option key={s} value={s}>{s.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+
+          {/* Incident Type */}
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            className="input py-2.5 text-sm"
+          >
+            <option value="">All Types</option>
+            {incidentTypesOptions.map(t => (
+              <option key={t} value={t}>{t.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+
+          {/* Date range + clear */}
+          <div className="flex gap-2 items-center">
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input py-2.5 text-sm flex-1 min-w-0" title="From date" />
+            <span className="text-[#A0AECB] text-xs font-bold shrink-0">–</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input py-2.5 text-sm flex-1 min-w-0" title="To date" />
+            {hasFilters && (
+              <button onClick={clearFilters} title="Clear all filters"
+                className="p-2 rounded-lg text-[#A0AECB] hover:text-brand-red hover:bg-red-50 transition-colors shrink-0">
+                <X size={15} />
               </button>
-            </div>
+            )}
           </div>
         </div>
-      )}
+
+        {hasFilters && (
+          <p className="text-xs text-[#A0AECB] mt-2.5 font-medium">
+            Showing <span className="font-bold text-[#0F1A3A]">{totalFiltered}</span> results
+          </p>
+        )}
+      </div>
 
       {/* Table Card */}
       <div className="card overflow-hidden">
-        {/* Search */}
-        <div className="flex items-center gap-3 p-5 border-b border-[#F0F4FC]">
-          <div className="relative flex-1 max-w-md">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
-            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Search by patient, location, or ID…" className="input pl-10 py-2.5 text-sm" />
-          </div>
-          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">
-            {pagination.totalElements > 0
-              ? `${pagination.totalElements} total records`
-              : `${filtered.length} records`}
-          </span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#F0F4FC]">
+          <p className="text-xs font-semibold text-[#A0AECB]">
+            {hasFilters
+              ? <>{totalFiltered} match{totalFiltered !== 1 ? 'es' : ''} <span className="text-[#C0CADF]">of {pagination.totalElements} records</span></>
+              : <>{pagination.totalElements || records.length} record{(pagination.totalElements || records.length) !== 1 ? 's' : ''}</>}
+          </p>
+          <button onClick={() => fetchPage(currentPage)} disabled={loading}
+            className="flex items-center gap-1.5 text-xs text-[#A0AECB] hover:text-brand-blue transition-colors disabled:opacity-40">
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -305,12 +345,12 @@ const RecordsList = () => {
                     <div className="h-10 bg-[#F0F4FC] rounded-xl animate-pulse" />
                   </td></tr>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : pagedRecords.length === 0 ? (
                 <tr><td colSpan="6" className="py-16 text-center">
                   <FileText size={36} className="text-[#DDE3F0] mx-auto mb-3" />
                   <p className="text-sm text-[#A0AECB] font-medium">No records found</p>
                 </td></tr>
-              ) : filtered.map(r => (
+              ) : pagedRecords.map(r => (
                 <tr key={r.id}>
                   <td>
                     <div className="flex items-center gap-3">
@@ -359,56 +399,30 @@ const RecordsList = () => {
           </table>
         </div>
 
-        {/* Pagination Controls */}
-        {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-[#F0F4FC] bg-white">
-            <span className="text-xs text-[#8A97B0] font-medium">
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-[#F0F4FC]">
+            <span className="text-xs text-[#8A97B0]">
               Page <span className="font-bold text-[#0F1A3A]">{currentPage + 1}</span> of{' '}
-              <span className="font-bold text-[#0F1A3A]">{pagination.totalPages}</span>
-              {' '}·{' '}
-              <span className="font-bold text-[#0F1A3A]">{pagination.totalElements}</span> total
+              <span className="font-bold text-[#0F1A3A]">{totalPages}</span>
             </span>
             <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => fetchRecords(0)}
-                disabled={currentPage === 0 || loading}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >«</button>
-              <button
-                onClick={() => fetchRecords(currentPage - 1)}
-                disabled={currentPage === 0 || loading}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >‹ Prev</button>
-              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                const half = 2;
-                let start = Math.max(0, currentPage - half);
-                const end = Math.min(pagination.totalPages - 1, start + 4);
+              <button onClick={() => { handlePage(0); }}       disabled={currentPage === 0 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">«</button>
+              <button onClick={() => { handlePage(currentPage - 1); }} disabled={currentPage === 0 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">‹ Prev</button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let start = Math.max(0, currentPage - 2);
+                const end = Math.min(totalPages - 1, start + 4);
                 start = Math.max(0, end - 4);
                 const pg = start + i;
                 if (pg > end) return null;
                 return (
-                  <button
-                    key={pg}
-                    onClick={() => fetchRecords(pg)}
-                    disabled={loading}
+                  <button key={pg} onClick={() => handlePage(pg)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                      pg === currentPage
-                        ? 'bg-brand-blue text-white border-brand-blue shadow-sm'
-                        : 'border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue'
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                  >{pg + 1}</button>
+                      pg === currentPage ? 'bg-brand-blue text-white border-brand-blue' : 'border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue'
+                    }`}>{pg + 1}</button>
                 );
               })}
-              <button
-                onClick={() => fetchRecords(currentPage + 1)}
-                disabled={pagination.isLast || loading}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >Next ›</button>
-              <button
-                onClick={() => fetchRecords(pagination.totalPages - 1)}
-                disabled={pagination.isLast || loading}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >»</button>
+              <button onClick={() => { handlePage(currentPage + 1); }} disabled={currentPage >= totalPages - 1 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">Next ›</button>
+              <button onClick={() => { handlePage(totalPages - 1); }} disabled={currentPage >= totalPages - 1 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">»</button>
             </div>
           </div>
         )}

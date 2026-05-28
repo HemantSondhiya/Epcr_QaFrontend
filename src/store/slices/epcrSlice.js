@@ -6,9 +6,15 @@ const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 // ── Async Thunks ────────────────────────────────────────────────────
 export const fetchRecords = createAsyncThunk('epcr/fetchAll', async (payload = {}, { rejectWithValue }) => {
   try {
-    const { page = 0, size = 20, filters = {}, paramedicId, ...rest } = payload;
-    const params = { page, size, paramedicId, ...filters, ...rest };
-    delete params.isAppend;
+    const { page = 0, size = 20, status, incidentType, search, startDate, endDate, paramedicId, ...rest } = payload;
+    // Build params — omit empty/undefined values so the backend skips those filters
+    const params = { page, size };
+    if (paramedicId)  params.paramedicId  = paramedicId;
+    if (status)       params.status       = status;
+    if (incidentType) params.incidentType = incidentType;
+    if (search)       params.search       = search;
+    if (startDate)    params.startDate    = startDate;
+    if (endDate)      params.endDate      = endDate;
     const res = await client.get('/api/epcr/records', { params, hideToast: true });
     return { data: res.data, isAppend: payload.isAppend };
   }
