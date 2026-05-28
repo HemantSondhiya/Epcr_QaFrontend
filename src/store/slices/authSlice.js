@@ -86,8 +86,17 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     loginSuccess(state, action) {
-      state.user            = action.payload?.user || null;
-      state.isAuthenticated = !!action.payload?.user;
+      const user = action.payload?.user;
+      if (user) {
+        state.user = {
+          ...user,
+          id: user.id || user.userId || user.patientId,
+          userId: user.userId || user.id || user.patientId,
+        };
+      } else {
+        state.user = null;
+      }
+      state.isAuthenticated = !!state.user;
       saveUser(state.user);
     },
     logout(state) {
