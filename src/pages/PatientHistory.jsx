@@ -54,6 +54,7 @@ import DentistPatientOverview from './overview/DentistPatientOverview';
 import GeneralOverviewPage from './overview/GeneralOverviewPage';
 import OncologyOverviewPage from './overview/OncologyOverviewPage';
 import ObstetricOverviewPage from './overview/ObstetricOverviewPage';
+import CardiologyOverviewPage from './overview/CardiologyOverviewPage';
 import {
   Activity,
   AlertCircle,
@@ -164,7 +165,7 @@ const normalizeOverviewSpecialty = (value) => {
   if (!raw) return null;
   if (raw.includes('dent')) return 'dentist';
   if (raw.includes('radio')) return 'radiology';
-  if (raw.includes('cardio')) return 'cardiology';
+  if (raw.includes('cardio') || raw.includes('cardia')) return 'cardiology';
   if (raw.includes('onco')) return 'oncology';
   if (raw.includes('obste') || raw.includes('obs')) return 'obstetric';
   if (raw.includes('general')) return 'general';
@@ -1915,7 +1916,7 @@ function PatientHistory() {
     if (nameStr) displayName = nameStr;
   }
 
-  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology' || specialty === 'obstetric') && !specialtyLoading;
+  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology' || specialty === 'obstetric' || specialty === 'cardiology') && !specialtyLoading;
 
   return (
     <div className={isGeneralView ? "h-[calc(100vh-2.5rem)] bg-[#F8FAFF] w-full flex flex-col overflow-hidden" : "min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col"} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -2133,6 +2134,9 @@ function PatientHistory() {
                         displayName={displayName}
                         onDelete={handleDeleteItem}
                       />
+                    )}
+                    {specialty === 'cardiology' && (
+                      <CardiologyOverviewPage />
                     )}
                     {specialty === 'radiology' && (
                       <div className="bg-zinc-950 text-zinc-100 rounded-2xl p-6 border border-zinc-800 animate-in fade-in duration-300 font-sans shadow-2xl">

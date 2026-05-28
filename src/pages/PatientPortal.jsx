@@ -6,8 +6,9 @@ import {
   Clock, CheckCircle2, ShieldCheck, Fingerprint, ShieldAlert,
   ArrowLeft, Activity, Heart, ClipboardCheck, Lock, FileText,
   ChevronDown, TrendingUp, Droplets, Thermometer, Wind, ClipboardList,
-  Pill, Stethoscope, Calendar, FlaskConical, HeartPulse, Check, BedDouble, Tag, CalendarDays, UserRound, ExternalLink, MapPin, CloudLightning, Zap, Users
+  Pill, Stethoscope, Calendar, FlaskConical, HeartPulse, Check, BedDouble, Tag, CalendarDays, UserRound, ExternalLink, MapPin, CloudLightning, Zap, Users, MessageSquare, Bot, Sparkles
 } from 'lucide-react';
+import PatientChatbot from '../components/common/PatientChatbot';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea,
@@ -1941,7 +1942,8 @@ export default function PatientPortal() {
 
   const tabs = [
     { id: 'records', label: 'Clinical History', icon: History },
-    { id: 'history', label: 'My History', icon: ClipboardList },
+    { id: 'history', label: 'My Health', icon: ClipboardList },
+    { id: 'chatbot', label: 'Health Assistant', icon: Bot, highlight: true },
     { id: 'amendments', label: 'Amendments', icon: FileEdit },
     { id: 'restrictions', label: 'Privacy', icon: Ban },
     { id: 'audit', label: 'Access Logs', icon: ShieldAlert },
@@ -2076,43 +2078,93 @@ export default function PatientPortal() {
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Nav */}
-        <div className="lg:w-72 shrink-0 space-y-6">
+        <div className="lg:w-72 shrink-0 space-y-4">
+          {/* Sidebar Navigation */}
           <div className="bg-white rounded-[28px] border border-[#DDE3F0] p-3 shadow-sm space-y-1.5">
             {tabs.map(t => (
               <button key={t.id} onClick={() => { setActiveTab(t.id); setViewRecord(null); }}
-                className={`group w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === t.id ? 'bg-[#EEF2FF] text-brand-blue' : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'}`}>
+                className={`group w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${
+                  activeTab === t.id
+                    ? t.highlight ? 'bg-gradient-to-r from-[#1A3C8F]/10 to-purple-50 text-[#1A3C8F] border border-[#1A3C8F]/20' : 'bg-[#EEF2FF] text-brand-blue'
+                    : 'text-[#8A97B0] hover:bg-[#F8FAFF] hover:text-[#4B5A7A]'
+                }`}>
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeTab === t.id ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/30 scale-110' : 'bg-[#F8FAFF] text-[#A0AECB] group-hover:bg-blue-50 group-hover:text-brand-blue'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    activeTab === t.id
+                      ? t.highlight ? 'bg-gradient-to-br from-[#1A3C8F] to-[#0F1A3A] text-white shadow-lg shadow-brand-blue/30 scale-110' : 'bg-brand-blue text-white shadow-lg shadow-brand-blue/30 scale-110'
+                      : t.highlight ? 'bg-gradient-to-br from-[#1A3C8F]/10 to-purple-50 text-[#1A3C8F] group-hover:from-[#1A3C8F]/20' : 'bg-[#F8FAFF] text-[#A0AECB] group-hover:bg-blue-50 group-hover:text-brand-blue'
+                  }`}>
                     <t.icon size={20} />
                   </div>
-                  <span className={`text-sm tracking-tight ${activeTab === t.id ? 'font-black' : 'font-bold'}`}>{t.label}</span>
+                  <div className="flex flex-col items-start">
+                    <span className={`text-sm tracking-tight ${activeTab === t.id ? 'font-black' : 'font-bold'}`}>{t.label}</span>
+                    {t.highlight && (
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#1A3C8F]/60">AI Powered</span>
+                    )}
+                  </div>
                 </div>
                 {activeTab === t.id ? (
-                  <div className="w-1.5 h-6 bg-brand-blue rounded-full shadow-sm" />
+                  <div className={`w-1.5 h-6 rounded-full shadow-sm ${t.highlight ? 'bg-gradient-to-b from-[#1A3C8F] to-purple-500' : 'bg-brand-blue'}`} />
                 ) : (
-                  <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                  t.highlight
+                    ? <Sparkles size={14} className="text-[#1A3C8F]/40 group-hover:text-[#1A3C8F] transition-colors" />
+                    : <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                 )}
               </button>
             ))}
           </div>
 
-
-          <div className="card p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Heart className="text-brand-red" size={20} />
-              <h4 className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">Status</h4>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <p className="text-xl font-black text-[#0F1A3A]">{records.length}</p>
-                <p className="text-xs text-[#8A97B0] font-semibold uppercase tracking-wider mt-0.5">Records</p>
+          {/* Patient Health Quick Summary Card */}
+          <div className="bg-white rounded-[28px] border border-[#DDE3F0] p-5 shadow-sm space-y-4 overflow-hidden relative">
+            {/* Background decoration */}
+            <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-gradient-to-br from-brand-blue/5 to-purple-50 blur-xl" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-4">
+                <Heart className="text-brand-red" size={16} />
+                <h4 className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">My Health Summary</h4>
               </div>
-              <div className="pt-4 border-t border-[#F0F4FC] flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-bold text-[#8A97B0] uppercase tracking-wider">Synced</span>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Records', value: records.length, icon: FileText, color: 'text-brand-blue', bg: 'bg-blue-50' },
+                  { label: 'Conditions', value: conditions.length, icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50' },
+                  { label: 'Medications', value: medications.length, icon: Pill, color: 'text-purple-500', bg: 'bg-purple-50' },
+                  { label: 'Lab Results', value: labResults.length, icon: FlaskConical, color: 'text-green-500', bg: 'bg-green-50' },
+                ].map(item => (
+                  <div key={item.label} className="rounded-2xl border border-[#EEF2FF] bg-[#F8FAFF] p-3 flex flex-col items-start gap-1.5">
+                    <div className={`w-7 h-7 ${item.bg} ${item.color} rounded-lg flex items-center justify-center`}>
+                      <item.icon size={14} />
+                    </div>
+                    <p className="text-lg font-black text-[#0F1A3A] leading-none">{item.value}</p>
+                    <p className="text-[9px] font-black text-[#A0AECB] uppercase tracking-wider">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-4 border-t border-[#F0F4FC] mt-1 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Records Synced</span>
+                </div>
+                <span className="text-[10px] font-bold text-[#A0AECB]">{new Date().toLocaleDateString()}</span>
               </div>
             </div>
           </div>
+
+          {/* Ask AI CTA */}
+          {activeTab !== 'chatbot' && (
+            <button
+              onClick={() => { setActiveTab('chatbot'); setViewRecord(null); }}
+              className="w-full rounded-[24px] bg-gradient-to-br from-[#0F1A3A] to-[#1A3C8F] p-4 flex items-center gap-3 shadow-xl shadow-brand-blue/20 hover:shadow-brand-blue/30 hover:scale-[1.02] active:scale-[0.98] transition-all group border border-[#1A3C8F]/30"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0 group-hover:bg-white/25 transition-colors">
+                <Bot size={20} className="text-white" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-xs font-black text-white tracking-tight">Health Assistant</p>
+                <p className="text-[9px] font-bold text-blue-200 uppercase tracking-widest">Ask anything • AI Powered</p>
+              </div>
+              <Sparkles size={16} className="text-yellow-300 shrink-0 group-hover:rotate-12 transition-transform" />
+            </button>
+          )}
         </div>
 
         {/* Content Area */}
@@ -2279,32 +2331,151 @@ export default function PatientPortal() {
                   {/* History Content Sections */}
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     {historySubTab === 'overview' && (
-                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                        <div className="card p-8 border border-[#DDE3F0] bg-white rounded-[24px]">
-                          {historySectionHeader(History, 'Clinical Overview', 'Your complete longitudinal health summary')}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                            <div className="p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
-                              <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Last Update</p>
-                              <p className="text-sm font-bold text-[#0F1A3A]">{formatHistoryDate(historySummary?.lastUpdatedAt || new Date())}</p>
+                      <div className="space-y-6">
+                        {/* Welcome Banner */}
+                        <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0F1A3A] via-[#1A3C8F] to-[#2952CC] p-8 shadow-2xl shadow-brand-blue/20">
+                          <div className="absolute inset-0 opacity-10">
+                            <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white blur-3xl -translate-y-16 translate-x-16" />
+                            <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-blue-300 blur-2xl translate-y-8 -translate-x-8" />
+                          </div>
+                          <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="text-[10px] font-black text-blue-200 uppercase tracking-[0.2em]">Health Dashboard</span>
+                              </div>
+                              <h2 className="text-2xl font-black text-white leading-tight">
+                                Welcome back, {user?.firstName || 'Patient'}! 👋
+                              </h2>
+                              <p className="text-sm font-semibold text-blue-100/80 max-w-md leading-relaxed">
+                                Your health records are up to date. Here's a summary of your current health status.
+                              </p>
                             </div>
-                            <div className="p-4 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
-                              <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest mb-1">Record Status</p>
-                              <p className="text-sm font-bold text-green-600">Synced & Verified</p>
+                            <button
+                              onClick={() => { setActiveTab('chatbot'); setViewRecord(null); }}
+                              className="flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-white/15 border border-white/25 text-white font-black text-xs uppercase tracking-wider hover:bg-white/25 transition-all hover:scale-105 active:scale-95 shadow-lg shrink-0"
+                            >
+                              <Bot size={18} />
+                              Ask Health AI
+                              <Sparkles size={14} className="text-yellow-300" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Health Snapshot Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {[
+                            { label: 'Active Conditions', value: conditions.filter(c => c.status === 'ACTIVE' || !c.status).length, icon: HeartPulse, color: '#C8102E', bg: '#FEE2E2', desc: conditions.length > 0 ? `${conditions.length} total on record` : 'No conditions found' },
+                            { label: 'Current Medications', value: medications.length, icon: Pill, color: '#7C3AED', bg: '#F3E8FF', desc: medications.length > 0 ? `${medications.slice(0,1).map(m => m.medicationName || m.name)[0] || 'View all'}` : 'No active medications' },
+                            { label: 'Lab Results', value: labResults.length, icon: FlaskConical, color: '#059669', bg: '#D1FAE5', desc: labResults.length > 0 ? `Last: ${formatHistoryDate(labResults[0]?.resultDate || labResults[0]?.date)}` : 'No results on file' },
+                            { label: 'Clinical Visits', value: encounters.length, icon: UserRound, color: '#0891B2', bg: '#CFFAFE', desc: encounters.length > 0 ? `Last: ${formatHistoryDate(encounters[0]?.encounterDate || encounters[0]?.date)}` : 'No visits recorded' },
+                          ].map((stat, i) => (
+                            <div key={i} className="bg-white rounded-[20px] border border-[#DDE3F0] p-5 shadow-sm hover:shadow-lg hover:shadow-brand-blue/5 transition-all group">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="w-11 h-11 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform" style={{ background: stat.bg, color: stat.color }}>
+                                  <stat.icon size={22} />
+                                </div>
+                              </div>
+                              <p className="text-3xl font-black text-[#0F1A3A] mb-0.5">{stat.value}</p>
+                              <p className="text-[10px] font-black text-[#A0AECB] uppercase tracking-wider mb-1">{stat.label}</p>
+                              <p className="text-[10px] font-semibold text-[#8A97B0] truncate">{stat.desc}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Two-column: Active Conditions + Recent Activity */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Active Conditions */}
+                          <div className="bg-white rounded-[24px] border border-[#DDE3F0] overflow-hidden shadow-sm">
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-[#F0F4FC]">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-brand-red">
+                                  <HeartPulse size={18} />
+                                </div>
+                                <div>
+                                  <h3 className="text-sm font-black text-[#0F1A3A]">My Conditions</h3>
+                                  <p className="text-[10px] font-bold text-[#A0AECB]">Ongoing health issues</p>
+                                </div>
+                              </div>
+                              <button onClick={() => setHistorySubTab('conditions')} className="text-[10px] font-black text-brand-blue uppercase tracking-wider hover:underline">View All</button>
+                            </div>
+                            <div className="p-5 space-y-3">
+                              {conditions.length === 0 ? (
+                                <div className="py-6 text-center">
+                                  <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-emerald-300" />
+                                  <p className="text-sm font-bold text-[#8A97B0]">No conditions recorded 🎉</p>
+                                </div>
+                              ) : conditions.slice(0, 3).map((c, i) => (
+                                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] hover:border-brand-blue/20 transition-all">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${c.status === 'ACTIVE' ? 'bg-brand-red' : 'bg-[#8A97B0]'}`} />
+                                    <span className="text-sm font-bold text-[#0F1A3A] truncate">{c.conditionName || c.name}</span>
+                                  </div>
+                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg shrink-0 ml-2 ${c.status === 'ACTIVE' ? 'bg-red-50 text-brand-red' : 'bg-[#EEF2FF] text-[#4B5A7A]'}`}>
+                                    {c.status || 'Active'}
+                                  </span>
+                                </div>
+                              ))}
+                              {conditions.length > 3 && (
+                                <button onClick={() => setHistorySubTab('conditions')} className="w-full py-2 text-[10px] font-black text-brand-blue uppercase tracking-wider hover:bg-blue-50 rounded-xl transition-colors">
+                                  +{conditions.length - 3} more conditions
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Recent Clinical Activity */}
+                          <div className="bg-white rounded-[24px] border border-[#DDE3F0] overflow-hidden shadow-sm">
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-[#F0F4FC]">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue">
+                                  <Clock size={18} />
+                                </div>
+                                <div>
+                                  <h3 className="text-sm font-black text-[#0F1A3A]">Recent Activity</h3>
+                                  <p className="text-[10px] font-bold text-[#A0AECB]">Latest clinical events</p>
+                                </div>
+                              </div>
+                              <button onClick={() => setHistorySubTab('timeline')} className="text-[10px] font-black text-brand-blue uppercase tracking-wider hover:underline">Full Timeline</button>
+                            </div>
+                            <div className="p-5 space-y-3">
+                              {timeline.length === 0 ? (
+                                <div className="py-6 text-center">
+                                  <Clock className="w-10 h-10 mx-auto mb-2 text-[#DDE3F0]" />
+                                  <p className="text-sm font-bold text-[#8A97B0]">No recent activity</p>
+                                </div>
+                              ) : timeline.slice(0, 4).map((item, idx) => (
+                                <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-[#F8FAFF] border border-[#EEF2FF] hover:border-brand-blue/20 transition-all group">
+                                  <div className="w-2 h-2 rounded-full bg-brand-blue mt-2 shrink-0 group-hover:scale-125 transition-transform" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-[#0F1A3A] truncate">{item.title || item.type}</p>
+                                    <p className="text-[10px] font-semibold text-[#A0AECB]">{formatHistoryDate(item.date || item.timestamp)}</p>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>
-                        <div className="card p-8 border border-[#DDE3F0] bg-white rounded-[24px]">
-                          {historySectionHeader(Activity, 'Recent Activity', 'Latest updates to your clinical file')}
-                          <div className="space-y-4 mt-4">
-                            {timeline.slice(0, 3).map((item, idx) => (
-                              <div key={idx} className="flex items-center gap-4">
-                                <div className="w-2 h-2 rounded-full bg-brand-red" />
-                                <div>
-                                  <p className="text-sm font-bold text-[#0F1A3A]">{item.title || item.type}</p>
-                                  <p className="text-xs text-[#8A97B0]">{formatHistoryDate(item.date || item.timestamp)}</p>
-                                </div>
-                              </div>
-                            ))}
+
+                        {/* Wellness Tips Banner */}
+                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-[24px] border border-emerald-100 p-6">
+                          <div className="flex items-start gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                              <Zap size={20} />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-sm font-black text-emerald-800 mb-1">💡 Health Tip of the Day</h4>
+                              <p className="text-sm font-semibold text-emerald-700 leading-relaxed">
+                                Stay hydrated and take your medications on schedule. Your health assistant can help you understand your prescriptions and track your wellness goals.
+                              </p>
+                              <button
+                                onClick={() => { setActiveTab('chatbot'); setViewRecord(null); }}
+                                className="mt-3 inline-flex items-center gap-2 text-xs font-black text-emerald-700 uppercase tracking-wider hover:text-emerald-900 transition-colors"
+                              >
+                                <Bot size={14} />
+                                Chat with Health AI <ChevronRight size={12} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -2573,6 +2744,15 @@ export default function PatientPortal() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : activeTab === 'chatbot' ? (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ height: '80vh', minHeight: '600px' }}>
+              <PatientChatbot
+                patientId={user?.patientId || user?.id}
+                records={records}
+                conditions={conditions}
+                medications={medications}
+              />
             </div>
           ) : activeTab === 'audit' ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

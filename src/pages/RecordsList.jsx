@@ -44,7 +44,28 @@ const INCIDENT_TYPE_COLORS = {
 
 const IncidentTypeBadge = ({ type }) => {
   if (!type) return <span className="text-[#A0AECB] text-xs">—</span>;
-  const colorCls = INCIDENT_TYPE_COLORS[type] || 'bg-slate-50 text-slate-600 border-slate-200';
+  
+  const getIncidentTypeColor = (rawType) => {
+    const t = String(rawType).toUpperCase();
+    if (t === 'DENTIST' || t === 'DENTAL' || t.includes('DENT')) return 'bg-teal-50 text-teal-700 border-teal-200';
+    if (t.includes('CARDIO') || t.includes('CARDIAC')) return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (t.includes('TRAUMA')) return 'bg-orange-50 text-orange-700 border-orange-200';
+    if (t.includes('OBSTETRIC') || t.includes('OBG')) return 'bg-pink-50 text-pink-700 border-pink-200';
+    if (t.includes('ONCOLOGY')) return 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200';
+    if (t.includes('RADIOLOGY')) return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    if (t.includes('PEDIATRIC')) return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+    if (t.includes('NEURO')) return 'bg-violet-50 text-violet-700 border-violet-200';
+    if (t.includes('RESPIRATORY')) return 'bg-sky-50 text-sky-700 border-sky-200';
+    if (t.includes('BEHAVIORAL')) return 'bg-purple-50 text-purple-700 border-purple-200';
+    if (t.includes('EMERGENCY')) return 'bg-red-50 text-red-700 border-red-200';
+    if (t.includes('GENERAL')) return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (t.includes('ENT')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (t.includes('COLLISION') || t.includes('TRANSFER')) return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    
+    return INCIDENT_TYPE_COLORS[t] || 'bg-slate-50 text-slate-600 border-slate-200';
+  };
+
+  const colorCls = getIncidentTypeColor(type);
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider ${colorCls}`}>
       {type.replace(/_/g, ' ')}
