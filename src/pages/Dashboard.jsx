@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectRole } from '../store/slices/authSlice';
 import { fetchRecords, selectRecords, selectEpcrLoading } from '../store/slices/epcrSlice';
@@ -231,33 +231,45 @@ const Dashboard = () => {
   const unread    = useSelector(selectUnreadCount);
   const loading   = useSelector(selectEpcrLoading);
 
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
   useEffect(() => {
     if (!user?.accessToken) return;          // wait until auth is confirmed
     
-    const refreshData = () => {
-      if (ROLE_MENU[role]?.includes('EPCR')) {
-        dispatch(fetchRecords({ page: 0, size: 200 })); // Increased size to capture all records (like 42)
+    const refreshData = async (isFirst = false) => {
+      try {
+        const promises = [];
+        if (ROLE_MENU[role]?.includes('EPCR')) {
+          promises.push(dispatch(fetchRecords({ page: 0, size: 200 })).unwrap());
+        }
+        if (ROLE_MENU[role]?.includes('QA Reviews')) {
+          promises.push(dispatch(fetchQaReviews()).unwrap());
+          promises.push(dispatch(fetchPendingReviews()).unwrap());
+        }
+        if (role === 'ADMIN' || role === 'MANAGER') {
+          promises.push(dispatch(fetchWorkflows(user?.organizationId)).unwrap());
+        }
+        promises.push(dispatch(fetchUnreadNotifications()).unwrap());
+
+        if (isFirst) {
+          await Promise.allSettled(promises);
+          setIsInitialLoad(false);
+        }
+      } catch (err) {
+        if (isFirst) setIsInitialLoad(false);
       }
-      if (ROLE_MENU[role]?.includes('QA Reviews')) {
-        dispatch(fetchQaReviews());
-        dispatch(fetchPendingReviews());
-      }
-      if (role === 'ADMIN' || role === 'MANAGER') {
-        dispatch(fetchWorkflows(user?.organizationId));
-      }
-      dispatch(fetchUnreadNotifications()); // Keeps unread alerts fully synchronized and real-time
     };
 
-    // Fetch immediately
-    refreshData();
+    // Fetch immediately on mount and wait for initial load completion
+    refreshData(true);
 
-    // Poll every 10 seconds for live real-time dashboard updates
-    const intervalId = setInterval(refreshData, 10000);
+    // Poll silently in the background every 10 seconds for live real-time dashboard updates
+    const intervalId = setInterval(() => refreshData(false), 10000);
 
     return () => clearInterval(intervalId);
   }, [dispatch, role, user?.accessToken]);
 
-  const props = { records, reviews, pending, workflows, unread, loading };
+  const props = { records, reviews, pending, workflows, unread, loading: loading && isInitialLoad };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
