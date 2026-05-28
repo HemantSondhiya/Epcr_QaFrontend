@@ -233,14 +233,28 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user?.accessToken) return;          // wait until auth is confirmed
-    if (ROLE_MENU[role]?.includes('EPCR')) {
-      dispatch(fetchRecords({ page: 0, size: 20 }));
-    }
-    if (ROLE_MENU[role]?.includes('QA Reviews')) {
-      dispatch(fetchQaReviews());
-      dispatch(fetchPendingReviews());
-    }
-    if (role === 'ADMIN' || role === 'MANAGER') dispatch(fetchWorkflows(user?.organizationId));
+    
+    const refreshData = () => {
+      if (ROLE_MENU[role]?.includes('EPCR')) {
+        dispatch(fetchRecords({ page: 0, size: 200 })); // Increased size to capture all records (like 42)
+      }
+      if (ROLE_MENU[role]?.includes('QA Reviews')) {
+        dispatch(fetchQaReviews());
+        dispatch(fetchPendingReviews());
+      }
+      if (role === 'ADMIN' || role === 'MANAGER') {
+        dispatch(fetchWorkflows(user?.organizationId));
+      }
+      dispatch(fetchUnreadNotifications()); // Keeps unread alerts fully synchronized and real-time
+    };
+
+    // Fetch immediately
+    refreshData();
+
+    // Poll every 10 seconds for live real-time dashboard updates
+    const intervalId = setInterval(refreshData, 10000);
+
+    return () => clearInterval(intervalId);
   }, [dispatch, role, user?.accessToken]);
 
   const props = { records, reviews, pending, workflows, unread, loading };
