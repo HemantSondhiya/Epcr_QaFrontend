@@ -23,6 +23,22 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+const formatMonthData = (data) => {
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object' && data !== null) {
+    return Object.entries(data).map(([key, val]) => ({ month: key, passRate: val }));
+  }
+  return [];
+};
+
+const formatLocationData = (data) => {
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object' && data !== null) {
+    return Object.entries(data).map(([key, val]) => ({ location: key, count: val }));
+  }
+  return [];
+};
+
 const AnalyticsCharts = React.memo(() => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +53,16 @@ const AnalyticsCharts = React.memo(() => {
       .finally(() => setLoading(false));
   }, []);
 
+  // OPTIMIZATION: Memoize monthData to stabilize array reference across renders, declared before early returns
+  const monthData = useMemo(() => {
+    return formatMonthData(metrics?.monthWiseQaPassRate || []);
+  }, [metrics?.monthWiseQaPassRate]);
+
+  // OPTIMIZATION: Memoize locationData to stabilize array reference across renders, declared before early returns
+  const locationData = useMemo(() => {
+    return formatLocationData(metrics?.topIncidentLocations || []);
+  }, [metrics?.topIncidentLocations]);
+
   if (loading) {
     return (
       <div className="glass-card p-20 rounded-[2.5rem] flex items-center justify-center min-h-[400px] mt-10 premium-border">
@@ -49,32 +75,6 @@ const AnalyticsCharts = React.memo(() => {
   }
 
   if (!metrics) return null;
-
-  const formatMonthData = (data) => {
-    if (Array.isArray(data)) return data;
-    if (typeof data === 'object' && data !== null) {
-      return Object.entries(data).map(([key, val]) => ({ month: key, passRate: val }));
-    }
-    return [];
-  };
-
-  const formatLocationData = (data) => {
-    if (Array.isArray(data)) return data;
-    if (typeof data === 'object' && data !== null) {
-      return Object.entries(data).map(([key, val]) => ({ location: key, count: val }));
-    }
-    return [];
-  };
-
-  // OPTIMIZATION: Memoize monthData to stabilize array reference across renders
-  const monthData = useMemo(() => {
-    return formatMonthData(metrics.monthWiseQaPassRate || []);
-  }, [metrics.monthWiseQaPassRate]);
-
-  // OPTIMIZATION: Memoize locationData to stabilize array reference across renders
-  const locationData = useMemo(() => {
-    return formatLocationData(metrics.topIncidentLocations || []);
-  }, [metrics.topIncidentLocations]);
 
   const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)';
 
