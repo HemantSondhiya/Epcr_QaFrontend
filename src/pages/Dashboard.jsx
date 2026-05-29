@@ -1,7 +1,8 @@
 import { useEffect, useState, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectRole } from '../store/slices/authSlice';
-import { fetchRecords, selectRecords, selectEpcrLoading } from '../store/slices/epcrSlice';
+import { fetchRecords, selectRecords, selectEpcrLoading, selectEpcrPagination } from '../store/slices/epcrSlice';
+import client from '../api/client';
 import { fetchQaReviews, fetchPendingReviews, selectReviews, selectPendingReviews } from '../store/slices/qaSlice';
 import { fetchUnreadNotifications, selectUnreadCount } from '../store/slices/notificationSlice';
 import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
@@ -175,10 +176,10 @@ const QuickLinks = memo(({ role }) => {
 });
 
 /* ── Role Dashboards ── */
-const AdminDashboard = ({ records, reviews, pending, unread, loading }) => (
+const AdminDashboard = ({ records, reviews, pending, unread, pagination, loading }) => (
   <div className="space-y-6">
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard icon={<FileText size={20} />}   label="Total EPCR Records" value={records.length} color="blue" loading={loading} />
+      <StatsCard icon={<FileText size={20} />}   label="Total EPCR Records" value={pagination?.totalElements ?? records.length} color="blue" loading={loading} />
       <StatsCard icon={<CheckSquare size={20} />} label="QA Reviews"         value={reviews.length} color="blue" loading={loading} />
       <StatsCard icon={<Clock size={20} />}       label="Pending QA"         value={pending.length} color="red"  loading={loading} />
       <StatsCard icon={<Bell size={20} />}        label="Unread Alerts"      value={unread}         color="red"  loading={loading} />
@@ -206,12 +207,12 @@ const ManagerDashboard = ({ reviews, pending, unread, loading }) => (
   </div>
 );
 
-const ParamedicDashboard = ({ records, unread, loading }) => (
+const ParamedicDashboard = ({ records, unread, pagination, draftCount, submittedCount, loading }) => (
   <div className="space-y-6">
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard icon={<FileText size={20} />}    label="My Records"    value={records.length}                                   color="blue" loading={loading} />
-      <StatsCard icon={<FileText size={20} />}    label="Drafts"        value={records.filter(r => r.status === 'DRAFT').length}    color="blue" loading={loading} />
-      <StatsCard icon={<TrendingUp size={20} />}  label="Submitted"     value={records.filter(r => r.status === 'SUBMITTED').length} color="blue" loading={loading} />
+      <StatsCard icon={<FileText size={20} />}    label="My Records"    value={pagination?.totalElements ?? records.length}                                   color="blue" loading={loading} />
+      <StatsCard icon={<FileText size={20} />}    label="Drafts"        value={draftCount}    color="blue" loading={loading} />
+      <StatsCard icon={<TrendingUp size={20} />}  label="Submitted"     value={submittedCount} color="blue" loading={loading} />
       <StatsCard icon={<Bell size={20} />}        label="Notifications" value={unread}                                               color="red"  loading={loading} />
     </div>
     <QuickLinks role="PARAMEDIC" />
@@ -230,8 +231,11 @@ const Dashboard = () => {
   const workflows = useSelector(selectWorkflows);
   const unread    = useSelector(selectUnreadCount);
   const loading   = useSelector(selectEpcrLoading);
+  const pagination = useSelector(selectEpcrPagination);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [draftCount, setDraftCount] = useState(0);
+  const [submittedCount, setSubmittedCount] = useState(0);
 
   useEffect(() => {
     if (!user?.accessToken) return;          // wait until auth is confirmed
@@ -245,6 +249,18 @@ const Dashboard = () => {
         if (ROLE_MENU[role]?.includes('EPCR')) {
           // OPTIMIZATION: size reduced from 200 to 10 for dashboard display
           promises.push(dispatch(fetchRecords({ page: 0, size: 10 })).unwrap());
+          
+          if (role === 'PARAMEDIC') {
+            // Fetch drafts count silently
+            client.get('/api/epcr/records', { params: { page: 0, size: 1, status: 'DRAFT' }, hideToast: true })
+              .then(res => setDraftCount(res.data?.totalElements ?? 0))
+              .catch(() => {});
+            
+            // Fetch submitted count silently
+            client.get('/api/epcr/records', { params: { page: 0, size: 1, status: 'SUBMITTED' }, hideToast: true })
+              .then(res => setSubmittedCount(res.data?.totalElements ?? 0))
+              .catch(() => {});
+          }
         }
         if (ROLE_MENU[role]?.includes('QA Reviews')) {
           promises.push(dispatch(fetchQaReviews()).unwrap());
@@ -284,7 +300,7 @@ const Dashboard = () => {
     };
   }, [dispatch, role, user?.accessToken]);
 
-  const props = { records, reviews, pending, workflows, unread, loading: loading && isInitialLoad };
+  const props = { records, reviews, pending, workflows, unread, pagination, draftCount, submittedCount, loading: loading && isInitialLoad };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
