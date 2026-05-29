@@ -1,11 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectRole } from '../store/slices/authSlice';
-import { fetchRecords, selectRecords, selectEpcrLoading, selectEpcrPagination } from '../store/slices/epcrSlice';
-import client from '../api/client';
-import { fetchQaReviews, fetchPendingReviews, selectReviews, selectPendingReviews } from '../store/slices/qaSlice';
-import { fetchUnreadNotifications, selectUnreadCount } from '../store/slices/notificationSlice';
-import { fetchWorkflows, selectWorkflows } from '../store/slices/workflowSlice';
+import { fetchPendingReviews, selectPendingReviews } from '../store/slices/qaSlice';
 import StatsCard from '../components/common/StatsCard';
 import {
   FileText, CheckSquare, Bell, GitBranch, Users, Building2,
@@ -15,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { ROLE_MENU } from '../constants/permissions';
 import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
+import client from '../api/client';
 
 /* ── Status Badge ── */
 const STATUS_COLOR = {
@@ -176,30 +173,33 @@ const QuickLinks = memo(({ role }) => {
 });
 
 /* ── Role Dashboards ── */
-const AdminDashboard = ({ records, reviews, pending, unread, pagination, loading }) => (
-  <div className="space-y-6">
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard icon={<FileText size={20} />}   label="Total EPCR Records" value={pagination?.totalElements ?? records.length} color="blue" loading={loading} />
-      <StatsCard icon={<CheckSquare size={20} />} label="QA Reviews"         value={reviews.length} color="blue" loading={loading} />
-      <StatsCard icon={<Clock size={20} />}       label="Pending QA"         value={pending.length} color="red"  loading={loading} />
-      <StatsCard icon={<Bell size={20} />}        label="Unread Alerts"      value={unread}         color="red"  loading={loading} />
+const AdminDashboard = ({ summary, pending, loading }) => {
+  const records = summary?.recentRecords || [];
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard icon={<FileText size={20} />}   label="Total EPCR Records" value={summary?.records?.total ?? 0} color="blue" loading={loading} />
+        <StatsCard icon={<CheckSquare size={20} />} label="QA Reviews"         value={summary?.qa?.totalReviews ?? 0} color="blue" loading={loading} />
+        <StatsCard icon={<Clock size={20} />}       label="Pending QA"         value={summary?.qa?.pending ?? 0} color="red"  loading={loading} />
+        <StatsCard icon={<Bell size={20} />}        label="Unread Alerts"      value={summary?.notifications?.unreadCount ?? 0}         color="red"  loading={loading} />
+      </div>
+      <QuickLinks role="ADMIN" />
+      <AnalyticsCharts />
+      <div className="grid lg:grid-cols-2 gap-4">
+        <RecentRecords records={records} loading={loading} />
+        <PendingQueue pending={pending.slice(0, 5)} loading={loading} />
+      </div>
     </div>
-    <QuickLinks role="ADMIN" />
-    <AnalyticsCharts />
-    <div className="grid lg:grid-cols-2 gap-4">
-      <RecentRecords records={records.slice(0, 5)} loading={loading} />
-      <PendingQueue pending={pending.slice(0, 5)} loading={loading} />
-    </div>
-  </div>
-);
+  );
+};
 
-const ManagerDashboard = ({ reviews, pending, unread, loading }) => (
+const ManagerDashboard = ({ summary, pending, loading }) => (
   <div className="space-y-6">
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard icon={<Clock size={20} />}       label="Pending Reviews"   value={pending.length}                                        color="red"  loading={loading} />
-      <StatsCard icon={<CheckSquare size={20} />} label="Total QA Reviews"  value={reviews.length}                                        color="blue" loading={loading} />
-      <StatsCard icon={<CheckSquare size={20} />} label="Completed"         value={reviews.filter(r => r.status === 'COMPLETED').length}  color="blue" loading={loading} />
-      <StatsCard icon={<AlertCircle size={20} />} label="Needs Attention"   value={reviews.filter(r => r.status === 'PENDING').length}    color="red"  loading={loading} />
+      <StatsCard icon={<Clock size={20} />}       label="Pending Reviews"   value={summary?.qa?.pending ?? 0}                                        color="red"  loading={loading} />
+      <StatsCard icon={<CheckSquare size={20} />} label="Total QA Reviews"  value={summary?.qa?.totalReviews ?? 0}                                   color="blue" loading={loading} />
+      <StatsCard icon={<CheckSquare size={20} />} label="Completed"         value={summary?.records?.completed ?? 0}                                  color="blue" loading={loading} />
+      <StatsCard icon={<AlertCircle size={20} />} label="Needs Attention"   value={summary?.qa?.pending ?? 0}                                        color="red"  loading={loading} />
     </div>
     <QuickLinks role="MANAGER" />
     <AnalyticsCharts />
@@ -207,35 +207,31 @@ const ManagerDashboard = ({ reviews, pending, unread, loading }) => (
   </div>
 );
 
-const ParamedicDashboard = ({ records, unread, pagination, draftCount, submittedCount, loading }) => (
-  <div className="space-y-6">
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard icon={<FileText size={20} />}    label="My Records"    value={pagination?.totalElements ?? records.length}                                   color="blue" loading={loading} />
-      <StatsCard icon={<FileText size={20} />}    label="Drafts"        value={draftCount}    color="blue" loading={loading} />
-      <StatsCard icon={<TrendingUp size={20} />}  label="Submitted"     value={submittedCount} color="blue" loading={loading} />
-      <StatsCard icon={<Bell size={20} />}        label="Notifications" value={unread}                                               color="red"  loading={loading} />
+const ParamedicDashboard = ({ summary, loading }) => {
+  const records = summary?.recentRecords || [];
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard icon={<FileText size={20} />}    label="My Records"    value={summary?.records?.total ?? 0}                                     color="blue" loading={loading} />
+        <StatsCard icon={<FileText size={20} />}    label="Drafts"        value={summary?.records?.drafts ?? 0}                                    color="blue" loading={loading} />
+        <StatsCard icon={<TrendingUp size={20} />}  label="Submitted"     value={summary?.records?.submitted ?? 0}                                 color="blue" loading={loading} />
+        <StatsCard icon={<Bell size={20} />}        label="Notifications" value={summary?.notifications?.unreadCount ?? 0}                         color="red"  loading={loading} />
+      </div>
+      <QuickLinks role="PARAMEDIC" />
+      <RecentRecords records={records} loading={loading} />
     </div>
-    <QuickLinks role="PARAMEDIC" />
-    <RecentRecords records={records.slice(0, 5)} loading={loading} />
-  </div>
-);
+  );
+};
 
 /* ── Main Dashboard ── */
 const Dashboard = () => {
   const dispatch  = useDispatch();
   const user      = useSelector(selectUser);
   const role      = useSelector(selectRole);
-  const records   = useSelector(selectRecords);
-  const reviews   = useSelector(selectReviews);
   const pending   = useSelector(selectPendingReviews);
-  const workflows = useSelector(selectWorkflows);
-  const unread    = useSelector(selectUnreadCount);
-  const loading   = useSelector(selectEpcrLoading);
-  const pagination = useSelector(selectEpcrPagination);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [draftCount, setDraftCount] = useState(0);
-  const [submittedCount, setSubmittedCount] = useState(0);
+  const [summary, setSummary] = useState(null);
 
   useEffect(() => {
     if (!user?.accessToken) return;          // wait until auth is confirmed
@@ -246,30 +242,17 @@ const Dashboard = () => {
 
       try {
         const promises = [];
-        if (ROLE_MENU[role]?.includes('EPCR')) {
-          // OPTIMIZATION: size reduced from 200 to 10 for dashboard display
-          promises.push(dispatch(fetchRecords({ page: 0, size: 10 })).unwrap());
-          
-          if (role === 'PARAMEDIC') {
-            // Fetch drafts count silently
-            client.get('/api/epcr/records', { params: { page: 0, size: 1, status: 'DRAFT' }, hideToast: true })
-              .then(res => setDraftCount(res.data?.totalElements ?? 0))
-              .catch(() => {});
-            
-            // Fetch submitted count silently
-            client.get('/api/epcr/records', { params: { page: 0, size: 1, status: 'SUBMITTED' }, hideToast: true })
-              .then(res => setSubmittedCount(res.data?.totalElements ?? 0))
-              .catch(() => {});
-          }
-        }
+        
+        // Fetch consolidated dashboard summary
+        promises.push(
+          client.get('/api/dashboard/summary', { hideToast: true })
+            .then(res => setSummary(res.data))
+        );
+        
+        // Fetch pending review objects for list display
         if (ROLE_MENU[role]?.includes('QA Reviews')) {
-          promises.push(dispatch(fetchQaReviews()).unwrap());
           promises.push(dispatch(fetchPendingReviews()).unwrap());
         }
-        if (role === 'ADMIN' || role === 'MANAGER') {
-          promises.push(dispatch(fetchWorkflows(user?.organizationId)).unwrap());
-        }
-        promises.push(dispatch(fetchUnreadNotifications()).unwrap());
 
         if (isFirst) {
           await Promise.allSettled(promises);
@@ -300,7 +283,7 @@ const Dashboard = () => {
     };
   }, [dispatch, role, user?.accessToken]);
 
-  const props = { records, reviews, pending, workflows, unread, pagination, draftCount, submittedCount, loading: loading && isInitialLoad };
+  const props = { summary, pending, loading: isInitialLoad };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
