@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectRole } from '../store/slices/authSlice';
 import { fetchRecords, selectRecords, selectEpcrLoading } from '../store/slices/epcrSlice';
@@ -31,14 +31,14 @@ const STATUS_COLOR = {
   QA_PENDING:  'badge-orange',
 };
 
-const Badge = ({ status }) => (
+const Badge = memo(({ status }) => (
   <span className={`badge ${STATUS_COLOR[status] || 'badge-gray'}`}>
     {(status || 'DRAFT').replace(/_/g, ' ')}
   </span>
-);
+));
 
 /* ── Section Header ── */
-const SectionHeader = ({ icon: Icon, title, linkTo, linkLabel, accent }) => (
+const SectionHeader = memo(({ icon: Icon, title, linkTo, linkLabel, accent }) => (
   <div className={`flex items-center justify-between p-5 border-b border-[#F0F4FC]`}>
     <div className="flex items-center gap-3">
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${accent ? 'bg-red-50 text-brand-red' : 'bg-[#EEF2FF] text-brand-blue'}`}>
@@ -52,10 +52,10 @@ const SectionHeader = ({ icon: Icon, title, linkTo, linkLabel, accent }) => (
       </Link>
     )}
   </div>
-);
+));
 
 /* ── Recent EPCR Records ── */
-const RecentRecords = ({ records, loading }) => (
+const RecentRecords = memo(({ records, loading }) => (
   <div className="card">
     <SectionHeader icon={FileText} title="Recent EPCR Records" linkTo="/epcr" linkLabel="View All" />
     <div className="divide-y divide-[#F8FAFF]">
@@ -92,10 +92,10 @@ const RecentRecords = ({ records, loading }) => (
       }
     </div>
   </div>
-);
+));
 
 /* ── Pending QA Queue ── */
-const PendingQueue = ({ pending, loading }) => (
+const PendingQueue = memo(({ pending, loading }) => (
   <div className="card">
     <SectionHeader icon={Clock} title="Pending QA Reviews" linkTo="/qa/reviews" linkLabel="Review All" accent />
     <div className="divide-y divide-[#F8FAFF]">
@@ -131,7 +131,7 @@ const PendingQueue = ({ pending, loading }) => (
       }
     </div>
   </div>
-);
+));
 
 /* ── Quick Links ── */
 const QUICK_LINK_ROUTES = {
@@ -147,7 +147,7 @@ const QUICK_LINK_ROUTES = {
   Notifications:  { path: '/notifications',  icon: Bell },
 };
 
-const QuickLinks = ({ role }) => {
+const QuickLinks = memo(({ role }) => {
   const items = (ROLE_MENU[role] || []).filter(m => m !== 'Dashboard').slice(0, 6);
   return (
     <div className="card p-6">
@@ -172,7 +172,7 @@ const QuickLinks = ({ role }) => {
       </div>
     </div>
   );
-};
+});
 
 /* ── Role Dashboards ── */
 const AdminDashboard = ({ records, reviews, pending, unread, loading }) => (
@@ -237,10 +237,14 @@ const Dashboard = () => {
     if (!user?.accessToken) return;          // wait until auth is confirmed
     
     const refreshData = async (isFirst = false) => {
+      // OPTIMIZATION: Avoid background fetches when browser tab is inactive
+      if (!isFirst && document.visibilityState !== 'visible') return;
+
       try {
         const promises = [];
         if (ROLE_MENU[role]?.includes('EPCR')) {
-          promises.push(dispatch(fetchRecords({ page: 0, size: 200 })).unwrap());
+          // OPTIMIZATION: size reduced from 200 to 10 for dashboard display
+          promises.push(dispatch(fetchRecords({ page: 0, size: 10 })).unwrap());
         }
         if (ROLE_MENU[role]?.includes('QA Reviews')) {
           promises.push(dispatch(fetchQaReviews()).unwrap());
@@ -263,10 +267,21 @@ const Dashboard = () => {
     // Fetch immediately on mount and wait for initial load completion
     refreshData(true);
 
-    // Poll silently in the background every 10 seconds for live real-time dashboard updates
-    const intervalId = setInterval(() => refreshData(false), 10000);
+    // OPTIMIZATION: Trigger refresh when browser tab becomes active
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData(false);
+      }
+    };
 
-    return () => clearInterval(intervalId);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // OPTIMIZATION: Relax polling interval from 10s to 30s
+    const intervalId = setInterval(() => refreshData(false), 30000);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [dispatch, role, user?.accessToken]);
 
   const props = { records, reviews, pending, workflows, unread, loading: loading && isInitialLoad };

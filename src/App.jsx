@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectIsInitializing, checkAuth } from './store/slices/authSlice';
@@ -9,37 +9,39 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import RoleGate from './components/common/RoleGate';
 
-// Pages
+// Pages - Static (Core Views)
 import LandingPage   from './pages/LandingPage';
 import Login         from './pages/Login';
-import Dashboard     from './pages/Dashboard';
-import RecordsList   from './pages/RecordsList';
-import CreateRecord  from './pages/CreateRecord';
-import QaReviews     from './pages/QaReviews';
-import QaForms       from './pages/QaForms';
-import QaRules       from './pages/QaRules';
-import FormTemplates from './pages/FormTemplates';
-import Workflows     from './pages/Workflows';
-import Deployments   from './pages/Deployments';
-import Organizations from './pages/Organizations';
-import Users         from './pages/Users';
-import Reports       from './pages/Reports';
-import Notifications from './pages/Notifications';
-import FeedbackThreads from './pages/FeedbackThreads';
-import AuditLogs     from './pages/AuditLogs';
-import Settings      from './pages/Settings';
-import HipaaConsent  from './pages/HipaaConsent';
-import HipaaDisclosure from './pages/HipaaDisclosure';
-import PatientPortal from './pages/PatientPortal';
-import BreakGlass    from './pages/BreakGlass';
-import BusinessAssociate from './pages/BusinessAssociate';
-import DeIdentification from './pages/DeIdentification';
-import PatientHistory   from './pages/PatientHistory';
-import GeneralOverviewPage from './pages/overview/GeneralOverviewPage';
-import CardiologyOverviewPage from './pages/overview/CardiologyOverviewPage';
-import RadiologyOverviewPage from './pages/overview/RadiologyOverviewPage';
-import OncologyOverviewPage from './pages/overview/OncologyOverviewPage';
-import ObstetricOverviewPage from './pages/overview/ObstetricOverviewPage';
+
+// Pages - Lazily Loaded (Dynamic Chunking)
+const Dashboard         = lazy(() => import('./pages/Dashboard'));
+const RecordsList       = lazy(() => import('./pages/RecordsList'));
+const CreateRecord      = lazy(() => import('./pages/CreateRecord'));
+const QaReviews         = lazy(() => import('./pages/QaReviews'));
+const QaForms           = lazy(() => import('./pages/QaForms'));
+const QaRules           = lazy(() => import('./pages/QaRules'));
+const FormTemplates     = lazy(() => import('./pages/FormTemplates'));
+const Workflows         = lazy(() => import('./pages/Workflows'));
+const Deployments       = lazy(() => import('./pages/Deployments'));
+const Organizations     = lazy(() => import('./pages/Organizations'));
+const Users             = lazy(() => import('./pages/Users'));
+const Reports           = lazy(() => import('./pages/Reports'));
+const Notifications     = lazy(() => import('./pages/Notifications'));
+const FeedbackThreads   = lazy(() => import('./pages/FeedbackThreads'));
+const AuditLogs         = lazy(() => import('./pages/AuditLogs'));
+const Settings          = lazy(() => import('./pages/Settings'));
+const HipaaConsent      = lazy(() => import('./pages/HipaaConsent'));
+const HipaaDisclosure   = lazy(() => import('./pages/HipaaDisclosure'));
+const PatientPortal     = lazy(() => import('./pages/PatientPortal'));
+const BreakGlass        = lazy(() => import('./pages/BreakGlass'));
+const BusinessAssociate = lazy(() => import('./pages/BusinessAssociate'));
+const DeIdentification  = lazy(() => import('./pages/DeIdentification'));
+const PatientHistory    = lazy(() => import('./pages/PatientHistory'));
+const GeneralOverviewPage  = lazy(() => import('./pages/overview/GeneralOverviewPage'));
+const CardiologyOverviewPage = lazy(() => import('./pages/overview/CardiologyOverviewPage'));
+const RadiologyOverviewPage = lazy(() => import('./pages/overview/RadiologyOverviewPage'));
+const OncologyOverviewPage  = lazy(() => import('./pages/overview/OncologyOverviewPage'));
+const ObstetricOverviewPage = lazy(() => import('./pages/overview/ObstetricOverviewPage'));
 
 // Route guard: wraps ProtectedRoute + RoleGate
 const GuardedRoute = ({ menuItem, roles, children }) => (

@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import ToastContainer from '../common/ToastContainer';
+import { RefreshCw } from 'lucide-react';
+
+const PageLoader = () => (
+  <div className="min-h-[400px] w-full flex flex-col items-center justify-center gap-3 text-[#A0AECB]">
+    <RefreshCw className="animate-spin text-brand-blue w-6 h-6" />
+    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Loading view...</span>
+  </div>
+);
 
 const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -16,7 +24,9 @@ const Layout = () => {
 
         <main className="flex-1 overflow-y-auto">
           <div className="w-full h-full">
-            <Outlet />
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

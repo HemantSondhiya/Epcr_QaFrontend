@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Cell, AreaChart, Area } from 'recharts';
 import client from '../../api/client';
@@ -23,7 +23,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const AnalyticsCharts = () => {
+const AnalyticsCharts = React.memo(() => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const theme = useSelector(state => state.ui.theme);
@@ -66,8 +66,15 @@ const AnalyticsCharts = () => {
     return [];
   };
 
-  const monthData = formatMonthData(metrics.monthWiseQaPassRate || []);
-  const locationData = formatLocationData(metrics.topIncidentLocations || []);
+  // OPTIMIZATION: Memoize monthData to stabilize array reference across renders
+  const monthData = useMemo(() => {
+    return formatMonthData(metrics.monthWiseQaPassRate || []);
+  }, [metrics.monthWiseQaPassRate]);
+
+  // OPTIMIZATION: Memoize locationData to stabilize array reference across renders
+  const locationData = useMemo(() => {
+    return formatLocationData(metrics.topIncidentLocations || []);
+  }, [metrics.topIncidentLocations]);
 
   const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)';
 
@@ -196,6 +203,6 @@ const AnalyticsCharts = () => {
       )}
     </div>
   );
-};
+});
 
 export default AnalyticsCharts;

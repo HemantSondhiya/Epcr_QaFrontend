@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Plus, Search, FileEdit, Trash2, Eye, RefreshCw, X,
-  Send, AlertCircle, MapPin, FileText, AlertTriangle
+  Send, AlertCircle, MapPin, FileText, AlertTriangle,
+  User, Heart, Activity, Clock, Truck, Shield
 } from 'lucide-react';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
@@ -223,7 +224,7 @@ const RecordsList = () => {
         if (syncedPatientId) await dispatch(fetchAllPatientHistory(syncedPatientId));
         dispatch(addToast({ type: 'success', message: 'Record submitted for QA' }));
       }
-      fetchRecords(0);
+      fetchPage(currentPage);
       setIsViewOpen(false);
     } catch (err) { dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })); }
   };
