@@ -86,11 +86,19 @@ const epcrSlice = createSlice({
        if (a.payload.isAppend) s.records = [...s.records, ...newList];
        else s.records = newList;
        // Store pagination metadata when the response is paginated
-       if (raw && !Array.isArray(raw) && raw.totalElements !== undefined) {
+       if (raw && !Array.isArray(raw) && (raw.totalElements !== undefined || raw.page !== undefined || raw.content !== undefined)) {
+         const rawTotalPages = raw.totalPages;
+         const rawTotalElements = raw.totalElements;
+
          s.pagination = {
-           page: raw.page ?? 0,
-           totalPages: raw.totalPages ?? 1,
-           totalElements: raw.totalElements ?? newList.length,
+           page: raw.page ?? s.pagination?.page ?? 0,
+           // BACKEND COMPATIBILITY: Keep previous positive totalPages/totalElements if backend returns -1 or omits them on pages > 0
+           totalPages: (rawTotalPages === -1 || rawTotalPages === undefined)
+             ? (s.pagination?.totalPages || 1)
+             : rawTotalPages,
+           totalElements: (rawTotalElements === -1 || rawTotalElements === undefined)
+             ? (s.pagination?.totalElements || newList.length)
+             : rawTotalElements,
            isLast: raw.last ?? true,
          };
        }
