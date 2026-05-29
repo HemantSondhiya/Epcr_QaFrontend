@@ -15,7 +15,7 @@ import {
   fetchIncidentTypes, selectIncidentTypes
 } from '../store/slices/epcrSlice';
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
-import { extractErrorMessage } from '../api/client';
+import client, { extractErrorMessage } from '../api/client';
 
 const INCIDENT_TYPES = [
   'GENERAL', 'EMERGENCY', 'TRAUMA', 'CARDIOLOGY', 'RESPIRATORY', 'NEUROLOGY',
@@ -130,6 +130,7 @@ const RecordsList = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -201,7 +202,20 @@ const RecordsList = () => {
 
   const hasFilters = !!(searchTerm || statusFilter || typeFilter || dateFrom || dateTo);
 
-  const handleView = (record) => { setViewRecord(record); setIsViewOpen(true); };
+  const handleView = async (record) => {
+    setModalLoading(true);
+    setViewRecord(record);
+    setIsViewOpen(true);
+    try {
+      const res = await client.get(`/api/epcr/records/${record.id}`);
+      setViewRecord(res.data);
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: extractErrorMessage(err) }));
+      setIsViewOpen(false);
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   const handleDeleteClick = (record) => setConfirmAction({ type: 'delete', recordId: record.id, message: `Delete record for: ${record.patientName || 'Anonymous'}?` });
   const handleSubmitRecord = (record) => setConfirmAction({
@@ -462,7 +476,13 @@ const RecordsList = () => {
 
             {/* Modal body */}
             <div className="p-6 overflow-y-auto max-h-[75vh] bg-[#F8FAFC]">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {modalLoading ? (
+                <div className="py-24 text-center flex flex-col items-center justify-center gap-3">
+                  <RefreshCw className="animate-spin text-brand-blue w-8 h-8" />
+                  <p className="text-xs font-black uppercase tracking-wider text-[#A0AECB] animate-pulse">Decrypting Secure Health Record...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 {/* Subject Information */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#DDE3F0]">
@@ -812,7 +832,8 @@ const RecordsList = () => {
 
                   </div>
                 )}
-              </div>
+                </div>
+              )}
             </div>
 
             <div className="p-5 border-t border-[#F0F4FC] flex justify-end">
