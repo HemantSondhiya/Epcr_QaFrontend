@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Cell, AreaChart, Area } from 'recharts';
 import client from '../../api/client';
-import { Clock, TrendingUp, BarChart3, Activity } from 'lucide-react';
+import { Clock, TrendingUp, BarChart3, Activity, AlertCircle, RefreshCw } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -42,15 +42,26 @@ const formatLocationData = (data) => {
 const AnalyticsCharts = React.memo(() => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const theme = useSelector(state => state.ui.theme);
 
-  useEffect(() => {
-    client.get('/api/reports/dashboard-metrics')
+  const fetchMetrics = () => {
+    setLoading(true);
+    setError(false);
+    // OPTIMIZATION: Override default 15s timeout to 35s to allow backend processing for cold caches
+    client.get('/api/reports/dashboard-metrics', { timeout: 35000 })
       .then(res => {
         setMetrics(res.data);
       })
-      .catch(err => console.error("Failed to load metrics", err))
+      .catch(err => {
+        console.error("Failed to load metrics", err);
+        setError(true);
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchMetrics();
   }, []);
 
   // OPTIMIZATION: Memoize monthData to stabilize array reference across renders, declared before early returns
@@ -70,6 +81,21 @@ const AnalyticsCharts = React.memo(() => {
           <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">Processing Intelligence...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="glass-card p-12 rounded-[2.5rem] flex flex-col items-center justify-center min-h-[300px] mt-10 premium-border text-center relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/5 blur-[80px] -z-10" />
+        <AlertCircle size={32} className="text-brand-red mb-3 group-hover:scale-110 transition-transform duration-500" />
+        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-wider">Analytics generation timed out</h3>
+        <p className="text-xs text-[#8A97B0] font-semibold mt-2.5 max-w-sm leading-relaxed">Calculating clinical compliance indices took longer than 15 seconds. Please try again to trigger or consume the warmed cache.</p>
+        <button onClick={fetchMetrics}
+          className="btn-primary mt-5 text-[11px] font-black uppercase tracking-wider px-5 py-2.5 flex items-center gap-2">
+          <RefreshCw size={13} /> Retry Report
+        </button>
       </div>
     );
   }
