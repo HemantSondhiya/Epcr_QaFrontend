@@ -18,6 +18,7 @@ import auditReducer         from './slices/auditSlice';
 import baaReducer           from './slices/baaSlice';
 import feedbackReducer      from './slices/feedbackSlice';
 import patientHistoryReducer from './slices/patientHistorySlice';
+import rulesEngineReducer   from './slices/rulesEngineSlice';
 
 const store = configureStore({
   reducer: {
@@ -29,6 +30,7 @@ const store = configureStore({
     notifications: notificationReducer,
     users:         userReducer,
     qaRules:       qaRulesReducer,
+    rulesEngine:   rulesEngineReducer,
     formTemplate:  formTemplateReducer,
     org:           orgReducer,
     patientPortal: patientPortalReducer,

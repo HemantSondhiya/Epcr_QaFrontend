@@ -20,6 +20,7 @@ const CreateRecord      = lazy(() => import('./pages/CreateRecord'));
 const QaReviews         = lazy(() => import('./pages/QaReviews'));
 const QaForms           = lazy(() => import('./pages/QaForms'));
 const QaRules           = lazy(() => import('./pages/QaRules'));
+const RulesEngine       = lazy(() => import('./pages/RulesEngine'));
 const FormTemplates     = lazy(() => import('./pages/FormTemplates'));
 const Workflows         = lazy(() => import('./pages/Workflows'));
 const Deployments       = lazy(() => import('./pages/Deployments'));
@@ -87,6 +88,7 @@ const AppRoutes = () => {
         <Route path="qa/forms"   element={<GuardedRoute menuItem="QA Forms"><QaForms /></GuardedRoute>} />
         <Route path="qa/reviews" element={<GuardedRoute menuItem="QA Reviews"><QaReviews /></GuardedRoute>} />
         <Route path="qa/rules"   element={<GuardedRoute menuItem="QA Rules"><QaRules /></GuardedRoute>} />
+        <Route path="rules-engine" element={<GuardedRoute menuItem="Rules Engine"><RulesEngine /></GuardedRoute>} />
 
         <Route path="form-templates" element={<GuardedRoute menuItem="Form Templates"><FormTemplates /></GuardedRoute>} />
 

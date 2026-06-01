@@ -1,10 +1,10 @@
 // Role → Menu map — aligned with verified backend permission matrix
 export const ROLE_MENU = {
-  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','QA Rules','Form Templates','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Break-Glass','Business Associates','De-Identification'],
-  MANAGER:     ['Dashboard','Organizations','Users','QA Forms','QA Reviews','QA Rules','Form Templates','Workflows','Reports','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Business Associates'],
-  PARAMEDIC:   ['Dashboard','EPCR','Feedback','Notifications','Patient History'],
+  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','QA Rules','Rules Engine','Form Templates','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Break-Glass','Business Associates','De-Identification'],
+  MANAGER:     ['Dashboard','Organizations','Users','QA Forms','QA Reviews','QA Rules','Rules Engine','Form Templates','Workflows','Reports','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Business Associates'],
+  PARAMEDIC:   ['Dashboard','EPCR','Feedback','Notifications','Patient History','Rules Engine'],
   PHYSICIAN:   ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications','Patient History'],
-  QA_REVIEWER: ['Dashboard','EPCR','QA Reviews','QA Rules','Reports','Feedback','Notifications'],
+  QA_REVIEWER: ['Dashboard','EPCR','QA Reviews','QA Rules','Rules Engine','Reports','Feedback','Notifications'],
   VIEWER:      ['Dashboard','Feedback','Notifications'],
   PATIENT:     ['Patient Portal', 'Notifications']
 };
@@ -18,6 +18,7 @@ export const ROUTE_MAP = {
   'QA Forms':          '/qa/forms',
   'QA Reviews':        '/qa/reviews',
   'QA Rules':          '/qa/rules',
+  'Rules Engine':      '/rules-engine',
   'Form Templates':    '/form-templates',
   Workflows:           '/workflows',
   Deployments:         '/deployments',
