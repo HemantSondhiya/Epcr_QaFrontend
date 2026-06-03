@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   Search, RefreshCw, X, Play, Sparkles, Mail, CheckCircle2, 
   User, Sliders, Users, AlertCircle, Heart, Clock, ChevronRight, Send
 } from 'lucide-react';
 import { 
-  fetchRules, createRule, runRules, runRulesForPatient, clearRunResults 
+  fetchRules, createRule, runRules, runRulesForPatient, clearRunResults, fetchFields
 } from '../store/slices/rulesEngineSlice';
 import { fetchOrganizations } from '../store/slices/orgSlice';
 import { selectUser } from '../store/slices/authSlice';
@@ -19,18 +19,42 @@ const CLINICAL_FIELDS = [
   { value: 'diastolicBp', label: 'Diastolic Blood Pressure', defaultVal: '90', unit: ' mmHg' },
   { value: 'bloodSugar', label: 'Blood Sugar', defaultVal: '140', unit: ' mg/dL' },
   { value: 'heartRate', label: 'Heart Rate', defaultVal: '100', unit: ' bpm' },
+  { value: 'pulseRate', label: 'Pulse Rate', defaultVal: '80', unit: ' bpm' },
+  { value: 'respirationRate', label: 'Respiration Rate', defaultVal: '16', unit: ' breaths/min' },
   { value: 'temperature', label: 'Body Temperature', defaultVal: '99.5', unit: ' °F' },
+  { value: 'hemoglobin', label: 'Hemoglobin Level', defaultVal: '12', unit: ' g/dL' },
+  { value: 'weight', label: 'Weight', defaultVal: '70', unit: ' kg' },
+  { value: 'height', label: 'Height', defaultVal: '170', unit: ' cm' },
 ];
 
 const OPERATORS = [
   { value: 'LT', symbol: '<', label: 'Less Than' },
   { value: 'GT', symbol: '>', label: 'Greater Than' },
+  { value: 'LTE', symbol: '≤', label: 'Less Than or Equal' },
+  { value: 'GTE', symbol: '≥', label: 'Greater Than or Equal' },
+  { value: 'BETWEEN', symbol: '↔', label: 'Between (Range)' },
 ];
+
+const formatCamelCase = (str) => {
+  if (!str) return '';
+  if (str.startsWith('clinicalData.')) {
+    const key = str.substring('clinicalData.'.length);
+    return `Clinical Data: ${formatCamelCase(key)}`;
+  }
+  if (str.startsWith('dynamicFormResponses.')) {
+    const key = str.substring('dynamicFormResponses.'.length);
+    return `Form: ${formatCamelCase(key)}`;
+  }
+  const spaced = str.replace(/([A-Z])/g, ' $1');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1).trim();
+};
+
+const DEFAULT_CONDITION = { field: 'spo2', operator: 'LT', threshold: '90', thresholdMax: '94', isCustom: false };
 
 const RulesEngine = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const { rules, loading, saving, running, runResults } = useSelector(state => state.rulesEngine);
+  const { rules, loading, saving, running, runResults, fields } = useSelector(state => state.rulesEngine);
   const { organizations } = useSelector(state => state.org);
 
   const [selectedOrgId, setSelectedOrgId] = useState('');
@@ -39,11 +63,61 @@ const RulesEngine = () => {
   // Simplified Form State
   const [recipientType, setRecipientType] = useState('condition'); // 'condition' or 'patient'
   
-  // Condition Form State
-  const [selectedField, setSelectedField] = useState('spo2');
-  const [selectedOperator, setSelectedOperator] = useState('LT');
-  const [thresholdValue, setThresholdValue] = useState('90');
+  // Multi-condition Form State
+  const [conditions, setConditions] = useState([{ ...DEFAULT_CONDITION }]);
   const [campaignName, setCampaignName] = useState('');
+
+  const availableFields = useMemo(() => {
+    // Use fields from backend if loaded, otherwise fallback to local defaults
+    const rawValues = (fields && fields.length > 0)
+      ? fields
+      : CLINICAL_FIELDS.map(f => f.value);
+
+    // Keep only fields that are explicitly allowed in our clinical fields set
+    const activeValues = rawValues.filter(val => 
+      CLINICAL_FIELDS.some(f => f.value === val)
+    );
+
+    return activeValues.map(val => {
+      return CLINICAL_FIELDS.find(f => f.value === val);
+    }).filter(Boolean);
+  }, [fields]);
+
+  const getFieldDetails = (field) => {
+    return availableFields.find(f => f.value === field) || {
+      value: field,
+      label: formatCamelCase(field),
+      defaultVal: '0',
+      unit: ''
+    };
+  };
+
+  const addCondition = () => {
+    if (conditions.length >= 5) return;
+    setConditions(prev => [...prev, { field: 'age', operator: 'GT', threshold: '40', thresholdMax: '', isCustom: false }]);
+  };
+
+  const removeCondition = (idx) => {
+    if (conditions.length === 1) return;
+    setConditions(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateCondition = (idx, key, val) => {
+    setConditions(prev => prev.map((c, i) => {
+      if (i !== idx) return c;
+      const updated = { ...c, [key]: val };
+      if (key === 'field') {
+        const fieldObj = getFieldDetails(val);
+        updated.threshold = fieldObj.defaultVal;
+        updated.thresholdMax = '';
+      }
+      if (key === 'operator' && val !== 'BETWEEN') {
+        updated.thresholdMax = '';
+      }
+      return updated;
+    }));
+  };
+
 
   // Single Patient Form State
   const [patientId, setPatientId] = useState('');
@@ -69,6 +143,7 @@ const RulesEngine = () => {
   }); // custom premium dialog modal
 
   useEffect(() => {
+    dispatch(fetchFields());
     if (user?.role === 'ADMIN') {
       dispatch(fetchOrganizations());
     }
@@ -77,13 +152,9 @@ const RulesEngine = () => {
     }
   }, [currentOrgId, user?.role, dispatch]);
 
-  // Handle clinical field changes to pre-populate smart thresholds
+  // Handle clinical field changes to pre-populate smart thresholds (legacy single-field handler kept for preview)
   const handleFieldChange = (val) => {
-    setSelectedField(val);
-    const fieldObj = CLINICAL_FIELDS.find(f => f.value === val);
-    if (fieldObj) {
-      setThresholdValue(fieldObj.defaultVal);
-    }
+    updateCondition(0, 'field', val);
   };
 
   const handlePatientSearch = async () => {
@@ -117,9 +188,13 @@ const RulesEngine = () => {
   const handleDeployCampaign = (e) => {
     e.preventDefault();
 
-    const fieldObj = CLINICAL_FIELDS.find(f => f.value === selectedField);
-    const opObj = OPERATORS.find(op => op.value === selectedOperator);
-    const generatedName = campaignName.trim() || `${fieldObj.label} ${opObj.symbol} ${thresholdValue} Checkup Campaign`;
+    const firstCond = conditions[0];
+    const firstFieldObj = getFieldDetails(firstCond?.field);
+    const firstOpObj = OPERATORS.find(op => op.value === firstCond?.operator);
+    const condSummary = conditions.length === 1
+      ? `${firstFieldObj?.label} ${firstOpObj?.symbol} ${firstCond?.threshold}`
+      : `${conditions.length}-condition rule`;
+    const generatedName = campaignName.trim() || `${condSummary} Checkup Campaign`;
 
     const isLive = !isDryRun;
 
@@ -133,11 +208,24 @@ const RulesEngine = () => {
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         
+        // Build conditions payload — support BETWEEN as two conditions
+        const conditionsPayload = conditions.map(c => {
+          if (c.operator === 'BETWEEN' && c.thresholdMax) {
+            return [
+              { field: c.field, operator: 'GTE', threshold: c.threshold },
+              { field: c.field, operator: 'LTE', threshold: c.thresholdMax },
+            ];
+          }
+          return [{ field: c.field, operator: c.operator, threshold: c.threshold }];
+        }).flat();
+
         const payload = {
           name: generatedName,
-          field: selectedField,
-          operator: selectedOperator,
-          threshold: thresholdValue,
+          conditions: conditionsPayload,
+          // Keep legacy fields for backward compatibility
+          field: firstCond?.field,
+          operator: firstCond?.operator,
+          threshold: firstCond?.threshold,
           action: {
             type: 'EMAIL',
             to: 'patient',
@@ -158,6 +246,7 @@ const RulesEngine = () => {
           dispatch(addToast({ type: 'success', message: 'Outreach scan and emails dispatched!' }));
           
           setCampaignName('');
+          setConditions([{ ...DEFAULT_CONDITION }]);
         } catch (err) {
           dispatch(addToast({ type: 'error', message: err || 'Failed to deploy outreach' }));
         }
@@ -241,14 +330,15 @@ const RulesEngine = () => {
 
   // Process placeholders inside composer template into standard readable strings for dynamic previews
   const getRenderedPreview = () => {
-    const fieldObj = CLINICAL_FIELDS.find(f => f.value === selectedField);
-    const opObj = OPERATORS.find(op => op.value === selectedOperator);
+    const firstCond = conditions[0] || {};
+    const fieldObj = getFieldDetails(firstCond.field);
+    const opObj = OPERATORS.find(op => op.value === firstCond.operator);
 
     return emailBody
       .replace(/{patientName}/g, selectedPatient ? selectedPatient.patientName : 'John Doe')
       .replace(/{vitalsField}/g, fieldObj ? fieldObj.label : 'Oxygen Level (SpO2)')
       .replace(/{conditionOperator}/g, opObj ? opObj.label.toLowerCase() : 'less than')
-      .replace(/{thresholdValue}/g, `${thresholdValue}${fieldObj?.unit || ''}`);
+      .replace(/{thresholdValue}/g, `${firstCond.threshold || '90'}${fieldObj?.unit || ''}`);
   };
 
   // Grouping logic helper for matched outcomes
@@ -277,8 +367,8 @@ const RulesEngine = () => {
     );
   };
 
-  const activeFieldObj = CLINICAL_FIELDS.find(f => f.value === selectedField);
-  const activeOpObj = OPERATORS.find(op => op.value === selectedOperator);
+  const activeFieldObj = getFieldDetails(conditions[0]?.field || 'spo2');
+  const activeOpObj = OPERATORS.find(op => op.value === (conditions[0]?.operator || 'LT'));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in text-left">
@@ -377,51 +467,141 @@ const RulesEngine = () => {
             {recipientType === 'condition' ? (
               <form onSubmit={handleDeployCampaign} className="space-y-4">
                 
-                {/* 1. Vital Select */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider">Select Clinical Vital *</label>
-                  <select 
-                    value={selectedField}
-                    onChange={e => handleFieldChange(e.target.value)}
-                    className="input bg-[#F8FAFF] py-2 text-xs"
-                  >
-                    {CLINICAL_FIELDS.map(f => (
-                      <option key={f.value} value={f.value}>{f.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 2. Operator & Threshold Row */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider">Condition *</label>
-                    <select
-                      value={selectedOperator}
-                      onChange={e => setSelectedOperator(e.target.value)}
-                      className="input bg-[#F8FAFF] py-2 text-xs"
-                    >
-                      {OPERATORS.map(op => (
-                        <option key={op.value} value={op.value}>{op.label} ({op.symbol})</option>
-                      ))}
-                    </select>
+                {/* Multi-condition builder */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider">
+                      Conditions (ALL must match)
+                    </label>
+                    {conditions.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={addCondition}
+                        className="text-[9px] font-bold text-[#1A3C8F] bg-[#1A3C8F]/8 hover:bg-[#1A3C8F]/15 border border-[#1A3C8F]/20 px-2 py-0.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        + Add Condition
+                      </button>
+                    )}
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider">Threshold Value *</label>
-                    <div className="relative">
-                      <input 
-                        type="number"
-                        required
-                        value={thresholdValue}
-                        onChange={e => setThresholdValue(e.target.value)}
-                        className="input bg-[#F8FAFF] py-2 pr-10 text-xs font-bold"
-                        placeholder="e.g. 90"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-[#8A97B0]">
-                        {activeFieldObj?.unit}
-                      </span>
-                    </div>
-                  </div>
+                  {conditions.map((cond, idx) => {
+                    const condField = getFieldDetails(cond.field);
+                    return (
+                      <div key={idx} className="relative bg-[#F8FAFF] border border-[#EBEFF5] rounded-xl p-3 space-y-2">
+                        
+                        {/* AND badge between conditions */}
+                        {idx > 0 && (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                            <span className="text-[8px] font-black text-white bg-[#1A3C8F] px-2 py-0.5 rounded-full shadow-sm">
+                              AND
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black text-[#8A97B0] uppercase">Condition {idx + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updateCondition(idx, 'isCustom', !cond.isCustom)}
+                              className="text-[8px] font-bold text-[#1A3C8F] hover:underline cursor-pointer"
+                            >
+                              {cond.isCustom ? 'Use Dropdown' : 'Enter Custom'}
+                            </button>
+                            {conditions.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeCondition(idx)}
+                                className="text-[#8A97B0] hover:text-red-500 transition-colors cursor-pointer p-0.5"
+                                title="Remove this condition"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Field selector / custom text input */}
+                        {cond.isCustom ? (
+                          <div className="space-y-1">
+                            <input
+                              type="text"
+                              required
+                              value={cond.field}
+                              onChange={e => updateCondition(idx, 'field', e.target.value)}
+                              className="input bg-white py-1.5 text-xs w-full font-mono"
+                              placeholder="e.g. diagnosis or clinicalData.riskScore"
+                            />
+                            <p className="text-[7.5px] text-[#A0AECB] leading-none">
+                              Use root fields (e.g. <code>diagnosis</code>) or prefixes: <code>clinicalData.key</code> or <code>dynamicFormResponses.key</code>
+                            </p>
+                          </div>
+                        ) : (
+                          <select
+                            value={cond.field}
+                            onChange={e => updateCondition(idx, 'field', e.target.value)}
+                            className="input bg-white py-1.5 text-xs w-full"
+                          >
+                            {availableFields.map(f => (
+                              <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                          </select>
+                        )}
+
+                        {/* Operator + Threshold(s) */}
+                        <div className={`grid gap-2 ${cond.operator === 'BETWEEN' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                          <select
+                            value={cond.operator}
+                            onChange={e => updateCondition(idx, 'operator', e.target.value)}
+                            className="input bg-white py-1.5 text-xs"
+                          >
+                            {OPERATORS.map(op => (
+                              <option key={op.value} value={op.value}>{op.symbol} {op.label}</option>
+                            ))}
+                          </select>
+
+                          <div className="relative">
+                            <input
+                              type="number"
+                              required
+                              value={cond.threshold}
+                              onChange={e => updateCondition(idx, 'threshold', e.target.value)}
+                              className="input bg-white py-1.5 pr-8 text-xs font-bold w-full"
+                              placeholder={cond.operator === 'BETWEEN' ? 'Min' : 'Value'}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-[#A0AECB]">
+                              {condField?.unit}
+                            </span>
+                          </div>
+
+                          {cond.operator === 'BETWEEN' && (
+                            <div className="relative">
+                              <input
+                                type="number"
+                                required
+                                value={cond.thresholdMax || ''}
+                                onChange={e => updateCondition(idx, 'thresholdMax', e.target.value)}
+                                className="input bg-white py-1.5 pr-8 text-xs font-bold w-full"
+                                placeholder="Max"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-[#A0AECB]">
+                                {condField?.unit}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Human-readable summary */}
+                        <p className="text-[9px] text-[#8A97B0] font-medium">
+                          IF <span className="text-[#1A3C8F] font-bold">{condField?.label}</span>{' '}
+                          {cond.operator === 'BETWEEN'
+                            ? <><span className="text-[#C8102E] font-bold">between {cond.threshold}{condField?.unit} – {cond.thresholdMax || '?'}{condField?.unit}</span></>  
+                            : <><span className="text-[#C8102E] font-bold">{OPERATORS.find(o => o.value === cond.operator)?.symbol} {cond.threshold}{condField?.unit}</span></>  
+                          }
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* 3. Campaign Description */}
@@ -742,7 +922,7 @@ const RulesEngine = () => {
             ) : (
               <div className="grid grid-cols-1 gap-3.5 max-h-[300px] overflow-y-auto pr-1">
                 {rules.map(rule => {
-                  const fObj = CLINICAL_FIELDS.find(f => f.value === rule.field);
+                  const fObj = getFieldDetails(rule.field);
                   const opObj = OPERATORS.find(op => op.value === rule.operator);
                   return (
                     <div 
@@ -759,9 +939,24 @@ const RulesEngine = () => {
                         </div>
                         
                         <p className="text-[11px] text-[#4B5A7A]">
-                          IF patient's <span className="font-bold text-gray-700">{fObj?.label || rule.field}</span> is{' '}
-                          <span className="font-bold text-[#1A3C8F]">{opObj?.symbol || rule.operator} {rule.threshold}</span>,{' '}
-                          THEN auto-dispatch checkup email.
+                          {(() => {
+                            // Support both new conditions[] and legacy field/operator/threshold
+                            const conds = rule.conditions?.length
+                              ? rule.conditions
+                              : [{ field: rule.field, operator: rule.operator, threshold: rule.threshold }];
+                            return conds.map((c, i) => {
+                              const fObj = getFieldDetails(c.field);
+                              const oObj = OPERATORS.find(op => op.value === c.operator);
+                              return (
+                                <span key={i}>
+                                  {i > 0 && <span className="font-black text-[#1A3C8F]"> AND </span>}
+                                  <span className="font-bold text-gray-700">{fObj?.label || c.field}</span>{' '}
+                                  <span className="font-bold text-[#1A3C8F]">{oObj?.symbol || c.operator} {c.threshold}</span>
+                                </span>
+                              );
+                            });
+                          })()}
+                          {', THEN auto-dispatch checkup email.'}
                         </p>
                       </div>
 
@@ -891,10 +1086,11 @@ const RulesEngine = () => {
                             </div>
                           </div>
 
-                          {/* Matched Campaign Details Tags */}
+                           {/* Matched Campaign Details Tags */}
                           <div className="flex flex-col gap-1.5 pl-6">
                             {group.ruleMatches.map((match, idx) => {
-                              const fieldObj = CLINICAL_FIELDS.find(f => f.value === match.field);
+                              const fieldObj = getFieldDetails(match.field);
+                              const isMultiCond = match.value && typeof match.value === 'object' && !Array.isArray(match.value);
                               return (
                                 <div 
                                   key={idx} 
@@ -904,9 +1100,30 @@ const RulesEngine = () => {
                                     <span>{match.ruleName}</span>
                                     <span className="text-[#8A97B0] text-[7px] font-bold">({fieldObj?.label || match.field})</span>
                                   </div>
-                                  <p className="text-[9px] text-[#4B5A7A] mt-0.5 leading-snug">
-                                    Vital value <strong>{match.value}{fieldObj?.unit || ''}</strong> met campaign criteria (Threshold <strong>{match.operator} {match.threshold}{fieldObj?.unit || ''}</strong>).
-                                  </p>
+                                  {isMultiCond ? (
+                                    <div className="space-y-1 mt-0.5">
+                                      <p className="text-[9px] text-[#4B5A7A] leading-snug font-bold">
+                                        Patient vital values met all conditions:
+                                      </p>
+                                      <ul className="list-disc pl-4 space-y-0.5">
+                                        {Object.entries(match.value).map(([field, val]) => {
+                                          const fObj = getFieldDetails(field);
+                                          return (
+                                            <li key={field} className="text-[8.5px] text-[#4B5A7A]">
+                                              <strong>{fObj?.label || field}</strong>: {val}{fObj?.unit || ''}
+                                            </li>
+                                          );
+                                        })}
+                                      </ul>
+                                      <p className="text-[8px] text-[#8A97B0] italic border-t border-indigo-100/30 pt-1 mt-1 font-semibold">
+                                        Rule Criteria: {match.threshold}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[9px] text-[#4B5A7A] mt-0.5 leading-snug">
+                                      Vital value <strong>{match.value}{fieldObj?.unit || ''}</strong> met campaign criteria (Threshold <strong>{match.operator} {match.threshold}{fieldObj?.unit || ''}</strong>).
+                                    </p>
+                                  )}
                                 </div>
                               );
                             })}

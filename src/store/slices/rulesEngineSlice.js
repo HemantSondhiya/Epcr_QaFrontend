@@ -44,10 +44,21 @@ export const runRulesForPatient = createAsyncThunk('rulesEngine/runForPatient', 
   }
 });
 
+// Fetch standard rule fields from backend
+export const fetchFields = createAsyncThunk('rulesEngine/fetchFields', async (_, { rejectWithValue }) => {
+  try {
+    const response = await client.get('/api/logic/rules/fields', { hideToast: true });
+    return response.data;
+  } catch (e) {
+    return rejectWithValue(extractErrorMessage(e));
+  }
+});
+
 const rulesEngineSlice = createSlice({
   name: 'rulesEngine',
   initialState: {
     rules: [],
+    fields: [],
     loading: false,
     saving: false,
     running: false,
@@ -117,6 +128,16 @@ const rulesEngineSlice = createSlice({
     builder.addCase(runRulesForPatient.rejected, (state, action) => {
       state.running = false;
       state.error = action.payload;
+    });
+
+    // Fetch Fields
+    builder.addCase(fetchFields.fulfilled, (state, action) => {
+      if (Array.isArray(action.payload)) {
+        state.fields = action.payload;
+      } else if (action.payload && typeof action.payload === 'object') {
+        // In case it's a Set serialized as object/array or other structure
+        state.fields = Object.values(action.payload);
+      }
     });
   },
 });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import {
   Send, Bot, User, RefreshCw, Sparkles, MessageSquare,
   Heart, Pill, Activity, FileText, HelpCircle, ChevronDown,
@@ -7,6 +7,7 @@ import {
   AlertCircle, Info, Stethoscope
 } from 'lucide-react';
 import client from '../../api/client';
+import { logoutUser } from '../../store/slices/authSlice';
 
 /* ─── Typing indicator dots ─── */
 const TypingDots = () => (
@@ -159,8 +160,10 @@ const WelcomeScreen = ({ userName, onSuggestion }) => {
 
 /* ─── Main Chatbot Component ─── */
 export default function PatientChatbot({ patientId, records = [], conditions = [], medications = [] }) {
+  const dispatch = useDispatch();
   const user = useSelector(state => state.auth.user);
   const firstName = user?.firstName || user?.name?.split(' ')[0] || '';
+  const isPatientSession = user?.role === 'PATIENT' && Boolean(user?.accessToken || user?.patientId);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -181,6 +184,11 @@ export default function PatientChatbot({ patientId, records = [], conditions = [
   useEffect(() => {
     if (messages.length > 0) scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    setMessages(prev => prev.filter(msg => !(msg.role === 'error' && /forbidden|session has expired/i.test(msg.content))));
+    setError(null);
+  }, [user?.role, user?.patientId, user?.accessToken]);
 
   // Build patient context for the AI
   const buildPatientContext = useCallback(() => {
@@ -206,6 +214,18 @@ export default function PatientChatbot({ patientId, records = [], conditions = [
     setError(null);
     setShowSuggestions(false);
 
+    if (!isPatientSession) {
+      const errText = 'Please log in through the Patient tab to use the health assistant.';
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        role: 'error',
+        content: errText,
+        timestamp: new Date().toISOString(),
+      }]);
+      setError(errText);
+      return;
+    }
+
     const userMsg = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -216,33 +236,12 @@ export default function PatientChatbot({ patientId, records = [], conditions = [
     setIsLoading(true);
 
     try {
-      // Start conversation if not yet started
-      let currentConversationId = conversationId;
-      if (!currentConversationId) {
-        try {
-          const startRes = await client.post('/api/chat/conversations', {
-            patientId: patientId || user?.patientId || user?.id,
-            context: buildPatientContext(),
-          }, { hideToast: true });
-          currentConversationId = startRes.data?.conversationId || startRes.data?.id;
-          setConversationId(currentConversationId);
-        } catch {
-          // conversation start failed - try sending without conversationId
-        }
-      }
-
-      // Send the message
-      const endpoint = currentConversationId
-        ? `/api/chat/conversations/${currentConversationId}/messages`
-        : '/api/chat/message';
-
       const payload = {
         message: text,
-        patientId: patientId || user?.patientId || user?.id,
-        context: buildPatientContext(),
+        conversationId,
       };
 
-      const res = await client.post(endpoint, payload, { hideToast: true });
+      const res = await client.post('/api/chat/message', payload, { hideToast: true });
       const data = res.data;
 
       // Extract response content from various possible response shapes
@@ -256,7 +255,7 @@ export default function PatientChatbot({ patientId, records = [], conditions = [
         'I received your message. How else can I help you?';
 
       // Update conversationId from response if not set
-      if (!currentConversationId && data?.conversationId) {
+      if (!conversationId && data?.conversationId) {
         setConversationId(data.conversationId);
       }
 
@@ -272,12 +271,18 @@ export default function PatientChatbot({ patientId, records = [], conditions = [
       const status = err.response?.status;
       let errText = 'I\'m having trouble connecting right now. Please try again in a moment.';
 
-      if (status === 404) {
+      if (status === 401) {
+        // Session expired — log the patient out immediately
+        dispatch(logoutUser());
+        errText = 'Your session has expired. Please log in again to continue.';
+      } else if (status === 404) {
         errText = 'The chat service is not available at the moment. Please contact support if this persists.';
-      } else if (status === 401 || status === 403) {
-        errText = 'Your session has expired. Please refresh the page to continue chatting.';
+      } else if (status === 403) {
+        errText = err.response?.data?.message || 'This chat is only available from the patient portal.';
       } else if (!err.response) {
         errText = 'Network connection issue. Please check your internet connection.';
+      } else if (err.response?.data?.message) {
+        errText = err.response.data.message;
       }
 
       const errMsg = {
@@ -292,7 +297,7 @@ export default function PatientChatbot({ patientId, records = [], conditions = [
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, isLoading, conversationId, patientId, user, buildPatientContext]);
+  }, [input, isLoading, conversationId, isPatientSession]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
