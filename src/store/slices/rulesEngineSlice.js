@@ -25,9 +25,9 @@ export const createRule = createAsyncThunk('rulesEngine/create', async (ruleData
 });
 
 // Run rules evaluation for organization
-export const runRules = createAsyncThunk('rulesEngine/run', async ({ organizationId, dryRun }, { rejectWithValue }) => {
+export const runRules = createAsyncThunk('rulesEngine/run', async (payload, { rejectWithValue }) => {
   try {
-    const response = await client.post('/api/logic/run', { organizationId, dryRun });
+    const response = await client.post('/api/logic/run', payload);
     return response.data;
   } catch (e) {
     return rejectWithValue(extractErrorMessage(e));

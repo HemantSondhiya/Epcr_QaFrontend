@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import { MessageSquare, Plus, RefreshCw, X, Send, Trash2, ChevronDown } from 'lucide-react';
-import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
@@ -22,19 +22,32 @@ const asList = d => Array.isArray(d) ? d : (d?.content || []);
 
 const FeedbackThreads = () => {
   const dispatch = useDispatch();
+  const location = useLocation();
   const user = useSelector(selectUser);
   const threads = useSelector(selectFeedbackThreads);
   const loading = useSelector(selectFeedbackLoading);
   const records = useSelector(selectRecords);
 
   const [filter, setFilter] = useState('all');
-  const [expandedId, setExpandedId] = useState(null);
+  const [expandedId, setExpandedId] = useState(location.state?.expandThreadId || null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [msgInputs, setMsgInputs] = useState({});
   const [createForm, setCreateForm] = useState({ patientCareRecordId: '', subject: '' });
 
-  useEffect(() => { dispatch(fetchFeedbackThreads()); dispatch(fetchRecords({ page: 0, size: 20 })); }, [dispatch]);
+  useEffect(() => {
+    dispatch(fetchFeedbackThreads());
+    dispatch(fetchRecords({ page: 0, size: 20 }));
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (location.state?.expandThreadId) {
+      const timer = setTimeout(() => {
+        setExpandedId(location.state.expandThreadId);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
 
   const handleCreate = async e => {
     e.preventDefault(); setIsSubmitting(true);

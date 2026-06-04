@@ -25,15 +25,30 @@ const CLINICAL_FIELDS = [
   { value: 'hemoglobin', label: 'Hemoglobin Level', defaultVal: '12', unit: ' g/dL' },
   { value: 'weight', label: 'Weight', defaultVal: '70', unit: ' kg' },
   { value: 'height', label: 'Height', defaultVal: '170', unit: ' cm' },
+  { value: 'location', label: 'Incident Location', defaultVal: 'Downtown Clinic', unit: '', type: 'string' },
 ];
 
 const OPERATORS = [
+  { value: 'EQ', symbol: '=', label: 'Equal To' },
+  { value: 'NEQ', symbol: '≠', label: 'Not Equal To' },
   { value: 'LT', symbol: '<', label: 'Less Than' },
   { value: 'GT', symbol: '>', label: 'Greater Than' },
   { value: 'LTE', symbol: '≤', label: 'Less Than or Equal' },
   { value: 'GTE', symbol: '≥', label: 'Greater Than or Equal' },
   { value: 'BETWEEN', symbol: '↔', label: 'Between (Range)' },
 ];
+
+const getOperatorDetails = (opValue) => {
+  const normalized = opValue === '=' || opValue === '==' ? 'EQ' : (opValue === '!=' ? 'NEQ' : opValue);
+  return OPERATORS.find(op => op.value === normalized) || { value: opValue, symbol: opValue, label: opValue };
+};
+
+const getFilteredOperators = (fieldObj) => {
+  if (fieldObj?.type === 'string') {
+    return OPERATORS.filter(op => op.value === 'EQ' || op.value === 'NEQ');
+  }
+  return OPERATORS;
+};
 
 const formatCamelCase = (str) => {
   if (!str) return '';
@@ -66,6 +81,19 @@ const RulesEngine = () => {
   // Multi-condition Form State
   const [conditions, setConditions] = useState([{ ...DEFAULT_CONDITION }]);
   const [campaignName, setCampaignName] = useState('');
+  const [selectedPatientIds, setSelectedPatientIds] = useState([]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (runResults?.matches) {
+        const patientIds = Array.from(new Set(runResults.matches.map(m => m.patientId).filter(Boolean)));
+        setSelectedPatientIds(patientIds);
+      } else {
+        setSelectedPatientIds([]);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [runResults]);
 
   const availableFields = useMemo(() => {
     // Use fields from backend if loaded, otherwise fallback to local defaults
@@ -73,13 +101,18 @@ const RulesEngine = () => {
       ? fields
       : CLINICAL_FIELDS.map(f => f.value);
 
-    // Keep only fields that are explicitly allowed in our clinical fields set
-    const activeValues = rawValues.filter(val => 
-      CLINICAL_FIELDS.some(f => f.value === val)
-    );
+    return rawValues.map(val => {
+      const known = CLINICAL_FIELDS.find(f => f.value === val);
+      if (known) return known;
 
-    return activeValues.map(val => {
-      return CLINICAL_FIELDS.find(f => f.value === val);
+      // Dynamic fallback for any new backend fields not explicitly defined in CLINICAL_FIELDS
+      return {
+        value: val,
+        label: formatCamelCase(val),
+        defaultVal: '',
+        unit: '',
+        type: 'string', // Assume string/text by default
+      };
     }).filter(Boolean);
   }, [fields]);
 
@@ -110,6 +143,11 @@ const RulesEngine = () => {
         const fieldObj = getFieldDetails(val);
         updated.threshold = fieldObj.defaultVal;
         updated.thresholdMax = '';
+        if (fieldObj.type === 'string') {
+          updated.operator = 'EQ';
+        } else if (c.operator === 'EQ' || c.operator === 'NEQ') {
+          updated.operator = 'GT';
+        }
       }
       if (key === 'operator' && val !== 'BETWEEN') {
         updated.thresholdMax = '';
@@ -190,7 +228,7 @@ const RulesEngine = () => {
 
     const firstCond = conditions[0];
     const firstFieldObj = getFieldDetails(firstCond?.field);
-    const firstOpObj = OPERATORS.find(op => op.value === firstCond?.operator);
+    const firstOpObj = getOperatorDetails(firstCond?.operator);
     const condSummary = conditions.length === 1
       ? `${firstFieldObj?.label} ${firstOpObj?.symbol} ${firstCond?.threshold}`
       : `${conditions.length}-condition rule`;
@@ -239,16 +277,50 @@ const RulesEngine = () => {
         };
 
         try {
-          await dispatch(createRule(payload)).unwrap();
+          const ruleRes = await dispatch(createRule(payload)).unwrap();
           dispatch(addToast({ type: 'success', message: 'Outreach Campaign created & deployed!' }));
           
-          await dispatch(runRules({ organizationId: currentOrgId, dryRun: isDryRun })).unwrap();
+          await dispatch(runRules({ 
+            organizationId: currentOrgId, 
+            dryRun: isDryRun,
+            ruleIds: ruleRes?.id ? [ruleRes.id] : undefined
+          })).unwrap();
           dispatch(addToast({ type: 'success', message: 'Outreach scan and emails dispatched!' }));
           
           setCampaignName('');
           setConditions([{ ...DEFAULT_CONDITION }]);
         } catch (err) {
           dispatch(addToast({ type: 'error', message: err || 'Failed to deploy outreach' }));
+        }
+      }
+    });
+  };
+
+  const handleSendToSelected = () => {
+    if (selectedPatientIds.length === 0) {
+      dispatch(addToast({ type: 'error', message: 'Please select at least one patient' }));
+      return;
+    }
+
+    const uniqueRuleIds = Array.from(new Set(runResults.matches.map(m => m.ruleId).filter(Boolean)));
+
+    setConfirmDialog({
+      isOpen: true,
+      isLive: true,
+      title: 'Confirm Live Send to Selected Patients',
+      message: `Are you sure you want to send LIVE outreach emails to the ${selectedPatientIds.length} selected patients? This will dispatch the emails immediately.`,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        try {
+          await dispatch(runRules({
+            organizationId: currentOrgId,
+            dryRun: false,
+            ruleIds: uniqueRuleIds,
+            patientIds: selectedPatientIds
+          })).unwrap();
+          dispatch(addToast({ type: 'success', message: 'Emails successfully sent to selected patients!' }));
+        } catch (err) {
+          dispatch(addToast({ type: 'error', message: err || 'Failed to dispatch emails' }));
         }
       }
     });
@@ -298,7 +370,11 @@ const RulesEngine = () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         
         try {
-          await dispatch(runRules({ organizationId: currentOrgId, dryRun: isDryRun })).unwrap();
+          await dispatch(runRules({ 
+            organizationId: currentOrgId, 
+            dryRun: isDryRun,
+            ruleIds: [ruleId]
+          })).unwrap();
           dispatch(addToast({ type: 'success', message: `Scan initiated for campaign: ${ruleName}` }));
         } catch (err) {
           dispatch(addToast({ type: 'error', message: err || 'Failed to trigger scan' }));
@@ -332,7 +408,7 @@ const RulesEngine = () => {
   const getRenderedPreview = () => {
     const firstCond = conditions[0] || {};
     const fieldObj = getFieldDetails(firstCond.field);
-    const opObj = OPERATORS.find(op => op.value === firstCond.operator);
+    const opObj = getOperatorDetails(firstCond.operator);
 
     return emailBody
       .replace(/{patientName}/g, selectedPatient ? selectedPatient.patientName : 'John Doe')
@@ -368,7 +444,6 @@ const RulesEngine = () => {
   };
 
   const activeFieldObj = getFieldDetails(conditions[0]?.field || 'spo2');
-  const activeOpObj = OPERATORS.find(op => op.value === (conditions[0]?.operator || 'LT'));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in text-left">
@@ -555,14 +630,14 @@ const RulesEngine = () => {
                             onChange={e => updateCondition(idx, 'operator', e.target.value)}
                             className="input bg-white py-1.5 text-xs"
                           >
-                            {OPERATORS.map(op => (
+                            {getFilteredOperators(condField).map(op => (
                               <option key={op.value} value={op.value}>{op.symbol} {op.label}</option>
                             ))}
                           </select>
 
                           <div className="relative">
                             <input
-                              type="number"
+                              type={condField?.type === 'string' ? 'text' : 'number'}
                               required
                               value={cond.threshold}
                               onChange={e => updateCondition(idx, 'threshold', e.target.value)}
@@ -596,7 +671,7 @@ const RulesEngine = () => {
                           IF <span className="text-[#1A3C8F] font-bold">{condField?.label}</span>{' '}
                           {cond.operator === 'BETWEEN'
                             ? <><span className="text-[#C8102E] font-bold">between {cond.threshold}{condField?.unit} – {cond.thresholdMax || '?'}{condField?.unit}</span></>  
-                            : <><span className="text-[#C8102E] font-bold">{OPERATORS.find(o => o.value === cond.operator)?.symbol} {cond.threshold}{condField?.unit}</span></>  
+                            : <><span className="text-[#C8102E] font-bold">{getOperatorDetails(cond.operator)?.symbol} {cond.threshold}{condField?.unit}</span></>  
                           }
                         </p>
                       </div>
@@ -922,8 +997,6 @@ const RulesEngine = () => {
             ) : (
               <div className="grid grid-cols-1 gap-3.5 max-h-[300px] overflow-y-auto pr-1">
                 {rules.map(rule => {
-                  const fObj = getFieldDetails(rule.field);
-                  const opObj = OPERATORS.find(op => op.value === rule.operator);
                   return (
                     <div 
                       key={rule.id} 
@@ -946,7 +1019,7 @@ const RulesEngine = () => {
                               : [{ field: rule.field, operator: rule.operator, threshold: rule.threshold }];
                             return conds.map((c, i) => {
                               const fObj = getFieldDetails(c.field);
-                              const oObj = OPERATORS.find(op => op.value === c.operator);
+                              const oObj = getOperatorDetails(c.operator);
                               return (
                                 <span key={i}>
                                   {i > 0 && <span className="font-black text-[#1A3C8F]"> AND </span>}
@@ -1033,9 +1106,25 @@ const RulesEngine = () => {
                   
                   {/* Dynamic Log Search & Header */}
                   <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between p-3 bg-gray-50/70 border-b border-[#F0F4FC]">
-                    <span className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider block">
-                      Matched Outbox ({getGroupedMatches().length} unique patients)
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {runResults?.dryRun && getGroupedMatches().length > 0 && (
+                        <input
+                          type="checkbox"
+                          checked={getGroupedMatches().every(g => selectedPatientIds.includes(g.patientId))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPatientIds(getGroupedMatches().map(g => g.patientId).filter(Boolean));
+                            } else {
+                              setSelectedPatientIds([]);
+                            }
+                          }}
+                          className="w-3.5 h-3.5 text-[#1A3C8F] border-gray-300 rounded focus:ring-[#1A3C8F] cursor-pointer"
+                        />
+                      )}
+                      <span className="text-[10px] font-bold text-[#4B5A7A] uppercase tracking-wider block">
+                        Matched Outbox ({getGroupedMatches().length} unique patients)
+                      </span>
+                    </div>
                     {runResults.matches.length > 0 && (
                       <div className="relative w-full sm:w-44">
                         <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#A0AECB]" />
@@ -1065,26 +1154,48 @@ const RulesEngine = () => {
                         >
                           {/* Patient Header & Delivery Status */}
                           <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1 bg-[#1A3C8F]/10 rounded-lg text-[#1A3C8F]">
-                                <User size={11} className="font-bold" />
-                              </div>
-                              <div>
-                                <span className="text-[11px] font-black text-[#0F1A3A] block leading-none">{group.patientName || 'Unknown Patient'}</span>
-                                <span className="text-[8px] text-[#8A97B0] font-mono block mt-0.5">ID: {group.patientId}</span>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full border ${
-                                group.dryRun 
-                                  ? 'bg-amber-50 text-amber-600 border-amber-100' 
-                                  : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                              }`}>
-                                {group.dryRun ? 'Simulated' : 'Email Sent'}
-                              </span>
-                            </div>
-                          </div>
+                             <div className="flex items-center gap-3">
+                               {runResults?.dryRun && (
+                                 <input
+                                   type="checkbox"
+                                   checked={selectedPatientIds.includes(group.patientId)}
+                                   onChange={(e) => {
+                                     if (e.target.checked) {
+                                       setSelectedPatientIds(prev => [...prev, group.patientId]);
+                                     } else {
+                                       setSelectedPatientIds(prev => prev.filter(id => id !== group.patientId));
+                                     }
+                                   }}
+                                   className="w-3.5 h-3.5 text-[#1A3C8F] border-gray-300 rounded focus:ring-[#1A3C8F] cursor-pointer"
+                                 />
+                               )}
+                               <div className="flex items-center gap-2">
+                                 <div className="p-1 bg-[#1A3C8F]/10 rounded-lg text-[#1A3C8F]">
+                                   <User size={11} className="font-bold" />
+                                 </div>
+                                 <div>
+                                   <span className="text-[11px] font-black text-[#0F1A3A] block leading-none">{group.patientName || 'Unknown Patient'}</span>
+                                   <span className="text-[8px] text-[#8A97B0] font-mono block mt-0.5">ID: {group.patientId}</span>
+                                 </div>
+                               </div>
+                             </div>
+                             
+                             <div className="flex items-center gap-1.5">
+                               <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full border ${
+                                 group.dryRun 
+                                   ? 'bg-amber-50 text-amber-600 border-amber-100' 
+                                   : (group.ruleMatches.some(m => m.status === 'MATCHED_NOT_SELECTED')
+                                       ? 'bg-gray-50 text-gray-500 border-gray-200'
+                                       : 'bg-emerald-50 text-emerald-600 border-emerald-100')
+                               }`}>
+                                 {group.dryRun 
+                                   ? 'Simulated' 
+                                   : (group.ruleMatches.some(m => m.status === 'MATCHED_NOT_SELECTED')
+                                       ? 'Skipped (Not Selected)' 
+                                       : 'Email Sent')}
+                               </span>
+                             </div>
+                           </div>
 
                            {/* Matched Campaign Details Tags */}
                           <div className="flex flex-col gap-1.5 pl-6">
@@ -1135,13 +1246,26 @@ const RulesEngine = () => {
                 </div>
 
                 {/* Quick stats clear button */}
-                <button
-                  type="button"
-                  onClick={() => dispatch(clearRunResults())}
-                  className="px-3 py-1.5 border border-[#DDE3F0] hover:bg-gray-50 rounded-lg text-[10px] text-gray-500 font-bold block ml-auto cursor-pointer"
-                >
-                  Clear Log Results
-                </button>
+                <div className="flex items-center justify-between gap-3 pt-2">
+                   {runResults.dryRun && selectedPatientIds.length > 0 && (
+                     <button
+                       type="button"
+                       onClick={handleSendToSelected}
+                       disabled={running}
+                       className="px-3.5 py-1.5 bg-[#C8102E] hover:bg-[#C8102E]/90 text-white rounded-xl text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-sm transition-all hover:shadow-[#C8102E]/10"
+                     >
+                       <Send size={10} className="text-white" />
+                       Send Live Email to Selected ({selectedPatientIds.length})
+                     </button>
+                   )}
+                   <button
+                     type="button"
+                     onClick={() => dispatch(clearRunResults())}
+                     className="px-3 py-1.5 border border-[#DDE3F0] hover:bg-gray-50 rounded-lg text-[10px] text-gray-500 font-bold block ml-auto cursor-pointer"
+                   >
+                     Clear Log Results
+                   </button>
+                 </div>
               </div>
             )}
           </div>

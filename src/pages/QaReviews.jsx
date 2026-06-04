@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, RefreshCw, X, Eye, CheckCircle2,
-  FileText, User, Star, ClipboardList, AlertCircle,
-  Layers, Target, Save, Shield, Filter
+  FileText, User, ClipboardList, AlertCircle,
+  Layers, Target, Save, MessageSquare
 } from 'lucide-react';
 import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
@@ -11,9 +12,10 @@ import { addToast } from '../store/slices/uiSlice';
 import { fetchFormTemplates } from '../store/slices/formTemplateSlice';
 import {
   fetchQaReviews, fetchPendingReviews, createQaReview, completeQaReview,
-  selectReviews, selectPendingReviews, selectReviewsLoading
+  selectReviews, selectReviewsLoading
 } from '../store/slices/qaSlice';
 import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
+import { fetchFeedbackThreads, createFeedbackThread } from '../store/slices/feedbackSlice';
 import DynamicFormRenderer from '../components/forms/DynamicFormRenderer';
 
 const STATUS_BADGE = {
@@ -32,8 +34,173 @@ const StatusBadge = ({ status }) => (
   </span>
 );
 
+const renderRecordValue = (key, value) => {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'YES' : 'NO';
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'None';
+    if (key === 'auditTrail') {
+      return (
+        <div className="space-y-3 mt-1 pl-2 border-l-2 border-slate-200">
+          {value.map((entry, i) => (
+            <div key={i} className="text-xs text-[#4B5A7A] bg-slate-50 border border-slate-200/50 p-2.5 rounded-xl space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[#0F1A3A] bg-brand-blue/10 text-brand-blue px-1.5 py-0.5 rounded text-[10px]">{entry.action}</span>
+                <span className="text-[10px] text-[#A0AECB] font-mono">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—'}</span>
+              </div>
+              <div className="font-medium text-[#0F1A3A]">
+                Performed by: <span className="font-semibold">{entry.performedByName || entry.performedBy || 'Unknown'}</span> 
+                {entry.ipAddress && ` (IP: ${entry.ipAddress})`}
+              </div>
+              {entry.fieldChanged && entry.fieldChanged !== 'record' && (
+                <div className="text-[11px] text-[#4B5A7A]">
+                  Field changed: <span className="font-mono text-brand-blue font-semibold">{entry.fieldChanged}</span>
+                </div>
+              )}
+              {entry.newValue && (
+                <div className="text-[11px] text-[#4B5A7A] italic">
+                  "{entry.newValue}"
+                </div>
+              )}
+              {entry.notes && (
+                <div className="text-[10px] text-[#8A97B0] border-t border-slate-200/50 pt-1 mt-1">
+                  Note: {entry.notes}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (typeof value[0] !== 'object') {
+      return value.join(', ');
+    }
+    if (key === 'crew') {
+      return (
+        <div className="space-y-1 mt-1 pl-2 border-l-2 border-slate-200">
+          {value.map((c, i) => (
+            <div key={i} className="text-xs text-[#4B5A7A]">
+              <span className="font-bold text-[#0F1A3A]">{c.name}</span> ({c.role || 'Paramedic'} - {c.certificationLevel || 'ALS'})
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (key === 'structuredComplaints') {
+      return (
+        <div className="space-y-1.5 mt-1 pl-2 border-l-2 border-amber-200">
+          {value.map((c, i) => (
+            <div key={i} className="text-xs text-[#4B5A7A] bg-amber-50/50 p-1.5 rounded-lg">
+              <span className="font-bold text-[#0F1A3A]">{c.complaint}</span> (Onset: {c.onset || '—'}, Severity: <span className="font-bold text-brand-blue">{c.severity || '—'}/10</span>)
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (key === 'structuredVitals') {
+      return (
+        <div className="space-y-1.5 mt-1 pl-2 border-l-2 border-emerald-200">
+          {value.map((v, i) => (
+            <div key={i} className="text-xs text-[#4B5A7A] bg-emerald-50/50 p-1.5 rounded-lg space-y-0.5">
+              <div className="font-bold text-[#0F1A3A]">Log #{i+1} at {v.recordedAt ? new Date(v.recordedAt).toLocaleTimeString() : '—'}</div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono text-[10px]">
+                {v.systolicBP && v.diastolicBP && <div>BP: {v.systolicBP}/{v.diastolicBP}</div>}
+                {v.heartRate && <div>HR: {v.heartRate} bpm</div>}
+                {v.respiratoryRate && <div>RR: {v.respiratoryRate}/min</div>}
+                {v.oxygenSaturation && <div>SpO2: {v.oxygenSaturation}%</div>}
+                {v.temperature && <div>Temp: {v.temperature}°C</div>}
+                {v.bloodGlucose && <div>Sugar: {v.bloodGlucose} mg/dL</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (key === 'structuredMedications') {
+      return (
+        <div className="space-y-1 mt-1 pl-2 border-l-2 border-indigo-200">
+          {value.map((m, i) => (
+            <div key={i} className="text-xs text-[#4B5A7A]">
+              <span className="font-bold text-[#0F1A3A]">{m.medicationName}</span> ({m.dosage} {m.unit} via {m.route || 'ORAL'})
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (key === 'structuredProcedures') {
+      return (
+        <div className="space-y-1 mt-1 pl-2 border-l-2 border-purple-200">
+          {value.map((p, i) => (
+            <div key={i} className="text-xs text-[#4B5A7A]">
+              <span className="font-bold text-[#0F1A3A]">{p.procedureName}</span> ({p.successful ? 'Success' : 'Attempted'} - {p.bodysite || '—'})
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return <pre className="text-xs bg-slate-50 p-2 rounded-xl overflow-x-auto">{JSON.stringify(value, null, 2)}</pre>;
+  }
+  if (typeof value === 'object') {
+    if (key === 'medicalHistory') {
+      return (
+        <div className="grid grid-cols-1 gap-1 mt-1 pl-2 border-l-2 border-red-200 text-xs text-[#4B5A7A]">
+          {value.allergies?.length > 0 && <div><span className="font-semibold">Allergies:</span> {value.allergies.join(', ')}</div>}
+          {value.pastConditions?.length > 0 && <div><span className="font-semibold">Past Conditions:</span> {value.pastConditions.join(', ')}</div>}
+          {value.currentMedications?.length > 0 && <div><span className="font-semibold">Current Meds:</span> {value.currentMedications.join(', ')}</div>}
+          {value.surgicalHistory?.length > 0 && <div><span className="font-semibold">Surgical History:</span> {value.surgicalHistory.join(', ')}</div>}
+          {value.primaryPhysicianName && <div><span className="font-semibold">Physician:</span> {value.primaryPhysicianName} ({value.primaryPhysicianContact || '—'})</div>}
+          {value.advanceDirective && <div><span className="font-semibold">Advance Directive:</span> YES ({value.advanceDirectiveType})</div>}
+          {value.dnrOnFile !== undefined && <div><span className="font-semibold">DNR:</span> {value.dnrOnFile ? 'YES' : 'NO'}</div>}
+        </div>
+      );
+    }
+    if (key === 'sceneAssessment') {
+      return (
+        <div className="grid grid-cols-1 gap-1 mt-1 pl-2 border-l-2 border-amber-200 text-xs text-[#4B5A7A]">
+          {value.sceneType && <div><span className="font-semibold">Type:</span> {value.sceneType}</div>}
+          {value.triageTag && <div><span className="font-semibold">Triage:</span> {value.triageTag}</div>}
+          {value.weatherConditions && <div><span className="font-semibold">Weather:</span> {value.weatherConditions}</div>}
+          {value.sceneSafe !== undefined && <div><span className="font-semibold">Scene Safe:</span> {value.sceneSafe ? 'YES' : 'NO'}</div>}
+          {value.sceneHazards && <div><span className="font-semibold">Hazards:</span> {value.sceneHazards}</div>}
+        </div>
+      );
+    }
+    if (key === 'timeline') {
+      return (
+        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-1 pl-2 border-l-2 border-slate-200 text-xs text-[#4B5A7A] font-mono">
+          {value.callReceivedAt && <div>Call Rx: {new Date(value.callReceivedAt).toLocaleTimeString()}</div>}
+          {value.arrivedSceneAt && <div>Arrived: {new Date(value.arrivedSceneAt).toLocaleTimeString()}</div>}
+          {value.patientContactAt && <div>Contact: {new Date(value.patientContactAt).toLocaleTimeString()}</div>}
+          {value.departedSceneAt && <div>Departed: {new Date(value.departedSceneAt).toLocaleTimeString()}</div>}
+          {value.arrivedDestinationAt && <div>Arrived Dest: {new Date(value.arrivedDestinationAt).toLocaleTimeString()}</div>}
+          {value.transferOfCareAt && <div>Handoff: {new Date(value.transferOfCareAt).toLocaleTimeString()}</div>}
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 gap-0.5 mt-1 pl-2 border-l-2 border-indigo-200 text-xs text-[#4B5A7A]">
+        {Object.entries(value).map(([subK, subV]) => {
+          if (subV === null || subV === undefined || subV === '') return null;
+          const displayVal = typeof subV === 'object' ? JSON.stringify(subV) : String(subV);
+          return (
+            <div key={subK} className="truncate">
+              <span className="font-semibold">{subK.replace(/([A-Z])/g,' $1')}:</span> {displayVal}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return String(value);
+};
+
 const QaReviews = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const user     = useSelector(selectUser);
   const reviews  = useSelector(selectReviews);
   const loading  = useSelector(selectReviewsLoading);
@@ -94,15 +261,45 @@ const QaReviews = () => {
   const openView = async (review) => {
     setSelectedReview(review);
     try {
-      const res = await client.get(`/api/epcr/records/${review.patientCareRecordId}`);
+      const res = await client.get(`/api/epcr/records/${review.recordId}`);
       setSelectedRecord(res.data); setIsViewOpen(true);
     } catch { dispatch(addToast({ type:'error', message:'Failed to load record' })); }
   };
 
-  const filtered = (reviews || []).filter(r =>
-    r.patientCareRecordId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.feedback?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleDiscussReview = async (review) => {
+    setIsSubmitting(true);
+    try {
+      const fetchedThreads = await dispatch(fetchFeedbackThreads()).unwrap();
+      const list = Array.isArray(fetchedThreads) ? fetchedThreads : (fetchedThreads?.content || []);
+      const existingThread = list.find(t => t.patientCareRecordId === review.recordId);
+      
+      if (existingThread) {
+        navigate('/feedback', { state: { expandThreadId: existingThread.id } });
+      } else {
+        const patientName = review.recordDisplay ? (review.recordDisplay.includes(' (') ? review.recordDisplay.split(' (')[0] : review.recordDisplay) : 'Unknown Patient';
+        const newThread = await dispatch(createFeedbackThread({
+          patientCareRecordId: review.recordId,
+          userId: user?.id,
+          subject: `Clarification: QA Review for Patient ${patientName} (Record #${review.recordId.substring(0, 8).toUpperCase()})`,
+          messages: [],
+          status: 'OPEN'
+        })).unwrap();
+        navigate('/feedback', { state: { expandThreadId: newThread.id } });
+      }
+      setIsViewOpen(false);
+    } catch {
+      dispatch(addToast({ type: 'error', message: 'Failed to initiate discussion' }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filtered = (reviews || []).filter(r => {
+    const patientName = r.recordDisplay ? (r.recordDisplay.includes(' (') ? r.recordDisplay.split(' (')[0] : r.recordDisplay) : '';
+    return r.recordId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.feedback?.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   const inputCls = 'input py-2.5 text-sm';
 
@@ -192,8 +389,8 @@ const QaReviews = () => {
                         <FileText size={16} />
                       </div>
                       <div>
-                        <p className="font-semibold text-[#0F1A3A]">#{review.patientCareRecordId?.substring(0,8).toUpperCase()}</p>
-                        <p className="text-xs text-[#A0AECB] font-mono">ID: {review.id?.substring(0,8)}</p>
+                        <p className="font-semibold text-[#0F1A3A]">{review.recordDisplay ? (review.recordDisplay.includes(' (') ? review.recordDisplay.split(' (')[0] : review.recordDisplay) : 'Unknown Patient'}</p>
+                        <p className="text-xs text-[#A0AECB] font-mono">Record: #{review.recordId?.substring(0,8).toUpperCase()} | Review ID: {review.id?.substring(0,8)}</p>
                       </div>
                     </div>
                   </td>
@@ -262,7 +459,7 @@ const QaReviews = () => {
                   onChange={e => setCreateForm({ ...createForm, patientCareRecordId:e.target.value })}
                   className={inputCls}>
                   <option value="">Select Record</option>
-                  {records.map(r => <option key={r.id} value={r.id}>#{r.id?.substring(0,8).toUpperCase()} — {r.diagnosis || 'Unknown'}</option>)}
+                  {records.map(r => <option key={r.id} value={r.id}>{r.patientName || 'Anonymous'} — #{r.id?.substring(0,8).toUpperCase()} ({r.diagnosis || 'No Diagnosis'})</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
@@ -304,7 +501,10 @@ const QaReviews = () => {
                 </div>
                 <div>
                   <h2 className="font-black text-[#0F1A3A] text-lg">Complete Review</h2>
-                  <p className="text-xs text-[#8A97B0]">Record: #{selectedReview?.id?.substring(0,8)}</p>
+                  <p className="text-xs text-[#8A97B0]">
+                    Patient: {selectedReview?.recordDisplay ? (selectedReview.recordDisplay.includes(' (') ? selectedReview.recordDisplay.split(' (')[0] : selectedReview.recordDisplay) : 'Unknown Patient'} 
+                    {selectedReview?.recordId && ` (Record: #${selectedReview.recordId.substring(0,8).toUpperCase()})`}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setIsCompleteOpen(false)}
@@ -392,6 +592,8 @@ const QaReviews = () => {
               <div className="space-y-4">
                 <h4 className="text-xs font-black text-brand-blue uppercase tracking-wider pb-2 border-b border-[#F0F4FC]">Review Info</h4>
                 {[
+                  { label:'Patient', value:selectedReview.recordDisplay ? (selectedReview.recordDisplay.includes(' (') ? selectedReview.recordDisplay.split(' (')[0] : selectedReview.recordDisplay) : 'Unknown Patient' },
+                  { label:'Record ID', value:selectedReview.recordId },
                   { label:'Reviewer', value:selectedReview.reviewerName || 'Unassigned' },
                   { label:'Created', value:new Date(selectedReview.createdAt).toLocaleString() },
                   { label:'Template', value:qaTemplates.find(t => t.id === selectedReview.qaFormId)?.name || 'Standard' },
@@ -417,9 +619,9 @@ const QaReviews = () => {
                 {selectedRecord ? (
                   <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                     {Object.entries(selectedRecord).filter(([k]) => !['id','createdAt','updatedAt'].includes(k)).map(([k, v]) => (
-                      <div key={k} className="space-y-1">
+                      <div key={k} className="space-y-1 border-b border-[#F0F4FC]/50 pb-2 last:border-0 last:pb-0">
                         <p className="text-xs font-bold text-[#A0AECB] uppercase tracking-wider">{k.replace(/([A-Z])/g,' $1')}</p>
-                        <p className="text-sm text-[#0F1A3A] font-medium">{typeof v === 'object' ? JSON.stringify(v) : String(v || '—')}</p>
+                        <div className="text-sm text-[#0F1A3A] font-medium">{renderRecordValue(k, v)}</div>
                       </div>
                     ))}
                   </div>
@@ -430,8 +632,23 @@ const QaReviews = () => {
                 )}
               </div>
             </div>
-            <div className="p-5 border-t border-[#F0F4FC] flex justify-end">
-              <button onClick={() => setIsViewOpen(false)} className="btn-primary text-sm px-6 py-2.5">Close</button>
+            <div className="p-5 border-t border-[#F0F4FC] flex justify-end gap-3">
+              <button 
+                type="button"
+                onClick={() => handleDiscussReview(selectedReview)} 
+                disabled={isSubmitting}
+                className="btn-primary bg-[#1A3C8F] hover:bg-[#1A3C8F]/95 text-sm px-5 py-2.5 flex items-center gap-2"
+              >
+                {isSubmitting ? <RefreshCw size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                Discuss this Review
+              </button>
+              <button 
+                type="button"
+                onClick={() => setIsViewOpen(false)} 
+                className="btn-ghost border border-[#DDE3F0] text-sm px-6 py-2.5 rounded-xl"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
