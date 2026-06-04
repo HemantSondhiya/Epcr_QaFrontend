@@ -228,7 +228,7 @@ const Dashboard = () => {
   const dispatch  = useDispatch();
   const user      = useSelector(selectUser);
   const role      = useSelector(selectRole);
-  const pending   = useSelector(selectPendingReviews);
+  const pending   = useSelector(selectPendingReviews) || [];
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [summary, setSummary] = useState(null);

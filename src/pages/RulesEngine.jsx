@@ -357,25 +357,21 @@ const RulesEngine = () => {
   };
 
   const handleRunCampaignNow = (ruleId, ruleName) => {
-    const isLive = !isDryRun;
-
     setConfirmDialog({
       isOpen: true,
-      isLive: isLive,
-      title: isLive ? 'Confirm Group Scan Execution' : 'Confirm Group Evaluation',
-      message: isLive 
-        ? `Are you sure you want to trigger an immediate scan for the campaign "${ruleName}"? This will send LIVE Full Body Checkup emails to all currently matching patients.`
-        : `Are you sure you want to trigger a simulation scan for the campaign "${ruleName}"? No live emails will be sent.`,
+      isLive: false,
+      title: 'Confirm Group Evaluation',
+      message: `Are you sure you want to trigger a simulation scan for the campaign "${ruleName}"? This will scan the group and show the matching patients checklist without sending live emails.`,
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         
         try {
           await dispatch(runRules({ 
             organizationId: currentOrgId, 
-            dryRun: isDryRun,
+            dryRun: true,
             ruleIds: [ruleId]
           })).unwrap();
-          dispatch(addToast({ type: 'success', message: `Scan initiated for campaign: ${ruleName}` }));
+          dispatch(addToast({ type: 'success', message: `Scan completed. Review matching patients below.` }));
         } catch (err) {
           dispatch(addToast({ type: 'error', message: err || 'Failed to trigger scan' }));
         }

@@ -11,8 +11,8 @@ import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { fetchFormTemplates } from '../store/slices/formTemplateSlice';
 import {
-  fetchQaReviews, fetchPendingReviews, createQaReview, completeQaReview,
-  selectReviews, selectReviewsLoading
+  fetchQaReviews, fetchPendingReviews, fetchQaReviewStats, createQaReview, completeQaReview,
+  selectReviews, selectReviewsLoading, selectQaPagination, selectQaStats
 } from '../store/slices/qaSlice';
 import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
 import { fetchFeedbackThreads, createFeedbackThread } from '../store/slices/feedbackSlice';
@@ -206,6 +206,8 @@ const QaReviews = () => {
   const loading  = useSelector(selectReviewsLoading);
   const records  = useSelector(selectRecords);
   const { templates: qaTemplates } = useSelector(state => state.formTemplate);
+  const pagination = useSelector(selectQaPagination);
+  const stats      = useSelector(selectQaStats);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState(['ADMIN','MANAGER'].includes(user?.role) ? 'all' : 'mine');
@@ -217,14 +219,23 @@ const QaReviews = () => {
   const [isSubmitting, setIsSubmitting]   = useState(false);
   const [createForm, setCreateForm] = useState({ patientCareRecordId:'', templateId:'', feedback:'' });
   const [completeForm, setCompleteForm] = useState({ score:'', passed:true, feedback:'', responses:{} });
+  const [currentPage, setCurrentPage] = useState(0);
 
-  const fetchReviews_ = () => {
-    if (filterStatus === 'pending') dispatch(fetchPendingReviews());
-    else dispatch(fetchQaReviews());
+  const PAGE_SIZE = 20;
+
+  const fetchReviews_ = (pageNum = 0) => {
+    dispatch(fetchQaReviews({
+      page: pageNum,
+      size: PAGE_SIZE,
+      filterStatus,
+      reviewerId: user?.id
+    }));
+    dispatch(fetchQaReviewStats());
   };
 
   useEffect(() => {
-    fetchReviews_();
+    setCurrentPage(0);
+    fetchReviews_(0);
     dispatch(fetchRecords({ page: 0, size: 20 }));
     dispatch(fetchFormTemplates({ orgId:user?.organizationId, templateType:'QA_FORM' }));
   }, [filterStatus, user, dispatch]);
@@ -236,7 +247,7 @@ const QaReviews = () => {
       setIsCreateOpen(false);
       setCreateForm({ patientCareRecordId:'', templateId:'', feedback:'' });
       dispatch(addToast({ type:'success', message:'QA Review initiated' }));
-      fetchReviews_();
+      fetchReviews_(currentPage);
     } catch (err) { dispatch(addToast({ type:'error', message:err || 'Failed to create review' })); }
     finally { setIsSubmitting(false); }
   };
@@ -253,7 +264,7 @@ const QaReviews = () => {
       await dispatch(completeQaReview({ id:selectedReview.id, data:{ ...completeForm, status:'COMPLETED' } })).unwrap();
       setIsCompleteOpen(false);
       dispatch(addToast({ type:'success', message:'QA Review completed' }));
-      fetchReviews_();
+      fetchReviews_(currentPage);
     } catch (err) { dispatch(addToast({ type:'error', message:err || 'Failed' })); }
     finally { setIsSubmitting(false); }
   };
@@ -301,6 +312,13 @@ const QaReviews = () => {
       r.feedback?.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  const totalPages = pagination.totalPages || 1;
+  const handlePage = (p) => {
+    const next = Math.max(0, Math.min(p, totalPages - 1));
+    setCurrentPage(next);
+    fetchReviews_(next);
+  };
+
   const inputCls = 'input py-2.5 text-sm';
 
   return (
@@ -319,7 +337,7 @@ const QaReviews = () => {
             <option value="all">All Reviews</option>
             <option value="pending">Pending</option>
           </select>
-          <button onClick={fetchReviews_} disabled={loading}
+          <button onClick={() => fetchReviews_(currentPage)} disabled={loading}
             className="btn-ghost border border-[#DDE3F0] px-3 py-2.5 rounded-xl">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -332,9 +350,9 @@ const QaReviews = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label:'Total Reviews', value:reviews?.length||0, icon:ClipboardList, red:false },
-          { label:'Pending', value:reviews?.filter(r=>['PENDING','QA_PENDING'].includes(r.status)).length||0, icon:AlertCircle, red:true },
-          { label:'Completed', value:reviews?.filter(r=>r.status==='COMPLETED').length||0, icon:CheckCircle2, red:false },
+          { label:'Total Reviews', value:stats.total || 0, icon:ClipboardList, red:false },
+          { label:'Pending', value:stats.pending || 0, icon:AlertCircle, red:true },
+          { label:'Completed', value:stats.completed || 0, icon:CheckCircle2, red:false },
           { label:'Templates', value:qaTemplates?.length||0, icon:Layers, red:false },
         ].map(({ label, value, icon: Icon, red }) => (
           <div key={label} className="stat-card">
@@ -355,7 +373,11 @@ const QaReviews = () => {
             <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               placeholder="Search reviews…" className="input pl-10 py-2.5 text-sm" />
           </div>
-          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">{filtered.length} reviews</span>
+          <span className="text-xs text-[#A0AECB] font-semibold sm:ml-auto">
+            {searchTerm 
+              ? `${filtered.length} match${filtered.length !== 1 ? 'es' : ''} on this page` 
+              : `${pagination.totalElements || reviews.length} review${(pagination.totalElements || reviews.length) !== 1 ? 's' : ''}`}
+          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -431,6 +453,34 @@ const QaReviews = () => {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-[#F0F4FC]">
+            <span className="text-xs text-[#8A97B0]">
+              Page <span className="font-bold text-[#0F1A3A]">{currentPage + 1}</span> of{' '}
+              <span className="font-bold text-[#0F1A3A]">{totalPages}</span>
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => { handlePage(0); }}       disabled={currentPage === 0 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">«</button>
+              <button type="button" onClick={() => { handlePage(currentPage - 1); }} disabled={currentPage === 0 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">‹ Prev</button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let start = Math.max(0, currentPage - 2);
+                const end = Math.min(totalPages - 1, start + 4);
+                start = Math.max(0, end - 4);
+                const pg = start + i;
+                if (pg > end) return null;
+                return (
+                  <button type="button" key={pg} onClick={() => handlePage(pg)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      pg === currentPage ? 'bg-brand-blue text-white border-brand-blue' : 'border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue'
+                    }`}>{pg + 1}</button>
+                );
+              })}
+              <button type="button" onClick={() => { handlePage(currentPage + 1); }} disabled={currentPage >= totalPages - 1 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">Next ›</button>
+              <button type="button" onClick={() => { handlePage(totalPages - 1); }} disabled={currentPage >= totalPages - 1 || loading} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#DDE3F0] text-[#4B5A7A] hover:bg-[#EEF2FF] hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 transition-all">»</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
