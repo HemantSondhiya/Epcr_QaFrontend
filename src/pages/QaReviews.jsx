@@ -210,7 +210,9 @@ const QaReviews = () => {
   const stats      = useSelector(selectQaStats);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState(['ADMIN','MANAGER'].includes(user?.role) ? 'all' : 'mine');
+  const [filterStatus, setFilterStatus] = useState(
+    user?.role === 'QA_REVIEWER' ? 'pending' : 'all'
+  );
   const [isCreateOpen, setIsCreateOpen]   = useState(false);
   const [isViewOpen, setIsViewOpen]       = useState(false);
   const [isCompleteOpen, setIsCompleteOpen] = useState(false);
@@ -228,7 +230,6 @@ const QaReviews = () => {
       page: pageNum,
       size: PAGE_SIZE,
       filterStatus,
-      reviewerId: user?.id
     }));
     dispatch(fetchQaReviewStats());
   };
@@ -332,8 +333,7 @@ const QaReviews = () => {
         </div>
         <div className="flex gap-3">
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="input py-2.5 text-sm pr-4 min-w-[160px]">
-            <option value="mine">Assigned to Me</option>
+            className="input py-2.5 text-sm pr-4 min-w-[140px]">
             <option value="all">All Reviews</option>
             <option value="pending">Pending</option>
           </select>

@@ -2,12 +2,15 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import client, { extractErrorMessage } from '../../api/client';
 
 const extractContent = (data) => {
+  if (!data) return [];
   if (Array.isArray(data)) return data;
   if (data?.content && Array.isArray(data.content)) return data.content;
-  if (data?.data && Array.isArray(data.data)) return data.data;
-  if (data?.items && Array.isArray(data.items)) return data.items;
+  if (data?.data    && Array.isArray(data.data))    return data.data;
+  if (data?.items   && Array.isArray(data.items))   return data.items;
   if (data?.notifications && Array.isArray(data.notifications)) return data.notifications;
   if (data?.results && Array.isArray(data.results)) return data.results;
+  // If it's a single object with an `id` field, wrap it as a single-item list
+  if (data?.id) return [data];
   return [];
 };
 

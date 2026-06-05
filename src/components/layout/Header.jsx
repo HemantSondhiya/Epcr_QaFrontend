@@ -61,11 +61,12 @@ const Header = ({ setIsMobileMenuOpen }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch unread notifications on mount if user has permission
+  // Fetch unread notifications on mount and poll every 30 s so bell stays current
   useEffect(() => {
-    if (user && role && ROLE_MENU[role]?.includes('Notifications')) {
-      dispatch(fetchUnreadNotifications());
-    }
+    if (!user || !role || !ROLE_MENU[role]?.includes('Notifications')) return;
+    dispatch(fetchUnreadNotifications());
+    const interval = setInterval(() => dispatch(fetchUnreadNotifications()), 30_000);
+    return () => clearInterval(interval);
   }, [dispatch, user, role]);
 
   const crumbs = BREADCRUMBS[location.pathname] || ['Platform'];

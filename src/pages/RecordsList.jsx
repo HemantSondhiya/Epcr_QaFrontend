@@ -16,6 +16,7 @@ import {
 } from '../store/slices/epcrSlice';
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import client, { extractErrorMessage } from '../api/client';
+import { fetchUnreadNotifications } from '../store/slices/notificationSlice';
 
 const INCIDENT_TYPES = [
   'GENERAL', 'EMERGENCY', 'TRAUMA', 'CARDIOLOGY', 'RESPIRATORY', 'NEUROLOGY',
@@ -236,7 +237,9 @@ const RecordsList = () => {
         const submitted = await dispatch(submitRecord(recordId)).unwrap();
         const syncedPatientId = patientId || submitted?.patientId || submitted?.patient?.id;
         if (syncedPatientId) await dispatch(fetchAllPatientHistory(syncedPatientId));
-        dispatch(addToast({ type: 'success', message: 'Record submitted for QA' }));
+        dispatch(addToast({ type: 'success', message: 'Record submitted for QA review' }));
+        // Refresh notifications immediately so the QA assignment bell updates
+        dispatch(fetchUnreadNotifications());
       }
       fetchPage(currentPage);
       setIsViewOpen(false);
