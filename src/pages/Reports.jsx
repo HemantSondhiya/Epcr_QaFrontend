@@ -485,7 +485,7 @@ const Reports = () => {
 
     if (chartType === 'pie')
       return (
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <RPieChart>
             <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="70%"
               label={({ name, value }) => `${name}: ${value}`}>
@@ -505,7 +505,7 @@ const Reports = () => {
       : { fill: '#1A3C8F', radius: [4, 4, 0, 0] };
 
     return (
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <ChartComp data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F0F4FC" />
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8A97B0' }} />
@@ -611,7 +611,7 @@ const Reports = () => {
                 </div>
               ) : statusChartData.length > 0 ? (
                 <div className="h-[240px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={statusChartData} margin={{ top: 4, right: 8, left: -20, bottom: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0F4FC" />
                       <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8A97B0' }} angle={-25} textAnchor="end" interval={0} />

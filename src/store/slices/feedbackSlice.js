@@ -75,10 +75,9 @@ const feedbackSlice = createSlice({
       })
 
       .addCase(addFeedbackMessage.fulfilled, (state, action) => {
-        const thread = state.threads.find(t => t.id === action.meta.arg.threadId);
-        if (thread) {
-          if (!thread.messages) thread.messages = [];
-          thread.messages.push(action.payload);
+        const idx = state.threads.findIndex(t => t.id === action.payload.id);
+        if (idx !== -1) {
+          state.threads[idx] = action.payload;
         }
       })
       .addCase(updateFeedbackStatus.fulfilled, (state, action) => {

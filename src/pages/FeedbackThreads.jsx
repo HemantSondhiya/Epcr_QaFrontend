@@ -5,6 +5,7 @@ import { MessageSquare, Plus, RefreshCw, X, Send, Trash2, ChevronDown } from 'lu
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { fetchRecords, selectRecords } from '../store/slices/epcrSlice';
+import { fetchQaReviews, selectReviews } from '../store/slices/qaSlice';
 import {
   fetchFeedbackThreads, createFeedbackThread, addFeedbackMessage,
   updateFeedbackStatus, deleteFeedbackThread,
@@ -20,6 +21,117 @@ const STATUS_BADGE = {
 
 const asList = d => Array.isArray(d) ? d : (d?.content || []);
 
+const formatRole = (role) => {
+  if (!role) return '';
+  switch (role.toUpperCase()) {
+    case 'ADMIN': return 'Admin';
+    case 'MANAGER': return 'Manager';
+    case 'PARAMEDIC': return 'Paramedic';
+    case 'PHYSICIAN': return 'Physician';
+    case 'QA_REVIEWER': return 'QA Reviewer';
+    case 'VIEWER': return 'Viewer';
+    case 'PATIENT': return 'Patient';
+    default: return role;
+  }
+};
+
+const formatSender = (msg, currentUser, thread, records, qaReviews, threads) => {
+  const isMe = msg.senderId === (currentUser?.userId || currentUser?.id);
+  
+  let role = '';
+  let name = msg.senderName || '';
+  
+  if (name.includes(':')) {
+    const parts = name.split(':');
+    role = parts[0].trim();
+    name = parts.slice(1).join(':').trim();
+  }
+  
+  if (!role) {
+    if (isMe) {
+      role = formatRole(currentUser?.role);
+    } else if (thread && records) {
+      const linkedRecord = records.find(r => r.id === thread.patientCareRecordId);
+      if (linkedRecord && (msg.senderId === linkedRecord.submittedBy || msg.senderId === linkedRecord.paramedicsId)) {
+        role = 'Paramedic';
+      } else {
+        role = 'QA Reviewer';
+      }
+    }
+  }
+
+  const isPlaceholder = (n) => {
+    if (!n) return true;
+    const lower = n.toLowerCase();
+    return lower === 'user' || lower === 'reviewer' || lower === 'qa reviewer' || lower === 'paramedic' || lower === 'participant';
+  };
+  
+  if (isPlaceholder(name)) {
+    if (isMe) {
+      name = currentUser?.fullName || (currentUser?.firstName && currentUser?.lastName ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser?.name || currentUser?.username || 'You'));
+    } else {
+      // 1. Look through all messages in all threads to see if we resolved a real name for this senderId before
+      let foundName = '';
+      const allThreads = Array.isArray(threads) ? threads : (threads?.content || []);
+      for (const t of allThreads) {
+        if (t.messages) {
+          for (const m of t.messages) {
+            if (m.senderId === msg.senderId && m.senderName) {
+              let mName = m.senderName;
+              if (mName.includes(':')) {
+                mName = mName.split(':').slice(1).join(':').trim();
+              }
+              if (!isPlaceholder(mName)) {
+                foundName = mName;
+                break;
+              }
+            }
+          }
+        }
+        if (foundName) break;
+      }
+      
+      if (foundName) {
+        name = foundName;
+      } else if (thread) {
+        const linkedRecord = records?.find(r => r.id === thread.patientCareRecordId);
+        const linkedReview = qaReviews?.find(r => r.recordId === thread.patientCareRecordId || r.patientCareRecordId === thread.patientCareRecordId);
+        
+        if (role === 'Paramedic') {
+          const recordBySender = records?.find(r => r.paramedicsId === msg.senderId || r.submittedBy === msg.senderId);
+          name = recordBySender?.paramedicsName || recordBySender?.submittedByName || linkedRecord?.paramedicsName || linkedRecord?.submittedByName || 'Paramedic';
+        } else if (role === 'QA Reviewer') {
+          const reviewBySender = qaReviews?.find(r => r.reviewerId === msg.senderId);
+          name = reviewBySender?.reviewerName || linkedReview?.reviewerName || linkedRecord?.qaApprovedByName || 'Reviewer';
+        } else if (linkedRecord && (msg.senderId === linkedRecord.submittedBy || msg.senderId === linkedRecord.paramedicsId)) {
+          name = linkedRecord.paramedicsName || linkedRecord.submittedByName || 'Paramedic';
+        } else if (linkedReview && msg.senderId === linkedReview.reviewerId) {
+          name = linkedReview.reviewerName || 'Reviewer';
+        } else {
+          // General lookup in reviews
+          const reviewBySender = qaReviews?.find(r => r.reviewerId === msg.senderId);
+          if (reviewBySender?.reviewerName) {
+            name = reviewBySender.reviewerName;
+            role = 'QA Reviewer';
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback to avoid showing placeholder under any circumstances
+  if (isPlaceholder(name)) {
+    name = role || 'Participant';
+  }
+  
+  const displayName = isMe ? `${name} (You)` : name;
+  if (role && name === role) {
+    return isMe ? `${role} (You)` : role;
+  }
+  return role ? `${role}: ${displayName}` : displayName;
+};
+
+
 const FeedbackThreads = () => {
   const dispatch = useDispatch();
   const location = useLocation();
@@ -27,6 +139,7 @@ const FeedbackThreads = () => {
   const threads = useSelector(selectFeedbackThreads);
   const loading = useSelector(selectFeedbackLoading);
   const records = useSelector(selectRecords);
+  const qaReviews = useSelector(selectReviews);
 
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(location.state?.expandThreadId || null);
@@ -38,6 +151,7 @@ const FeedbackThreads = () => {
   useEffect(() => {
     dispatch(fetchFeedbackThreads());
     dispatch(fetchRecords({ page: 0, size: 20 }));
+    dispatch(fetchQaReviews({ page: 0, size: 200 }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -182,7 +296,7 @@ const FeedbackThreads = () => {
                             <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMe ? 'bg-brand-blue text-white' : 'bg-white border border-[#DDE3F0] text-[#0F1A3A]'}`}>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className={`text-xs font-bold ${isMe ? 'text-blue-100' : 'text-brand-blue'}`}>
-                                  {msg.senderName || (isMe ? 'You' : 'User')}
+                                  {formatSender(msg, user, thread, records, qaReviews, threads)}
                                 </span>
                                 <span className={`text-xs ${isMe ? 'text-blue-100/60' : 'text-[#A0AECB]'}`}>
                                   {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}

@@ -118,7 +118,7 @@ const AnalyticsCharts = React.memo(() => {
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/10"><TrendingUp size={24} /></div>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={monthData}>
                 <defs>
                   <linearGradient id="colorPass" x1="0" y1="0" x2="0" y2="1">
@@ -172,7 +172,7 @@ const AnalyticsCharts = React.memo(() => {
             <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-500 shadow-xl shadow-cyan-500/10"><BarChart3 size={24} /></div>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={locationData} layout="vertical" margin={{ left: 20 }}>
                 <defs>
                   <linearGradient id="colorCount" x1="0" y1="0" x2="1" y2="0">
