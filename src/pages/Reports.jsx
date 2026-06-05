@@ -19,12 +19,14 @@ import {
   selectCustomReport, selectCustomReportLoading,
   fetchBuilderStats, selectBuilderStats, selectBuilderStatsLoading,
   fetchBuilderRecords, selectBuilderRecords, selectBuilderPagination,
+  selectBuilderLoading,
 } from '../store/slices/reportSlice';
 import {
   fetchIncidentTypes, selectIncidentTypes,
 } from '../store/slices/epcrSlice';
 import { fetchQaReviews, selectReviews } from '../store/slices/qaSlice';
 import { addToast } from '../store/slices/uiSlice';
+import GlobalLoader from '../components/common/GlobalLoader';
 
 /* ─── Constants ──────────────────────────────────────────────────── */
 const COLORS   = ['#1A3C8F', '#C8102E', '#059669', '#EA580C', '#7C3AED', '#0891B2', '#DB2777'];
@@ -197,21 +199,25 @@ const Reports = () => {
   const dispatch = useDispatch();
 
   /* ── Redux selectors ──────────────────────────────────────────── */
-  const stats          = useSelector(selectReportStats);
-  const statsLoading   = useSelector(selectStatsLoading);
-  const qaPerf         = useSelector(selectReportQaPerf);
-  const qaLoading      = useSelector(selectQaLoading);
-  const byStatus       = useSelector(selectReportByStatus);
+  const stats           = useSelector(selectReportStats);
+  const statsLoading    = useSelector(selectStatsLoading);
+  const qaPerf          = useSelector(selectReportQaPerf);
+  const qaLoading       = useSelector(selectQaLoading);
+  const byStatus        = useSelector(selectReportByStatus);
   const byStatusLoading = useSelector(selectByStatusLoading);
-  const customReport   = useSelector(selectCustomReport);
-  const customLoading  = useSelector(selectCustomReportLoading);
-  const loading        = statsLoading || qaLoading || byStatusLoading; // combined for refresh button
-  const builderStats   = useSelector(selectBuilderStats);
-  const bsLoading      = useSelector(selectBuilderStatsLoading);
-  const records        = useSelector(selectBuilderRecords) || [];
-  const reviews        = useSelector(selectReviews)        || [];
-  const incidentTypes  = useSelector(selectIncidentTypes)  || [];
-  const pagination     = useSelector(selectBuilderPagination); // { page, totalPages, totalElements, isLast }
+  const customReport    = useSelector(selectCustomReport);
+  const customLoading   = useSelector(selectCustomReportLoading);
+  const loading         = statsLoading || qaLoading || byStatusLoading; // combined for refresh button
+  const builderStats    = useSelector(selectBuilderStats);
+  const bsLoading       = useSelector(selectBuilderStatsLoading);
+  const builderLoading  = useSelector(selectBuilderLoading)  ?? false;
+  const records         = useSelector(selectBuilderRecords) || [];
+  const reviews         = useSelector(selectReviews)        || [];
+  const incidentTypes   = useSelector(selectIncidentTypes)  || [];
+  const pagination      = useSelector(selectBuilderPagination); // { page, totalPages, totalElements, isLast }
+
+  /* ── Global loading: any network call in flight ───────────────── */
+  const isAnyLoading = statsLoading || qaLoading || byStatusLoading || customLoading || bsLoading || builderLoading;
 
   /* ── UI state ─────────────────────────────────────────────────── */
   const [activeTab,   setActiveTab]   = useState('overview');
@@ -514,7 +520,14 @@ const Reports = () => {
 
   /* ════════════════ RENDER ═════════════════════════════════════════ */
   return (
-    <div className="space-y-6 pb-10 animate-fade-in">
+    <div className="relative space-y-6 pb-10 animate-fade-in">
+
+      {/* ── Global Loading Overlay ─────────────────────────────────── */}
+      <GlobalLoader
+        visible={isAnyLoading}
+        label="Loading data…"
+        sublabel="Please wait while we fetch your records"
+      />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -898,10 +911,22 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.length === 0
-                    ? <tr><td colSpan={8} className="px-4 py-12 text-center text-[#A0AECB]">No records on this page match the local filters</td></tr>
-                    : filteredData.map((row, i) => <TableRow key={row.id ?? i} row={row} />)
-                  }
+                  {builderLoading ? (
+                    /* Shimmer skeleton rows while loading */
+                    [...Array(8)].map((_, i) => (
+                      <tr key={i} className="border-b border-[#F8FAFF] animate-pulse">
+                        {TABLE_HEADERS.map((h) => (
+                          <td key={h} className="px-4 py-3">
+                            <div className="h-3 bg-[#F0F4FC] rounded-full" style={{ width: `${55 + (i * 7 + h.length * 3) % 35}%` }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : filteredData.length === 0 ? (
+                    <tr><td colSpan={8} className="px-4 py-12 text-center text-[#A0AECB]">No records match the current filters</td></tr>
+                  ) : (
+                    filteredData.map((row, i) => <TableRow key={row.id ?? i} row={row} />)
+                  )}
                 </tbody>
               </table>
             </div>
@@ -924,7 +949,7 @@ const Reports = () => {
                   );
                 })}
               </div>
-              <button disabled={pagination?.isLast ?? page >= totalPages - 1} onClick={goNext}
+              <button disabled={page >= totalPages - 1} onClick={goNext}
                 className="px-4 py-1.5 text-xs font-bold text-[#4B5A7A] border border-[#DDE3F0] rounded-lg hover:bg-white disabled:opacity-40 transition-colors">
                 Next →
               </button>

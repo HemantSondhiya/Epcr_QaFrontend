@@ -83,7 +83,7 @@ const reportSlice = createSlice({
     customReport:          null,  customLoading:         false,
     builderStats:          null,  builderStatsLoading:   false,
     builderRecords:        [],
-    builderPagination:     { page: 0, totalPages: 0, totalElements: 0, isLast: true },
+    builderPagination:     { page: 0, totalPages: 0, totalElements: 0, isLast: false },
     builderRecordsLoading: false,
     error: null,
   },
@@ -124,12 +124,27 @@ const reportSlice = createSlice({
         const raw = a.payload;
         const newList = Array.isArray(raw) ? raw : (raw?.content || []);
         s.builderRecords = newList;
-        if (raw && !Array.isArray(raw) && (raw.totalElements !== undefined || raw.page !== undefined || raw.content !== undefined)) {
+        if (raw && !Array.isArray(raw) && (raw.totalElements !== undefined || raw.page !== undefined || raw.number !== undefined || raw.content !== undefined)) {
+          // Preserve previous totalPages/totalElements if backend omits them (Spring Slice or last-page response)
+          const prevTotalPages    = s.builderPagination.totalPages;
+          const prevTotalElements = s.builderPagination.totalElements;
+
+          const newTotalPages = (raw.totalPages !== undefined && raw.totalPages !== -1)
+            ? raw.totalPages
+            : (prevTotalPages > 1 ? prevTotalPages : 1);
+
+          const newTotalElements = (raw.totalElements !== undefined && raw.totalElements !== -1)
+            ? raw.totalElements
+            : (prevTotalElements > 0 ? prevTotalElements : newList.length);
+
+          // Spring uses `number` for current page index; fall back to `page`
+          const currentPage = raw.number ?? raw.page ?? 0;
+
           s.builderPagination = {
-            page: raw.page ?? 0,
-            totalPages: raw.totalPages === -1 || raw.totalPages === undefined ? 1 : raw.totalPages,
-            totalElements: raw.totalElements === -1 || raw.totalElements === undefined ? newList.length : raw.totalElements,
-            isLast: raw.last ?? true,
+            page:          currentPage,
+            totalPages:    newTotalPages,
+            totalElements: newTotalElements,
+            isLast:        raw.last !== undefined ? raw.last : (currentPage >= newTotalPages - 1),
           };
         }
       })
@@ -153,6 +168,7 @@ export const selectBuilderStatsLoading = (s) => s.reports.builderStatsLoading;
 export const selectBuilderRecords      = (s) => s.reports.builderRecords;
 export const selectBuilderPagination   = (s) => s.reports.builderPagination;
 export const selectBuilderRecordsLoading = (s) => s.reports.builderRecordsLoading;
+export const selectBuilderLoading        = (s) => s.reports.builderRecordsLoading; // alias used by Reports.jsx global loader
 
 // Legacy — still used by loadOverview callback reference
 export const selectReportLoading = (s) => s.reports.statsLoading || s.reports.qaLoading || s.reports.byStatusLoading;
