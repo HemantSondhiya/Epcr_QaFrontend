@@ -2,11 +2,12 @@ import { useEffect, useState, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectRole } from '../store/slices/authSlice';
 import { fetchPendingReviews, selectPendingReviews } from '../store/slices/qaSlice';
+import { fetchFollowUps, selectPendingFollowUps, selectFollowUpLoading } from '../store/slices/followUpSlice';
 import StatsCard from '../components/common/StatsCard';
 import {
   FileText, CheckSquare, Bell, GitBranch, Users, Building2,
   TrendingUp, Clock, AlertCircle, ChevronRight, Activity,
-  ArrowUpRight, Sparkles, LayoutDashboard
+  ArrowUpRight, Sparkles, LayoutDashboard, AlertTriangle, Mail,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROLE_MENU } from '../constants/permissions';
@@ -131,6 +132,69 @@ const PendingQueue = memo(({ pending, loading }) => (
   </div>
 ));
 
+/* ── Critical Follow-Up Alert Panel (Paramedic) ── */
+const CriticalAlertPanel = memo(({ tasks, loading }) => (
+  <div className="card overflow-hidden">
+    <div className="flex items-center justify-between p-5 border-b border-[#F0F4FC]">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-50 text-brand-red">
+          <AlertTriangle size={17} />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-[#0F1A3A]">Critical Follow-Ups</h2>
+          <p className="text-[11px] text-[#A0AECB]">Patients needing follow-up care</p>
+        </div>
+      </div>
+      <Link to="/critical-follow-ups"
+        className="flex items-center gap-1 text-xs font-semibold text-[#8A97B0] hover:text-brand-blue transition-colors group">
+        View All <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+      </Link>
+    </div>
+    <div className="divide-y divide-[#F8FAFF]">
+      {loading
+        ? [...Array(3)].map((_, i) => (
+          <div key={i} className="px-5 py-4 flex items-center gap-3 animate-pulse">
+            <div className="w-8 h-8 bg-[#F0F4FC] rounded-xl" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3 bg-[#F0F4FC] rounded w-32" />
+              <div className="h-2.5 bg-[#F0F4FC] rounded w-24" />
+            </div>
+            <div className="h-5 bg-[#F0F4FC] rounded w-16" />
+          </div>
+        ))
+        : tasks.length === 0
+          ? (
+            <div className="py-10 text-center">
+              <CheckSquare size={28} className="text-[#DDE3F0] mx-auto mb-2" />
+              <p className="text-sm text-[#A0AECB] font-medium">No pending follow-ups</p>
+            </div>
+          )
+          : tasks.slice(0, 5).map((t, i) => (
+            <div key={t.id || t.patientId || i}
+              className="px-5 py-3.5 flex items-center gap-3 hover:bg-[#F8FAFF] transition-colors">
+              <div className="w-8 h-8 bg-red-50 rounded-xl flex items-center justify-center text-brand-red font-black text-xs shrink-0">
+                {(t.patientName || t.patientId || 'P').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#0F1A3A] truncate">{t.patientName || t.patientId}</p>
+                <p className="text-xs text-[#A0AECB] flex items-center gap-1 truncate">
+                  <Mail size={9} />{t.patientEmail || '—'}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                {(t.criticalReasons || []).slice(0, 1).map((r, ri) => (
+                  <span key={ri} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-brand-red border border-red-100">
+                    <AlertTriangle size={9} />{r}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))
+      }
+    </div>
+  </div>
+));
+
 /* ── Quick Links ── */
 const QUICK_LINK_ROUTES = {
   Organizations:  { path: '/organizations', icon: Building2 },
@@ -208,17 +272,22 @@ const ManagerDashboard = ({ summary, pending, loading }) => (
 );
 
 const ParamedicDashboard = ({ summary, loading }) => {
-  const records = summary?.recentRecords || [];
+  const records     = summary?.recentRecords || [];
+  const followUps   = useSelector(selectPendingFollowUps);
+  const fuLoading   = useSelector(selectFollowUpLoading);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard icon={<FileText size={20} />}    label="My Records"    value={summary?.records?.total ?? 0}                                     color="blue" loading={loading} />
-        <StatsCard icon={<FileText size={20} />}    label="Drafts"        value={summary?.records?.drafts ?? 0}                                    color="blue" loading={loading} />
-        <StatsCard icon={<TrendingUp size={20} />}  label="Submitted"     value={summary?.records?.submitted ?? 0}                                 color="blue" loading={loading} />
-        <StatsCard icon={<Bell size={20} />}        label="Notifications" value={summary?.notifications?.unreadCount ?? 0}                         color="red"  loading={loading} />
+        <StatsCard icon={<FileText size={20} />}    label="My Records"    value={summary?.records?.total ?? 0}                  color="blue" loading={loading} />
+        <StatsCard icon={<FileText size={20} />}    label="Drafts"        value={summary?.records?.drafts ?? 0}                 color="blue" loading={loading} />
+        <StatsCard icon={<TrendingUp size={20} />}  label="Submitted"     value={summary?.records?.submitted ?? 0}              color="blue" loading={loading} />
+        <StatsCard icon={<AlertTriangle size={20} />} label="Critical Follow-Ups" value={followUps.length}              color="red"  loading={fuLoading} />
       </div>
       <QuickLinks role="PARAMEDIC" />
-      <RecentRecords records={records} loading={loading} />
+      <div className="grid lg:grid-cols-2 gap-4">
+        <RecentRecords records={records} loading={loading} />
+        <CriticalAlertPanel tasks={followUps} loading={fuLoading} />
+      </div>
     </div>
   );
 };
@@ -252,6 +321,11 @@ const Dashboard = () => {
         // Fetch pending review objects for list display
         if (ROLE_MENU[role]?.includes('QA Reviews')) {
           promises.push(dispatch(fetchPendingReviews()).unwrap());
+        }
+
+        // Fetch critical follow-ups for paramedics and physicians
+        if (ROLE_MENU[role]?.includes('Critical Follow-Ups')) {
+          promises.push(dispatch(fetchFollowUps({ status: 'PENDING', size: 20 })));
         }
 
         if (isFirst) {

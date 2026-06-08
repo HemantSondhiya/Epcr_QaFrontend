@@ -39,6 +39,7 @@ const BusinessAssociate = lazy(() => import('./pages/BusinessAssociate'));
 const DeIdentification  = lazy(() => import('./pages/DeIdentification'));
 const PatientHistory    = lazy(() => import('./pages/PatientHistory'));
 const GeneralOverviewPage  = lazy(() => import('./pages/overview/GeneralOverviewPage'));
+const CriticalFollowUps    = lazy(() => import('./pages/CriticalFollowUps'));
 const CardiologyOverviewPage = lazy(() => import('./pages/overview/CardiologyOverviewPage'));
 const RadiologyOverviewPage = lazy(() => import('./pages/overview/RadiologyOverviewPage'));
 const OncologyOverviewPage  = lazy(() => import('./pages/overview/OncologyOverviewPage'));
@@ -111,6 +112,8 @@ const AppRoutes = () => {
         <Route path="patient-portal"  element={<GuardedRoute menuItem="Patient Portal"><PatientPortal /></GuardedRoute>} />
         <Route path="patient-history/:patientId" element={<GuardedRoute menuItem="Patient History"><PatientHistory /></GuardedRoute>} />
         <Route path="patient-history" element={<GuardedRoute menuItem="Patient History"><PatientHistory /></GuardedRoute>} />
+
+        <Route path="critical-follow-ups" element={<GuardedRoute menuItem="Critical Follow-Ups"><CriticalFollowUps /></GuardedRoute>} />
         
         {/* Dynamic Patient Specialty Overviews */}
         <Route path="patients/:patientId/overview/general" element={<ProtectedRoute><GeneralOverviewPage /></ProtectedRoute>} />

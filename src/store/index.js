@@ -19,6 +19,7 @@ import baaReducer           from './slices/baaSlice';
 import feedbackReducer      from './slices/feedbackSlice';
 import patientHistoryReducer from './slices/patientHistorySlice';
 import rulesEngineReducer   from './slices/rulesEngineSlice';
+import followUpReducer       from './slices/followUpSlice';
 
 const store = configureStore({
   reducer: {
@@ -42,6 +43,7 @@ const store = configureStore({
     baa:           baaReducer,
     feedback:       feedbackReducer,
     patientHistory: patientHistoryReducer,
+    followUps:      followUpReducer,
   },
 });
 

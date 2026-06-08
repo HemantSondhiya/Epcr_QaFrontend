@@ -1,9 +1,9 @@
 // Role → Menu map — aligned with verified backend permission matrix
 export const ROLE_MENU = {
-  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','QA Rules','Rules Engine','Form Templates','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Break-Glass','Business Associates','De-Identification'],
+  ADMIN:       ['Dashboard','Organizations','Users','EPCR','QA Forms','QA Reviews','QA Rules','Rules Engine','Form Templates','Workflows','Deployments','Reports','Audit Logs','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Break-Glass','Business Associates','De-Identification','Critical Follow-Ups'],
   MANAGER:     ['Dashboard','Organizations','Users','QA Forms','QA Reviews','QA Rules','Rules Engine','Form Templates','Workflows','Reports','Feedback','Notifications','HIPAA Consent','HIPAA Disclosure','Patient Portal','Patient History','Business Associates'],
-  PARAMEDIC:   ['Dashboard','EPCR','Feedback','Notifications','Patient History','Rules Engine'],
-  PHYSICIAN:   ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications','Patient History'],
+  PARAMEDIC:   ['Dashboard','EPCR','Feedback','Notifications','Patient History','Rules Engine','Critical Follow-Ups'],
+  PHYSICIAN:   ['Dashboard','EPCR','QA Reviews','Reports','Feedback','Notifications','Patient History','Critical Follow-Ups'],
   QA_REVIEWER: ['Dashboard','EPCR','QA Reviews','QA Rules','Rules Engine','Reports','Feedback','Notifications'],
   VIEWER:      ['Dashboard','Feedback','Notifications'],
   PATIENT:     ['Patient Portal', 'Notifications']
@@ -33,6 +33,7 @@ export const ROUTE_MAP = {
   'Break-Glass':       '/break-glass',
   'Business Associates': '/hipaa/baa',
   'De-Identification': '/hipaa/deid',
+  'Critical Follow-Ups': '/critical-follow-ups',
 };
 
 export const hasMenuAccess = (role, menuItem) =>

@@ -7,7 +7,7 @@ import {
   LayoutDashboard, FileText, CheckSquare, ClipboardList, GitBranch, Rocket,
   Building2, Users, PieChart, Server, Settings, Bell, MessageSquare, LogOut,
   Shield, ShieldCheck, BookOpen, Zap, Handshake, EyeOff, UserSquare, Code2,
-  Activity, HeartPulse, Sliders,
+  Activity, HeartPulse, Sliders, AlertTriangle,
 } from 'lucide-react';
 
 const MENU_ICONS = {
@@ -34,6 +34,7 @@ const MENU_ICONS = {
   'Break-Glass': Zap,
   'Business Associates': Handshake,
   'De-Identification': EyeOff,
+  'Critical Follow-Ups': AlertTriangle,
 };
 
 /* Group menu items by category */
@@ -42,7 +43,7 @@ const MENU_GROUPS = [
   { label: 'Records', items: ['EPCR', 'QA Forms', 'QA Reviews', 'QA Rules', 'Rules Engine', 'Form Templates'] },
   { label: 'Operations', items: ['Workflows', 'Deployments', 'Reports', 'Feedback', 'Notifications'] },
   { label: 'Admin', items: ['Organizations', 'Users', 'Audit Logs', 'System Settings'] },
-  { label: 'Compliance', items: ['HIPAA Consent', 'HIPAA Disclosure', 'Business Associates', 'De-Identification', 'Patient Portal', 'Patient History', 'Break-Glass'] },
+  { label: 'Compliance', items: ['HIPAA Consent', 'HIPAA Disclosure', 'Business Associates', 'De-Identification', 'Patient Portal', 'Patient History', 'Break-Glass', 'Critical Follow-Ups'] },
 ];
 
 const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
