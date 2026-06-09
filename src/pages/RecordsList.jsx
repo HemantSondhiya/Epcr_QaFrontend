@@ -17,6 +17,7 @@ import {
 import { fetchAllPatientHistory } from '../store/slices/patientHistorySlice';
 import client, { extractErrorMessage } from '../api/client';
 import { fetchUnreadNotifications } from '../store/slices/notificationSlice';
+import AiSuggestionPanel from '../components/common/AiSuggestionPanel';
 
 const INCIDENT_TYPES = [
   'GENERAL', 'EMERGENCY', 'TRAUMA', 'CARDIOLOGY', 'RESPIRATORY', 'NEUROLOGY',
@@ -838,6 +839,16 @@ const RecordsList = () => {
                 </div>
               )}
             </div>
+
+            {/* AI Suggestion Panel — shown for all roles, generate restricted to PHYSICIAN/ADMIN/MANAGER */}
+            {!modalLoading && viewRecord.id && (
+              <div className="px-6 pb-5">
+                <AiSuggestionPanel
+                  recordId={viewRecord.id}
+                  userRole={user?.role}
+                />
+              </div>
+            )}
 
             <div className="p-5 border-t border-[#F0F4FC] flex justify-end">
               <button onClick={() => setIsViewOpen(false)} className="btn-primary text-sm px-6 py-2.5">Close</button>

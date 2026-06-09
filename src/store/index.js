@@ -20,6 +20,7 @@ import feedbackReducer      from './slices/feedbackSlice';
 import patientHistoryReducer from './slices/patientHistorySlice';
 import rulesEngineReducer   from './slices/rulesEngineSlice';
 import followUpReducer       from './slices/followUpSlice';
+import aiSuggestionReducer  from './slices/aiSuggestionSlice';
 
 const store = configureStore({
   reducer: {
@@ -44,6 +45,7 @@ const store = configureStore({
     feedback:       feedbackReducer,
     patientHistory: patientHistoryReducer,
     followUps:      followUpReducer,
+    aiSuggestion:   aiSuggestionReducer,
   },
 });
 
