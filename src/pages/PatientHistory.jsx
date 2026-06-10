@@ -1780,7 +1780,7 @@ function PatientHistory() {
     if (nameStr) displayName = nameStr;
   }
 
-  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology' || specialty === 'obstetric' || specialty === 'cardiology') && !specialtyLoading;
+  const isGeneralView = patientId && (specialty === 'general' || specialty === 'oncology' || specialty === 'obstetric' || specialty === 'cardiology' || specialty === 'radiology') && !specialtyLoading;
 
   return (
     <div className={isGeneralView ? "h-[calc(100vh-2.5rem)] bg-[#F8FAFF] w-full flex flex-col overflow-hidden" : "min-h-screen bg-[#F8FAFF] px-3 pt-1.5 pb-2 space-y-1.5 w-full flex flex-col"} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>

@@ -417,7 +417,7 @@ export default function GeneralOverviewPage({
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
-  const [docFilter, setDocFilter] = useState(DocumentCategory.LAB);
+  const [docFilter, setDocFilter] = useState(DocumentCategory.ALL);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftTab, setLeftTab] = useState('overview');
@@ -483,10 +483,10 @@ export default function GeneralOverviewPage({
       const id = String(getId(doc) || '');
       return id && !previousDocIdsRef.current.has(id);
     });
-    const selectedStillExists = selectedDoc && docs.some((doc) => sameId(getId(doc), getId(selectedDoc)));
+    const selectedWasDeleted = selectedDoc && !docs.some((doc) => sameId(getId(doc), getId(selectedDoc)));
     const latestDoc = getLatestDocument(docs);
 
-    if (latestDoc && (shouldPreviewNextDocumentRef.current || hasNewDocument || !selectedStillExists)) {
+    if (latestDoc && (shouldPreviewNextDocumentRef.current || hasNewDocument || selectedWasDeleted)) {
       shouldPreviewNextDocumentRef.current = false;
       setLeftTab('documents');
       handleSelectDoc(latestDoc);
@@ -1412,6 +1412,7 @@ export default function GeneralOverviewPage({
                     { id: DocumentCategory.LAB, label: 'Lab Reports', icon: FlaskConical },
                     { id: DocumentCategory.IMAGING, label: 'Imaging', icon: Activity },
                     { id: DocumentCategory.DISCHARGE, label: 'Discharge', icon: FileCheck },
+                    { id: DocumentCategory.OTHER, label: 'Other', icon: FileText },
                     { id: DocumentCategory.ALL, label: 'All Docs', icon: Grid3x3 },
                   ].map(cat => (
                     <button key={cat.id} type="button" onClick={() => setDocFilter(cat.id)}

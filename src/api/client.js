@@ -8,10 +8,19 @@ export const injectStore = (store) => { _store = store; };
 
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  timeout: 15000,
+  timeout: 20000,
   withCredentials: true,
   xsrfCookieName: 'XSRF-TOKEN',
   xsrfHeaderName: 'X-XSRF-TOKEN',
+});
+
+// AI suggestion / Q&A endpoints can take 30-90 s (Gemini + attachments)
+// Override timeout for those paths only.
+client.interceptors.request.use((config) => {
+  if (config.url && config.url.includes('/api/ai/suggestions')) {
+    config.timeout = 120000; // 2 minutes
+  }
+  return config;
 });
 
 // Request interceptor for CSRF and other outgoing logic
