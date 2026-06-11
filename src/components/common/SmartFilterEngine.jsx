@@ -4,6 +4,7 @@ import {
   AlertTriangle, CheckCircle2, Info, RefreshCw, Filter, Sparkles,
   Play, BookOpen, Tag
 } from 'lucide-react';
+import { safeUUID } from '../../utils/uuid';
 
 /* ─────────────────────────────────────────────
    Field definitions available for conditions
@@ -54,7 +55,7 @@ const SEVERITY_CONFIG = {
 const STORAGE_KEY = 'epcr_smart_filter_presets';
 
 const newCondition = () => ({
-  id: crypto.randomUUID(),
+  id: safeUUID(),
   field: 'status',
   operator: 'equals',
   value: '',
@@ -62,7 +63,7 @@ const newCondition = () => ({
 });
 
 const newRule = () => ({
-  id: crypto.randomUUID(),
+  id: safeUUID(),
   name: 'New Rule',
   logic: 'AND',       // AND | OR
   conditions: [newCondition()],
@@ -364,8 +365,8 @@ const SmartFilterEngine = ({ records = [], onFilteredChange, onMatchMap }) => {
   };
 
   const loadPreset = (preset) => {
-    setRules(preset.rules.map(r => ({ ...r, id: crypto.randomUUID(),
-      conditions: r.conditions.map(c => ({ ...c, id: crypto.randomUUID() })) })));
+    setRules(preset.rules.map(r => ({ ...r, id: safeUUID(),
+      conditions: r.conditions.map(c => ({ ...c, id: safeUUID() })) })));
     setShowPresets(false);
   };
 

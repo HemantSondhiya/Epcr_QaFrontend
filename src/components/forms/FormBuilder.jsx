@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Trash2, GripVertical, Type, Hash, ToggleLeft, List, Calendar, AlignLeft, CheckSquare } from 'lucide-react';
+import { safeUUID } from '../../utils/uuid';
 
 const FIELD_TYPES = [
   { value: 'text',     label: 'Text Input',   icon: <Type size={14} /> },
@@ -23,7 +24,7 @@ const placeholderTexts = {
 };
 
 const emptyField = () => ({
-  id: crypto.randomUUID(),
+  id: safeUUID(),
   label: '',
   key: '',
   type: 'text',

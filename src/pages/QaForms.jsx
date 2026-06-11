@@ -5,11 +5,12 @@ import client from '../api/client';
 import { selectUser } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { fetchQaForms, createQaForm, selectForms, selectFormsLoading } from '../store/slices/qaSlice';
+import { safeUUID } from '../utils/uuid';
 
 const QUESTION_TYPES = ['YES_NO', 'TEXT', 'NUMERIC', 'MULTIPLE_CHOICE', 'RATING'];
 const emptyForm = () => ({
   name: '', description: '', organizationId: '', reviewCategory: '', callTypes: '', active: true,
-  questions: [{ id: crypto.randomUUID(), question: '', type: 'YES_NO', required: true, options: [] }],
+  questions: [{ id: safeUUID(), question: '', type: 'YES_NO', required: true, options: [] }],
   auditCriteria: []
 });
 
@@ -27,7 +28,7 @@ const QaForms = () => {
 
   useEffect(() => { dispatch(fetchQaForms(user?.organizationId)); }, [user, dispatch]);
 
-  const addQuestion = () => setFormData(p => ({ ...p, questions: [...p.questions, { id: crypto.randomUUID(), question: '', type: 'YES_NO', required: true, options: [] }] }));
+  const addQuestion = () => setFormData(p => ({ ...p, questions: [...p.questions, { id: safeUUID(), question: '', type: 'YES_NO', required: true, options: [] }] }));
   const updateQuestion = (idx, field, val) => setFormData(p => { const qs = [...p.questions]; qs[idx] = { ...qs[idx], [field]: val }; return { ...p, questions: qs }; });
   const removeQuestion = idx => setFormData(p => ({ ...p, questions: p.questions.filter((_, i) => i !== idx) }));
 
