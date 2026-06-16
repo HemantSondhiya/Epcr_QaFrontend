@@ -5,6 +5,7 @@ import {
   CheckCircle, Clock, RefreshCw, Brain, TrendingUp,
   List, Zap, FileText, AlertCircle, Paperclip, Search,
   MessageSquare, Send, FlaskConical, Lightbulb, ArrowRight,
+  Mic, MicOff, Volume2, VolumeX
 } from 'lucide-react';
 import {
   generateAiSuggestion,
@@ -196,7 +197,30 @@ const SuggestionCard = ({ suggestion, isLatest }) => {
 /* ── Q&A Answer Card ─────────────────────────────────────────────── */
 const QuestionAnswerCard = ({ qa, isLatest }) => {
   const [open, setOpen] = useState(isLatest);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const ts = qa.createdAt ? new Date(qa.createdAt).toLocaleString() : '';
+
+  const toggleSpeech = (text) => {
+    if (!text) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    const cleanText = text.replace(/[*#_`]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'en-US';
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
 
   return (
     <div className={`rounded-2xl border overflow-hidden transition-all ${
@@ -236,7 +260,17 @@ const QuestionAnswerCard = ({ qa, isLatest }) => {
           {/* Direct Answer */}
           {qa.answer && (
             <div className="rounded-xl bg-teal-50 border border-teal-100 px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-teal-500 mb-1.5">Answer</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-teal-500">Answer</p>
+                <button
+                  type="button"
+                  onClick={() => toggleSpeech(qa.answer)}
+                  className="text-teal-600 hover:text-teal-800 transition-colors p-1 rounded-md hover:bg-teal-100/50"
+                  title={isSpeaking ? "Stop speaking" : "Speak answer"}
+                >
+                  {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                </button>
+              </div>
               <p className="text-xs text-[#374563] leading-relaxed">{clean(qa.answer)}</p>
             </div>
           )}
@@ -329,6 +363,134 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
   const textareaRef               = useRef(null);
   const canGenerate = allowedRoles.includes(userRole);
 
+  const [isListening, setIsListening] = useState(false);
+  const [micError, setMicError] = useState('');
+  const recognitionRef = useRef(null);
+  const transcriptRef  = useRef(''); // tracks latest voice transcript synchronously
+
+  const toggleListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setMicError('Speech recognition is not supported. Please use Chrome or Edge.');
+      return;
+    }
+
+    // Already listening — stop manually
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current._manualStop = true;
+        try { recognitionRef.current.stop(); } catch (_) {}
+      }
+      recognitionRef.current = null;
+      setIsListening(false);
+      setMicError('');
+      return;
+    }
+
+    setMicError('');
+
+    const startRec = (retryCount = 0) => {
+      const rec = new SpeechRecognition();
+      rec.lang = 'en-US';
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec._manualStop = false;
+      rec._hasResult  = false;  // true once user speaks
+      rec._nextRetry  = null;   // set by onerror if we should retry
+
+      recognitionRef.current = rec;
+
+      rec.onstart = () => { setIsListening(true); setMicError(''); };
+
+      rec.onerror = (err) => {
+        if (rec._manualStop || rec._hasResult) return; // ignore if user cancelled or already got speech
+        if (err.error === 'no-speech' || err.error === 'network') {
+          // Transient — queue a retry in onend (not here, to avoid double-restart)
+          if (retryCount < 6) {
+            rec._nextRetry = retryCount + 1;
+          } else {
+            setIsListening(false);
+            setMicError('Voice recognition is failing. Press Win + H to use Windows voice typing instead.');
+          }
+        } else if (err.error === 'not-allowed') {
+          rec._manualStop = true;
+          setIsListening(false);
+          setMicError('⚠ Microphone blocked — click the 🔒 lock icon in browser address bar → Allow Microphone → try again.');
+        } else if (err.error === 'audio-capture') {
+          rec._manualStop = true;
+          setIsListening(false);
+          setMicError('⚠ No microphone detected. Please connect a microphone and try again.');
+        } else {
+          rec._manualStop = true;
+          setIsListening(false);
+          setMicError(`⚠ Voice error (${err.error}). Please try again.`);
+        }
+      };
+
+      rec.onresult = (e) => {
+        rec._hasResult = true;   // got speech — cancel any retry
+        rec._nextRetry = null;
+        let interim = '', final = '';
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          else interim += e.results[i][0].transcript;
+        }
+        const text = final || interim;
+        if (text) {
+          transcriptRef.current = text; // store synchronously in ref
+          setQuestion(text);            // also update UI
+        }
+      };
+
+      // onend is the ONLY place that decides what happens next
+      rec.onend = () => {
+        if (recognitionRef.current !== rec) return; // a newer rec has taken over
+
+        if (rec._manualStop) {
+          // User clicked mic to stop — just clean up
+          recognitionRef.current = null;
+          return;
+        }
+
+        if (rec._nextRetry !== null) {
+          // Transient error (no-speech / network) — silently restart
+          startRec(rec._nextRetry);
+          return;
+        }
+
+        // Normal end after successful speech
+        recognitionRef.current = null;
+        setIsListening(false);
+        // Read from ref (synchronous) — NOT from state (may be stale due to React batching)
+        const voiceText = transcriptRef.current.trim();
+        transcriptRef.current = ''; // reset for next session
+        if (voiceText) {
+          setQuestion(voiceText); // ensure state is in sync
+          setTimeout(() => document.getElementById('ai-ask-question-btn')?.click(), 400);
+        }
+      };
+
+      try {
+        rec.start();
+      } catch (_) {
+        recognitionRef.current = null;
+        setIsListening(false);
+        setMicError('⚠ Could not start microphone. Please refresh the page and try again.');
+      }
+    };
+
+    startRec();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
   // Fetch history when panel opens
   useEffect(() => {
     if (panelOpen && recordId) {
@@ -348,10 +510,16 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
 
   const handleAskQuestion = async () => {
     if (!question.trim() || asking) return;
+    if (!recordId) {
+      console.error('[AiSuggestionPanel] Cannot ask question: recordId is missing', { recordId, question });
+      return;
+    }
     dispatch(clearQuestionError());
     const q = question.trim();
+    console.log('[AiSuggestionPanel] Asking question:', { recordId, question: q });
     setQuestion('');
-    await dispatch(askAiQuestion({ recordId, question: q }));
+    const result = await dispatch(askAiQuestion({ recordId, question: q }));
+    console.log('[AiSuggestionPanel] Ask result:', result);
   };
 
   const handleKeyDown = (e) => {
@@ -537,6 +705,19 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
                       className="flex-1 text-xs text-[#374563] bg-transparent resize-none outline-none placeholder-[#B0BACC] leading-relaxed"
                     />
                     <button
+                      type="button"
+                      onClick={toggleListening}
+                      className={`shrink-0 p-1.5 rounded-lg border transition-colors ${
+                        isListening
+                          ? 'bg-red-500 text-white animate-pulse border-red-600 shadow-sm'
+                          : 'bg-white text-slate-400 border-[#E5EAF5] hover:text-slate-600 hover:bg-slate-50'
+                      }`}
+                      title={isListening ? "Stop listening" : "Ask using voice"}
+                    >
+                      {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+                    </button>
+                    <button
+                      id="ai-ask-question-btn"
                       onClick={handleAskQuestion}
                       disabled={!question.trim() || asking}
                       className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
@@ -553,7 +734,19 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
                       {asking ? 'Asking…' : 'Ask'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-[#C0CADF] mt-1.5 px-1">Press Enter to send · Shift+Enter for new line</p>
+                  {isListening && (
+                    <p className="text-[10px] text-red-500 font-semibold mt-1 px-1 flex items-center gap-1 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> Listening… speak now, then stop
+                    </p>
+                  )}
+                  {micError && (
+                    <p className="text-[10px] text-red-500 font-medium mt-1 px-1">
+                      ⚠ {micError}
+                    </p>
+                  )}
+                  {!isListening && !micError && (
+                    <p className="text-[10px] text-[#C0CADF] mt-1.5 px-1">Press Enter to send · Shift+Enter for new line · 🎤 click mic to speak</p>
+                  )}
                 </div>
               </div>
 

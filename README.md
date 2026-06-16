@@ -170,7 +170,7 @@ App opens at **http://localhost:5173**
 Create a `.env.local` file (never commit this):
 
 ```env
-VITE_API_BASE_URL=http://localhost:9091
+VITE_API_BASE_URL=http://147.93.108.99:2612
 ```
 
 For production, update `.env.production`:
@@ -181,7 +181,7 @@ VITE_API_BASE_URL=https://your-api.yourdomain.com
 
 | Variable | Description | Default |
 |---|---|---|
-| `VITE_API_BASE_URL` | Backend Spring Boot API base URL | `http://localhost:9091` |
+| `VITE_API_BASE_URL` | Backend Spring Boot API base URL | `http://147.93.108.99:2612` |
 
 ---
 
