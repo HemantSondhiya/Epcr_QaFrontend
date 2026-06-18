@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import ToastContainer from '../common/ToastContainer';
+import VoiceCommandButton from '../common/VoiceCommandButton';
 import { RefreshCw } from 'lucide-react';
 
 const PageLoader = () => (
@@ -31,6 +32,7 @@ const Layout = () => {
         </main>
       </div>
 
+      <VoiceCommandButton />
       <ToastContainer />
     </div>
   );

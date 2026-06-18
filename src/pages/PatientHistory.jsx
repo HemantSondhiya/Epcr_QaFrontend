@@ -1674,11 +1674,13 @@ function PatientHistory() {
           }
         }
 
-        // Step 4: Also try the record-level overview-route endpoint as a secondary override
-        const latestRecordId = sortedEnc[0]?.id || sortedEnc[0]?.encounterId || sortedEnc[0]?.recordId;
-        if (latestRecordId && finalResolved !== 'general') {
+        // Step 4: Try the record-level overview-route endpoint to upgrade from general to a specialty.
+        // Use epcrRecordId (the actual PatientCareRecord ID stored on the encounter link),
+        // NOT the encounter's own id which is a PatientEncounter id and causes a 404.
+        const latestEpcrRecordId = sortedEnc.find(e => e.epcrRecordId)?.epcrRecordId;
+        if (latestEpcrRecordId && finalResolved === 'general') {
           try {
-            const res = await client.get(`/api/patients/${patientId}/overview-route/records/${latestRecordId}`, { hideToast: true });
+            const res = await client.get(`/api/patients/${patientId}/overview-route/records/${latestEpcrRecordId}`, { hideToast: true });
             const routeSpecialty = normalizeOverviewSpecialty(res.data?.frontendRouteKey || res.data?.overviewType || res.data?.specialty);
             if (routeSpecialty) {
               finalResolved = preferSpecificSpecialty(routeSpecialty, finalResolved);

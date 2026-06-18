@@ -368,6 +368,12 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
   const recognitionRef = useRef(null);
   const transcriptRef  = useRef(''); // tracks latest voice transcript synchronously
 
+  // ── silence timer ref – reset on every new word the doctor speaks ──────────
+  const silenceTimerRef = useRef(null);
+  // How long to wait after the last detected word before auto-submitting (ms).
+  // 2 500 ms gives doctors natural mid-thought pauses without cutting them off.
+  const SILENCE_MS = 2500;
+
   const toggleListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -375,8 +381,9 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
       return;
     }
 
-    // Already listening — stop manually
+    // ── Already listening → user clicked Stop manually ─────────────────────
     if (isListening) {
+      clearTimeout(silenceTimerRef.current);
       if (recognitionRef.current) {
         recognitionRef.current._manualStop = true;
         try { recognitionRef.current.stop(); } catch (_) {}
@@ -384,109 +391,112 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
       recognitionRef.current = null;
       setIsListening(false);
       setMicError('');
+      // Submit whatever has been said so far
+      const voiceText = transcriptRef.current.trim();
+      if (voiceText) {
+        transcriptRef.current = '';
+        setQuestion(voiceText);
+        setTimeout(() => document.getElementById('ai-ask-question-btn')?.click(), 300);
+      }
       return;
     }
 
     setMicError('');
+    transcriptRef.current = '';
 
-    const startRec = (retryCount = 0) => {
-      const rec = new SpeechRecognition();
-      rec.lang = 'en-US';
-      rec.continuous = false;
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-      rec._manualStop = false;
-      rec._hasResult  = false;  // true once user speaks
-      rec._nextRetry  = null;   // set by onerror if we should retry
+    const rec = new SpeechRecognition();
+    rec.lang           = 'en-US';
+    rec.continuous     = true;   // ✅ KEY FIX: keep recording through natural pauses
+    rec.interimResults = true;   // show live transcript
+    rec.maxAlternatives = 1;
+    rec._manualStop    = false;
 
-      recognitionRef.current = rec;
+    recognitionRef.current = rec;
 
-      rec.onstart = () => { setIsListening(true); setMicError(''); };
+    rec.onstart = () => { setIsListening(true); setMicError(''); };
 
-      rec.onerror = (err) => {
-        if (rec._manualStop || rec._hasResult) return; // ignore if user cancelled or already got speech
-        if (err.error === 'no-speech' || err.error === 'network') {
-          // Transient — queue a retry in onend (not here, to avoid double-restart)
-          if (retryCount < 6) {
-            rec._nextRetry = retryCount + 1;
-          } else {
-            setIsListening(false);
-            setMicError('Voice recognition is failing. Press Win + H to use Windows voice typing instead.');
-          }
-        } else if (err.error === 'not-allowed') {
-          rec._manualStop = true;
-          setIsListening(false);
-          setMicError('⚠ Microphone blocked — click the 🔒 lock icon in browser address bar → Allow Microphone → try again.');
-        } else if (err.error === 'audio-capture') {
-          rec._manualStop = true;
-          setIsListening(false);
-          setMicError('⚠ No microphone detected. Please connect a microphone and try again.');
-        } else {
-          rec._manualStop = true;
-          setIsListening(false);
-          setMicError(`⚠ Voice error (${err.error}). Please try again.`);
-        }
-      };
+    rec.onresult = (e) => {
+      // Accumulate the full rolling transcript across all result chunks
+      let fullText = '';
+      for (let i = 0; i < e.results.length; i++) {
+        fullText += e.results[i][0].transcript;
+      }
 
-      rec.onresult = (e) => {
-        rec._hasResult = true;   // got speech — cancel any retry
-        rec._nextRetry = null;
-        let interim = '', final = '';
-        for (let i = 0; i < e.results.length; i++) {
-          if (e.results[i].isFinal) final += e.results[i][0].transcript;
-          else interim += e.results[i][0].transcript;
-        }
-        const text = final || interim;
-        if (text) {
-          transcriptRef.current = text; // store synchronously in ref
-          setQuestion(text);            // also update UI
-        }
-      };
+      // Update live preview
+      transcriptRef.current = fullText;
+      setQuestion(fullText);
 
-      // onend is the ONLY place that decides what happens next
-      rec.onend = () => {
-        if (recognitionRef.current !== rec) return; // a newer rec has taken over
-
-        if (rec._manualStop) {
-          // User clicked mic to stop — just clean up
+      // ── Debounce: reset the silence timer on every new word ─────────────
+      // The timer fires only when the doctor has truly stopped speaking for
+      // SILENCE_MS milliseconds — so mid-sentence pauses never cut them off.
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+        if (recognitionRef.current && !recognitionRef.current._manualStop) {
+          // Auto-submit after silence threshold
+          recognitionRef.current._manualStop = true; // prevent onend from firing again
+          try { recognitionRef.current.stop(); } catch (_) {}
           recognitionRef.current = null;
-          return;
+          setIsListening(false);
+          const voiceText = transcriptRef.current.trim();
+          transcriptRef.current = '';
+          if (voiceText) {
+            setQuestion(voiceText);
+            setTimeout(() => document.getElementById('ai-ask-question-btn')?.click(), 300);
+          }
         }
+      }, SILENCE_MS);
+    };
 
-        if (rec._nextRetry !== null) {
-          // Transient error (no-speech / network) — silently restart
-          startRec(rec._nextRetry);
-          return;
-        }
-
-        // Normal end after successful speech
-        recognitionRef.current = null;
+    rec.onerror = (e) => {
+      if (rec._manualStop) return;
+      clearTimeout(silenceTimerRef.current);
+      if (e.error === 'not-allowed') {
         setIsListening(false);
-        // Read from ref (synchronous) — NOT from state (may be stale due to React batching)
-        const voiceText = transcriptRef.current.trim();
-        transcriptRef.current = ''; // reset for next session
-        if (voiceText) {
-          setQuestion(voiceText); // ensure state is in sync
-          setTimeout(() => document.getElementById('ai-ask-question-btn')?.click(), 400);
-        }
-      };
-
-      try {
-        rec.start();
-      } catch (_) {
-        recognitionRef.current = null;
+        setMicError('⚠ Microphone blocked — click the 🔒 lock icon in browser address bar → Allow Microphone → try again.');
+      } else if (e.error === 'audio-capture') {
         setIsListening(false);
-        setMicError('⚠ Could not start microphone. Please refresh the page and try again.');
+        setMicError('⚠ No microphone detected. Please connect a microphone and try again.');
+      } else if (e.error === 'no-speech') {
+        // With continuous=true, no-speech is rare — just log, keep going
+        console.warn('[AiSuggestionPanel] no-speech event', e.error);
+      } else {
+        setIsListening(false);
+        setMicError(`⚠ Voice error (${e.error}). Please try again.`);
       }
     };
 
-    startRec();
+    rec.onend = () => {
+      // With continuous=true, onend fires only when the browser forcibly ends
+      // the session (e.g. tab loses focus, network issue, max duration).
+      // If we didn't manually stop, clean up gracefully.
+      clearTimeout(silenceTimerRef.current);
+      if (recognitionRef.current === rec && !rec._manualStop) {
+        recognitionRef.current = null;
+        setIsListening(false);
+        const voiceText = transcriptRef.current.trim();
+        transcriptRef.current = '';
+        if (voiceText) {
+          setQuestion(voiceText);
+          setTimeout(() => document.getElementById('ai-ask-question-btn')?.click(), 300);
+        }
+      }
+    };
+
+    try {
+      rec.start();
+    } catch (_) {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setMicError('⚠ Could not start microphone. Please refresh the page and try again.');
+    }
   };
 
   useEffect(() => {
     return () => {
+      clearTimeout(silenceTimerRef.current);
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        recognitionRef.current._manualStop = true;
+        try { recognitionRef.current.stop(); } catch (_) {}
       }
     };
   }, []);
@@ -736,7 +746,7 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
                   </div>
                   {isListening && (
                     <p className="text-[10px] text-red-500 font-semibold mt-1 px-1 flex items-center gap-1 animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> Listening… speak now, then stop
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> Listening… speak freely, pauses are OK — stops after 2.5s silence
                     </p>
                   )}
                   {micError && (

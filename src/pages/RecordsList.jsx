@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Plus, Search, FileEdit, Trash2, Eye, RefreshCw, X,
@@ -117,8 +117,9 @@ const SectionHeader = ({ icon: Icon, title, color = "text-brand-blue" }) => (
 const PAGE_SIZE = 20;
 
 const RecordsList = () => {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const navigate   = useNavigate();
+  const location   = useLocation();
+  const dispatch   = useDispatch();
   const user = useSelector(selectUser);
   const records = useSelector(selectRecords);
   const loading = useSelector(selectEpcrLoading);
@@ -180,6 +181,34 @@ const RecordsList = () => {
     })).unwrap()
       .catch(err => dispatch(addToast({ type: 'error', message: extractErrorMessage(err) })));
   };
+
+  // ── Voice-command auto-open ─────────────────────────────────────────────
+  // Fires once on mount. If the route was triggered by the voice button,
+  // autoOpenId will be in location state — open the record modal immediately.
+  const voiceStateRef = useRef(
+    location.state?.autoOpenId ? location.state : null
+  );
+  useEffect(() => {
+    const vs = voiceStateRef.current;
+    if (!vs?.autoOpenId) return;
+    voiceStateRef.current = null; // prevent re-trigger
+    // Clear router state so a page refresh doesn't re-open
+    navigate(location.pathname, { replace: true, state: {} });
+    const record = vs.autoOpenRecord || { id: vs.autoOpenId };
+    // Small delay so the page renders before the modal opens
+    setTimeout(() => {
+      setViewRecord(record);
+      setIsViewOpen(true);
+      setModalLoading(true);
+      client.get(`/api/epcr/records/${record.id}`)
+        .then((res) => setViewRecord(res.data))
+        .catch((err) => {
+          dispatch(addToast({ type: 'error', message: extractErrorMessage(err) }));
+          setIsViewOpen(false);
+        })
+        .finally(() => setModalLoading(false));
+    }, 150);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user?.accessToken) return;
