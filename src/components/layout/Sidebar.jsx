@@ -7,13 +7,14 @@ import {
   LayoutDashboard, FileText, CheckSquare, ClipboardList, GitBranch, Rocket,
   Building2, Users, PieChart, Server, Settings, Bell, MessageSquare, LogOut,
   Shield, ShieldCheck, BookOpen, Zap, Handshake, EyeOff, UserSquare, Code2,
-  Activity, HeartPulse, Sliders, AlertTriangle,
+  Activity, HeartPulse, Sliders, AlertTriangle, LifeBuoy
 } from 'lucide-react';
 
 const MENU_ICONS = {
   Dashboard: LayoutDashboard,
   Organizations: Building2,
   Users: Users,
+  Tickets: LifeBuoy,
   EPCR: FileText,
   'QA Forms': ClipboardList,
   'QA Reviews': CheckSquare,
@@ -42,7 +43,7 @@ const MENU_GROUPS = [
   { label: 'Overview', items: ['Dashboard'] },
   { label: 'Records', items: ['EPCR', 'QA Forms', 'QA Reviews', 'QA Rules', 'Rules Engine', 'Form Templates'] },
   { label: 'Operations', items: ['Workflows', 'Deployments', 'Reports', 'Feedback', 'Notifications'] },
-  { label: 'Admin', items: ['Organizations', 'Users', 'Audit Logs', 'System Settings'] },
+  { label: 'Admin', items: ['Organizations', 'Users', 'Tickets', 'Audit Logs', 'System Settings'] },
   { label: 'Compliance', items: ['HIPAA Consent', 'HIPAA Disclosure', 'Business Associates', 'De-Identification', 'Patient Portal', 'Patient History', 'Break-Glass', 'Critical Follow-Ups'] },
 ];
 
@@ -90,10 +91,11 @@ const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           {MENU_GROUPS.map(group => {
             const visible = group.items.filter(i => menuItems.includes(i));
             if (!visible.length) return null;
+            const displayLabel = group.label === 'Admin' && role !== 'ADMIN' ? 'Support' : group.label;
             return (
               <div key={group.label} className="mb-3">
                 <p className="px-2 mb-1 text-[9px] font-bold uppercase tracking-widest text-white/25">
-                  {group.label}
+                  {displayLabel}
                 </p>
                 {visible.map(item => {
                   const Icon = MENU_ICONS[item] || FileText;

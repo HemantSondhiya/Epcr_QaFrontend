@@ -31,6 +31,7 @@ const Notifications     = lazy(() => import('./pages/Notifications'));
 const FeedbackThreads   = lazy(() => import('./pages/FeedbackThreads'));
 const AuditLogs         = lazy(() => import('./pages/AuditLogs'));
 const Settings          = lazy(() => import('./pages/Settings'));
+const Tickets           = lazy(() => import('./pages/Tickets'));
 const HipaaConsent      = lazy(() => import('./pages/HipaaConsent'));
 const HipaaDisclosure   = lazy(() => import('./pages/HipaaDisclosure'));
 const PatientPortal     = lazy(() => import('./pages/PatientPortal'));
@@ -98,6 +99,7 @@ const AppRoutes = () => {
 
         <Route path="organizations" element={<GuardedRoute menuItem="Organizations"><Organizations /></GuardedRoute>} />
         <Route path="users"         element={<GuardedRoute menuItem="Users"><Users /></GuardedRoute>} />
+        <Route path="tickets"       element={<GuardedRoute menuItem="Tickets"><Tickets /></GuardedRoute>} />
         <Route path="reports"       element={<GuardedRoute menuItem="Reports"><Reports /></GuardedRoute>} />
         <Route path="feedback"      element={<GuardedRoute menuItem="Feedback"><FeedbackThreads /></GuardedRoute>} />
         <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />

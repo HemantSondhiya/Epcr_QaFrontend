@@ -14,6 +14,7 @@ import {
   selectTimeline,
 } from '../../store/slices/patientHistorySlice';
 import { addToast } from '../../store/slices/uiSlice';
+import { selectUser } from '../../store/slices/authSlice';
 import client from '../../api/client';
 import {
   Activity, Check, FileText, FlaskConical, HeartPulse, Pill,
@@ -357,7 +358,7 @@ const VitalsBox = ({ label, v, accentCls, borderCls, phase, canEditProp, setModa
 /* ─── main component ─── */
 export default function GeneralOverviewPage({
   patientId: patientIdProp,
-  canEdit: canEditProp,
+  canEdit: canEditPropPassed,
   conditions: conditionsProp,
   documents: documentsProp,
   encounters: encountersProp,
@@ -375,6 +376,8 @@ export default function GeneralOverviewPage({
   const patientId = patientIdProp || routePatientId;
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const user = useSelector(selectUser);
+  const canEditProp = canEditPropPassed !== undefined ? canEditPropPassed : ['ADMIN', 'PARAMEDIC'].includes(user?.role);
 
   const summaryFromStore = useSelector(selectHistorySummary);
   const vitalsFromStore = useSelector(selectVitals);

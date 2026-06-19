@@ -1540,9 +1540,6 @@ function PatientHistory() {
   useEffect(() => {
     let active = true;
 
-    // Already resolved — nothing to do until patient changes (specialty reset to null)
-    if (specialty !== null) return;
-
     if (!patientId || loading) return;
 
     const resolveSpecialty = async () => {
@@ -1691,14 +1688,22 @@ function PatientHistory() {
         }
 
         if (active) {
-          setSpecialty(finalResolved);
-          setSpecialtyLoading(false);
+          if (specialty !== finalResolved) {
+            setSpecialty(finalResolved);
+          }
+          if (specialtyLoading) {
+            setSpecialtyLoading(false);
+          }
         }
       } catch (err) {
         console.error('Failed to resolve specialty route:', err);
         if (active) {
-          setSpecialty('general');
-          setSpecialtyLoading(false);
+          if (specialty !== 'general') {
+            setSpecialty('general');
+          }
+          if (specialtyLoading) {
+            setSpecialtyLoading(false);
+          }
         }
       }
     };

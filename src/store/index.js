@@ -21,6 +21,7 @@ import patientHistoryReducer from './slices/patientHistorySlice';
 import rulesEngineReducer   from './slices/rulesEngineSlice';
 import followUpReducer       from './slices/followUpSlice';
 import aiSuggestionReducer  from './slices/aiSuggestionSlice';
+import ticketReducer        from './slices/ticketSlice';
 
 const store = configureStore({
   reducer: {
@@ -46,6 +47,7 @@ const store = configureStore({
     patientHistory: patientHistoryReducer,
     followUps:      followUpReducer,
     aiSuggestion:   aiSuggestionReducer,
+    tickets:        ticketReducer,
   },
 });
 

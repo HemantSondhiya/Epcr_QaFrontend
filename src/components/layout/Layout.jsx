@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import ToastContainer from '../common/ToastContainer';
 import VoiceCommandButton from '../common/VoiceCommandButton';
+import SupportTicketButton from '../common/SupportTicketButton';
 import { RefreshCw } from 'lucide-react';
 
 const PageLoader = () => (
@@ -32,6 +33,7 @@ const Layout = () => {
         </main>
       </div>
 
+      <SupportTicketButton />
       <VoiceCommandButton />
       <ToastContainer />
     </div>
