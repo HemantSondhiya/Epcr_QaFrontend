@@ -22,7 +22,7 @@ const PRIORITIES = [
   { id: 'URGENT', label: 'Urgent', desc: 'Blocks clinical work', color: 'border-red-100 text-red-700 bg-red-50/30', activeColor: 'bg-red-50 border-red-400 text-red-800 ring-2 ring-red-100' }
 ];
 
-const SupportTicketButton = () => {
+const SupportTicketButton = ({ visible = true }) => {
   const dispatch = useDispatch();
   const role = useSelector(selectRole);
 
@@ -131,11 +131,11 @@ const SupportTicketButton = () => {
       <div 
         style={{ 
           position: 'fixed', 
-          right: voiceSupported ? '82px' : '2px', 
+          right: '2px', 
           width: '100px',
-          bottom: '24px', 
+          bottom: voiceSupported ? '108px' : '24px', 
           zIndex: 250, 
-          display: 'flex', 
+          display: visible ? 'flex' : 'none', 
           flexDirection: 'column', 
           alignItems: 'center', 
           gap: '8px' 

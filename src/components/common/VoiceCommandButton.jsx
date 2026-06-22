@@ -72,7 +72,7 @@ const STYLES = `
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
-export default function VoiceCommandButton() {
+export default function VoiceCommandButton({ visible = true }) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -428,7 +428,7 @@ export default function VoiceCommandButton() {
       )}
 
       {/* ── Floating Button Area ─────────────────────────────────────────── */}
-      <div style={{ position:'fixed', right:'2px', width:'100px', bottom:'24px', zIndex:250, display:'flex', flexDirection:'column', alignItems:'center', gap:'8px' }}>
+      <div style={{ position:'fixed', right:'2px', width:'100px', bottom:'24px', zIndex:250, display: visible ? 'flex' : 'none', flexDirection:'column', alignItems:'center', gap:'8px' }}>
 
         {/* Live caption pill (while listening) */}
         {isListening && (

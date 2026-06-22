@@ -97,6 +97,44 @@ const StatusBadge = ({ status }) => (
   </span>
 );
 
+const getClinicalTagStyle = (tag) => {
+  if (!tag) return 'bg-slate-50 text-slate-600 border-slate-200';
+  const raw = tag.toUpperCase();
+  if (raw.includes('IMPLANT')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (raw.includes('CROWN') || raw.includes('BRIDGE')) return 'bg-teal-50 text-teal-700 border-teal-200';
+  if (raw.includes('ROOT CANAL') || raw.includes('ENDO')) return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+  if (raw.includes('EXTRACTION')) return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (raw.includes('RESTORATION') || raw.includes('FILLING')) return 'bg-sky-50 text-sky-700 border-sky-200';
+  if (raw.includes('ORTHO')) return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+  if (raw.includes('DENTAL')) return 'bg-teal-50/60 text-teal-700 border-teal-100';
+  
+  if (raw.includes('ARREST')) return 'bg-rose-50 text-rose-700 border-rose-200';
+  if (raw.includes('INFARCTION') || raw.includes('HEART ATTACK')) return 'bg-rose-100 text-rose-800 border-rose-300';
+  if (raw.includes('ARRHYTHMIA') || raw.includes('AFIB')) return 'bg-pink-50 text-pink-700 border-pink-200';
+  if (raw.includes('CARDIAC')) return 'bg-rose-50/60 text-rose-700 border-rose-100';
+  
+  if (raw.includes('FRACTURE')) return 'bg-orange-50 text-orange-700 border-orange-200';
+  if (raw.includes('FALL')) return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (raw.includes('ACCIDENT') || raw.includes('MVA')) return 'bg-orange-100 text-orange-800 border-orange-300';
+  if (raw.includes('TRAUMA')) return 'bg-orange-50/60 text-orange-700 border-orange-100';
+
+  if (raw.includes('CHEMO')) return 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200';
+  if (raw.includes('BIOPSY')) return 'bg-violet-50 text-violet-700 border-violet-200';
+  if (raw.includes('ONCOLOGY')) return 'bg-fuchsia-50/60 text-fuchsia-700 border-fuchsia-100';
+
+  return 'bg-blue-50/70 text-brand-blue border-blue-100';
+};
+
+const ClinicalTagBadge = ({ tag }) => {
+  if (!tag) return null;
+  const colorCls = getClinicalTagStyle(tag);
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider transition-all duration-300 ${colorCls}`}>
+      {tag}
+    </span>
+  );
+};
+
 const DetailRow = ({ label, value, colSpan = 1 }) => {
   const v = (value === null || value === undefined || value === '') ? '—' : value;
   return (
@@ -416,7 +454,12 @@ const RecordsList = () => {
                       <MapPin size={13} className="text-[#A0AECB]" /> {r.incidentLocation || '—'}
                     </div>
                   </td>
-                  <td><IncidentTypeBadge type={r.incidentType} /></td>
+                  <td>
+                    <div className="flex flex-col gap-1 items-start">
+                      <IncidentTypeBadge type={r.incidentType} />
+                      <ClinicalTagBadge tag={r.clinicalTag} />
+                    </div>
+                  </td>
                   <td className="text-sm text-[#4B5A7A]">
                     {r.incidentDateTime ? new Date(r.incidentDateTime).toLocaleDateString() : '—'}
                   </td>
@@ -491,6 +534,7 @@ const RecordsList = () => {
                   <div className="flex items-center gap-2 mt-0.5">
                     <StatusBadge status={viewRecord.status} />
                     <span className="text-xs text-[#A0AECB] font-mono">#{viewRecord.id}</span>
+                    <ClinicalTagBadge tag={viewRecord.clinicalTag} />
                   </div>
                 </div>
               </div>

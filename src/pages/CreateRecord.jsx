@@ -246,6 +246,7 @@ const CreateRecord = () => {
       status: 'PENDING',
       paramedicsId: user?.id || '',
       organizationId: user?.organizationId || '',
+      clinicalTag: '',
    });
 
    useEffect(() => {
@@ -698,6 +699,7 @@ const CreateRecord = () => {
          paramedicsId: data.paramedicsId || '',
          organizationId: data.organizationId || '',
          status: data.status || 'PENDING',
+         clinicalTag: cv(data.clinicalTag) || null,
          dietAdvice: toArr(data.dietAdvice),
          notes: toArr(data.notes),
          clinicalData: {
@@ -1099,6 +1101,7 @@ const CreateRecord = () => {
                         <Field label="Diagnosis" field="diagnosis" value={formData.diagnosis} update={updateField} />
                         <Field label="Treatment Provided" field="treatmentProvided" value={formData.treatmentProvided} update={updateField} />
                         <Field label="Treatment Plan" field="treatmentPlan" value={formData.treatmentPlan} update={updateField} />
+                        <Field label="Clinical Tag (Manual Override)" field="clinicalTag" value={formData.clinicalTag || ''} update={updateField} placeholder="e.g. Implant Case (Leave blank to auto-detect)" />
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
