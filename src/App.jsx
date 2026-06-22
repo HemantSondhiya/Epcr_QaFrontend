@@ -45,6 +45,7 @@ const CardiologyOverviewPage = lazy(() => import('./pages/overview/CardiologyOve
 const RadiologyOverviewPage = lazy(() => import('./pages/overview/RadiologyOverviewPage'));
 const OncologyOverviewPage  = lazy(() => import('./pages/overview/OncologyOverviewPage'));
 const ObstetricOverviewPage = lazy(() => import('./pages/overview/ObstetricOverviewPage'));
+const UserGuide             = lazy(() => import('./pages/UserGuide'));
 
 // Route guard: wraps ProtectedRoute + RoleGate
 const GuardedRoute = ({ menuItem, roles, children }) => (
@@ -82,6 +83,7 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="dashboard" element={role === 'PATIENT' ? <Navigate to="/patient-portal" replace /> : <Dashboard />} />
+        <Route path="user-guide" element={<GuardedRoute menuItem="User Guide"><UserGuide /></GuardedRoute>} />
         <Route index element={<Navigate to="dashboard" replace />} />
 
         <Route path="epcr"       element={<GuardedRoute menuItem="EPCR"><RecordsList /></GuardedRoute>} />

@@ -36,11 +36,12 @@ const MENU_ICONS = {
   'Business Associates': Handshake,
   'De-Identification': EyeOff,
   'Critical Follow-Ups': AlertTriangle,
+  'User Guide': BookOpen,
 };
 
 /* Group menu items by category */
 const MENU_GROUPS = [
-  { label: 'Overview', items: ['Dashboard'] },
+  { label: 'Overview', items: ['Dashboard', 'User Guide'] },
   { label: 'Records', items: ['EPCR', 'QA Forms', 'QA Reviews', 'QA Rules', 'Rules Engine', 'Form Templates'] },
   { label: 'Operations', items: ['Workflows', 'Deployments', 'Reports', 'Feedback', 'Notifications'] },
   { label: 'Admin', items: ['Organizations', 'Users', 'Tickets', 'Audit Logs', 'System Settings'] },
