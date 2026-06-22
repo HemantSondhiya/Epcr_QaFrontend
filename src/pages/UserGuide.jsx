@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { 
-  BookOpen, Shield, ShieldCheck, HeartPulse, UserSquare, LifeBuoy, 
-  HelpCircle, ChevronDown, ChevronUp, CheckCircle2, User, 
-  FileText, ClipboardList, Zap, Settings, HelpCircle as HelpIcon,
-  Sparkles, Mic, Volume2
+  BookOpen, ShieldCheck, LifeBuoy, CheckCircle2, User, 
+  FileText, ClipboardList, Zap, HelpCircle as HelpIcon,
+  Sparkles, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { selectRole } from '../store/slices/authSlice';
@@ -12,67 +11,67 @@ const ROLE_DETAILS = {
   ADMIN: {
     title: 'System Administrator',
     color: 'border-rose-500 text-rose-600 bg-rose-50',
-    description: 'Platform ka full oversight aur system administration manage karna.',
+    description: 'Manage full oversight and system-wide administration of the platform.',
     tasks: [
-      'Naye staff accounts (users) create aur manage karna',
-      'System-wide HIPAA logs and security trails check karna',
-      'Deployments, system workflows aur organization details setup karna',
-      'Tech support tickets ko address aur resolve karna'
+      'Create, update, and manage staff accounts and user security roles',
+      'Monitor system-wide HIPAA logs and security audit trails',
+      'Configure workflow paths, deployments, and organization parameters',
+      'Address and resolve technical support tickets submitted by staff'
     ]
   },
   MANAGER: {
     title: 'Operations Manager',
     color: 'border-blue-500 text-blue-600 bg-blue-50',
-    description: 'Medical and administrative operations aur templates design karna.',
+    description: 'Design medical and administrative workflows, operations, and templates.',
     tasks: [
-      'Patient intake aur clinical assessment templates design karna',
-      'Reviewers ke liye active QA Forms & Questionnaires set karna',
-      'Automatic record checks ke liye QA validation rules banana',
-      'Operations reports, statistics aur compliance status check karna'
+      'Design templates for patient intake and clinical assessments',
+      'Build and assign evaluation templates and QA forms for reviewers',
+      'Construct automated validation rules (QA Rules) for clinical compliance',
+      'Review operational analytics, performance reports, and compliance scores'
     ]
   },
   PARAMEDIC: {
     title: 'Emergency Paramedic',
     color: 'border-amber-500 text-amber-600 bg-amber-50',
-    description: 'Field response, emergency care aur initial patient charting karna.',
+    description: 'Provide emergency care on-scene and perform initial patient charting.',
     tasks: [
-      'Electronic Patient Care Records (EPCR) form fill aur submit karna',
-      'Patient vitals log, timeline check, aur medications add karna',
-      'QA reviews feedback check karke errors ko update/correct karna',
-      'Critical follow-up tasks aur follow-up protocols check karna'
+      'Complete and submit Electronic Patient Care Records (EPCR) in the field',
+      'Log baseline patient vitals, incident timeline, and drugs administered',
+      'Review QA auditor feedback and correct any rejected chart errors',
+      'Monitor critical post-discharge follow-up protocols'
     ]
   },
   QA_REVIEWER: {
     title: 'Clinical QA Reviewer',
     color: 'border-emerald-500 text-emerald-600 bg-emerald-50',
-    description: 'Submitted medical charts ki accuracy aur protocol verification check karna.',
+    description: 'Verify the accuracy and protocol compliance of submitted clinical charts.',
     tasks: [
-      'Submitted records ke automatic warning flags check karna',
-      'Graded checklists fill karke quality score assign karna',
-      'Form approve karna (Final Billing ke liye) ya reject karna (Paramedic corrections)',
-      'Paramedics ke sath feedback threads me protocol correct karna'
+      'Inspect automated warning flags and validation warnings on records',
+      'Complete audit checklists and assign clinical quality compliance scores',
+      'Approve valid records (locking them for billing) or reject records needing revision',
+      'Open feedback chat threads to resolve protocol questions with paramedics'
     ]
   },
   PHYSICIAN: {
     title: 'Clinical Oversight Physician',
     color: 'border-violet-500 text-violet-600 bg-violet-50',
-    description: 'Specialty timeline reviews, expert reviews aur HIPAA amendments verify karna.',
+    description: 'Review specialized clinical timelines, perform expert audits, and approve patient data amendments.',
     tasks: [
-      'Comprehensive Patient History, charts, timeline aur diagnostics check karna',
-      'Gemini AI suggestions, findings, clinical concerns, aur clinical Q&A check karna',
-      'Patient amendments requests aur patient correction requests approve karna',
-      'Critical follow-up cases aur clinical oversight reports check karna'
+      'Examine comprehensive patient history, diagnostics, and clinical timelines',
+      'Review Gemini AI diagnostic suggestions, concerns, and clinical Q&A logs',
+      'Evaluate and approve patient requests to amend or correct medical records',
+      'Oversee critical follow-up registries and high-risk case reports'
     ]
   },
   PATIENT: {
     title: 'Patient Portal Account',
     color: 'border-teal-500 text-teal-600 bg-teal-50',
-    description: 'Apna medical record, treatment details aur data sharing preferences control karna.',
+    description: 'Access and download personal medical records, manage data sharing, and specify privacy preferences.',
     tasks: [
-      'Signed HIPAA Consent sheets download aur review karna',
-      'Medical data logs aur disclosures details track karna',
-      'Medical details correct karne ke liye data amendment request send karna',
-      'Strict data access preferences (opt-in/opt-out) control karna'
+      'Download and review signed HIPAA consent authorization documents',
+      'Monitor data disclosure history and track who has viewed personal charts',
+      'Submit formal amendment requests to correct errors in personal medical history',
+      'Set strict privacy and data sharing preferences (opt-in/opt-out settings)'
     ]
   }
 };
@@ -80,19 +79,19 @@ const ROLE_DETAILS = {
 const FAQ_ITEMS = [
   {
     question: 'How does the Patient Record (EPCR) validation rules flow work?',
-    answer: 'Manager validation rules create karte hain (e.g., transportMode EMERGENCY hone par careLevel compulsory ALS hona chahiye). Paramedic ke record submit karte hi engine is path ko scan karta hai. Agar rule deviate hua, toh record par auto-flag (Critical Warning) lag jata hai aur QA Reviewer ko warning alert dikhti hai.'
+    answer: 'Managers define validation rules (e.g., if transport mode is Emergency, care level must be ALS). When a paramedic submits a record, the engine scans the data. If a rule is violated, the system stamps an auto-flag (Critical Warning) on the record and alerts the QA Reviewer.'
   },
   {
     question: 'How do I complete a QA Review?',
-    answer: 'Reviewer, QA Reviews queue me record open karke "Complete Review" click karta hai. Wahan par active QA Form questions dikhte hain. Inhe fill karke, quality score aur PASS/FAIL toggle set karke save karne par record final approve (lock) ho jata hai.'
+    answer: 'The auditor opens a pending record in the QA Reviews queue and clicks "Complete Review". This renders the questions from the active QA Form. After answering the questions, assigning a score, and toggling PASS/FAIL, saving the review locks the record and marks it as approved for billing.'
   },
   {
     question: 'How does the Gemini Clinical AI Suggestion & Voice Q&A work?',
-    answer: 'Physician portal me Gemini suggestions panel record ko analyse karke risk score, clinical findings aur missing data alerts dikhata hai. "Ask Doctor Q&A" tab me mic icon click karke voice se question puch sakte hain. Ye system continuous listening karta hai aur 2.5 seconds ki silent pause hone par answer generate kar deta hai. Speaker icon click karke voice answer sun sakte hain.'
+    answer: 'In the physician portal, the Gemini suggestions panel analyzes the record to display risk scores, clinical findings, concerns, and missing data warnings. In the "Ask Doctor Q&A" tab, you can click the mic icon to ask questions by voice. The system records continuously and auto-submits after 2.5 seconds of silence. Clicking the speaker icon reads the AI response out loud.'
   },
   {
     question: 'What is the Break-Glass override protocol?',
-    answer: 'Emergency condition me restricted patient chart open karne ke liye Break-Glass button click karke reason likhna hota hai. Access turant open ho jata hai, aur audit log alert compliance team ko send ho jata hai.'
+    answer: 'In critical emergencies, restricted patient charts can be opened by clicking the "Break-Glass" button and entering a justification. Access is granted immediately, and a high-priority audit log notification is sent to the compliance team.'
   }
 ];
 
@@ -153,7 +152,7 @@ const UserGuide = () => {
               <LifeBuoy size={16} />
             </div>
             <h3 className="font-black text-sm mb-1 text-white">Need Live Help?</h3>
-            <p className="text-[10px] text-white/70 leading-relaxed mb-4">Agar application me koi technical issue aa raha hai, toh click karke internal Support Ticket generate karein.</p>
+            <p className="text-[10px] text-white/70 leading-relaxed mb-4">If you encounter any technical issues on the platform, click below to submit an internal support ticket.</p>
             <a href="/tickets" className="btn-primary bg-brand-red hover:bg-brand-red-dark w-full justify-center py-2 text-xs">
               Go to Support Tickets
             </a>
@@ -182,7 +181,7 @@ const UserGuide = () => {
             <p className="text-xs font-medium text-[#4B5A7A] leading-relaxed">{activeRoleData.description}</p>
 
             <div className="space-y-3">
-              <h4 className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">Key Responsibilities (Zimmedariyan)</h4>
+              <h4 className="text-[10px] font-black text-[#A0AECB] uppercase tracking-widest">Key Responsibilities</h4>
               <div className="grid grid-cols-1 gap-2.5">
                 {activeRoleData.tasks.map((task, i) => (
                   <div key={i} className="flex items-start gap-2.5 p-3 rounded-xl border border-[#DDE3F0] bg-[#F8FAFF]">
@@ -204,10 +203,10 @@ const UserGuide = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                { title: 'Electronic EPCR', icon: FileText, desc: 'Paramedics emergency metrics, medications log, timelines, and clinical tags save karte hain.', color: 'text-blue-600 bg-blue-50' },
-                { title: 'QA Audits', icon: ClipboardList, desc: 'Auditors checklists fill karte hain, score set karte hain aur PASS/FAIL stamp verify karte hain.', color: 'text-emerald-600 bg-emerald-50' },
-                { title: 'Auto-Flagging', icon: ShieldCheck, desc: 'Setup QA rules automatically check data values against exceptions to alert errors.', color: 'text-amber-600 bg-amber-50' },
-                { title: 'Gemini AI Assistant', icon: Sparkles, desc: 'Clinical risk summary cards, continuous mic voice Q&A, and read-out voice assistance.', color: 'text-violet-600 bg-violet-50' }
+                { title: 'Electronic EPCR', icon: FileText, desc: 'Paramedics log patient vitals, medication logs, incident timelines, and generate clinical tags.', color: 'text-blue-600 bg-blue-50' },
+                { title: 'QA Audits', icon: ClipboardList, desc: 'Auditors fill checklists, assign quality compliance scores, and toggle record approval.', color: 'text-emerald-600 bg-emerald-50' },
+                { title: 'Auto-Flagging', icon: ShieldCheck, desc: 'Validation rules automatically check record parameters to raise warning flags.', color: 'text-amber-600 bg-amber-50' },
+                { title: 'Gemini AI Assistant', icon: Sparkles, desc: 'Generates clinical summaries, highlights concerns, and enables voice-activated Q&A.', color: 'text-violet-600 bg-violet-50' }
               ].map((item, i) => (
                 <div key={i} className="p-4 rounded-xl border border-[#DDE3F0] hover:border-brand-blue/30 transition-all space-y-2 bg-[#FAFBFF]">
                   <div className="flex items-center gap-2">
@@ -225,7 +224,7 @@ const UserGuide = () => {
           {/* Accordion FAQ Guide */}
           <div className="card p-6 space-y-4">
             <h3 className="text-xs font-black text-[#0F1A3A] uppercase tracking-wider border-b border-[#F0F4FC] pb-3 flex items-center gap-1.5">
-              <HelpIcon size={13} className="text-brand-blue" /> Operational FAQs (Hindi/Hinglish)
+              <HelpIcon size={13} className="text-brand-blue" /> Operational FAQs
             </h3>
             <div className="space-y-2">
               {FAQ_ITEMS.map((faq, i) => {
