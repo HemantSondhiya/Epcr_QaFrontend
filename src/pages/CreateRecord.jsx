@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
    ArrowLeft, ArrowRight, Save, ChevronRight, User, Activity, FilePlus2,
    CheckCircle2, Layers, AlertTriangle, Pill, ClipboardList,
    FlaskConical, Clock, Shield, Zap, Heart, Thermometer,
    Stethoscope, Syringe, Building, ChevronLeft, Fingerprint, Lock,
-   RefreshCw, Search, Check
+   RefreshCw, Search, Check, Mic, MicOff, Sparkles, Trash2
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
@@ -53,6 +53,155 @@ const inputReqCls = 'w-full bg-white border border-brand-blue/40 rounded-lg px-4
 const labelCls = 'text-xs font-semibold text-slate-600 mb-1.5 block';
 const labelReqCls = 'text-xs font-semibold text-slate-800 mb-1.5 block after:content-["*"] after:ml-1 after:text-brand-red';
 
+const setNestedValue = (obj, path, value) => {
+   const keys = path.split('.');
+   let last = obj;
+   for (let i = 0; i < keys.length - 1; i++) {
+      last[keys[i]] = { ...last[keys[i]] };
+      last = last[keys[i]];
+   }
+   last[keys[keys.length - 1]] = value;
+};
+
+const EXTRACTION_FIELD_MAPPINGS = {
+   patientName: 'patientName',
+   patientDateOfBirth: 'patientDateOfBirth',
+   patientGender: 'patientGender',
+   patientPhone: 'patientPhone',
+   email: 'email',
+   age: 'age',
+   height: 'height',
+   weight: 'weight',
+   bloodGroup: 'bloodGroup',
+   patientAddress: 'patientAddress',
+   patientSSNLast4: 'patientSSNLast4',
+   
+   comorbidity: 'medicalHistory.comorbidity',
+   currentMedicines: 'medicalHistory.currentMedicines',
+   allergy: 'medicalHistory.allergy',
+   doctor: 'medicalHistory.doctor',
+   surgicalHistoryString: 'medicalHistory.surgicalHistoryString',
+   primaryPhysicianName: 'medicalHistory.primaryPhysicianName',
+   primaryPhysicianContact: 'medicalHistory.primaryPhysicianContact',
+   primaryPhysicianFacility: 'medicalHistory.primaryPhysicianFacility',
+   advanceDirectiveType: 'medicalHistory.advanceDirectiveType',
+   pregnant: 'medicalHistory.pregnant',
+   gestationalWeekIfPregnant: 'medicalHistory.gestationalWeekIfPregnant',
+   dnrOnFile: 'medicalHistory.dnrOnFile',
+   advanceDirective: 'medicalHistory.advanceDirective',
+   smoker: 'medicalHistory.smoker',
+   alcoholUse: 'medicalHistory.alcoholUse',
+   substanceUse: 'medicalHistory.substanceUse',
+   substanceUseDetails: 'medicalHistory.substanceUseDetails',
+   lastKnownWellDateTime: 'medicalHistory.lastKnownWellDateTime',
+   lastOralIntake: 'medicalHistory.lastOralIntake',
+
+   incidentDateTime: 'incidentDateTime',
+   incidentLocation: 'incidentLocation',
+   incidentType: 'incidentType',
+   incidentDescription: 'incidentDescription',
+
+   sceneType: 'sceneAssessment.sceneType',
+   numberOfPatients: 'sceneAssessment.numberOfPatients',
+   mechanismOfInjury: 'sceneAssessment.mechanismOfInjury',
+   injuryLocation: 'sceneAssessment.injuryLocation',
+   sceneHazards: 'sceneAssessment.sceneHazards',
+   weatherConditions: 'sceneAssessment.weatherConditions',
+   lightingConditions: 'sceneAssessment.lightingConditions',
+   patientAccessDifficulty: 'sceneAssessment.patientAccessDifficulty',
+   triageTag: 'sceneAssessment.triageTag',
+   sceneLatitude: 'sceneAssessment.geoLocation.latitude',
+   sceneLongitude: 'sceneAssessment.geoLocation.longitude',
+   sceneAltitude: 'sceneAssessment.geoLocation.altitude',
+   sceneGeohash: 'sceneAssessment.geoLocation.geohash',
+   sceneSafe: 'sceneAssessment.sceneSafe',
+   traumaCall: 'sceneAssessment.traumaCall',
+   massCasualtyIncident: 'sceneAssessment.massCasualtyIncident',
+   witnessPresent: 'sceneAssessment.witnessPresent',
+   witnessName: 'sceneAssessment.witnessName',
+   witnessContact: 'sceneAssessment.witnessContact',
+   bystanderCPRPerformed: 'sceneAssessment.bystanderCPRPerformed',
+   aedUsedByBystander: 'sceneAssessment.aedUsedByBystander',
+
+   callReceivedAt: 'timeline.callReceivedAt',
+   dispatchedAt: 'timeline.dispatchedAt',
+   enRouteAt: 'timeline.enRouteAt',
+   arrivedSceneAt: 'timeline.arrivedSceneAt',
+   patientContactAt: 'timeline.patientContactAt',
+   departedSceneAt: 'timeline.departedSceneAt',
+   arrivedDestinationAt: 'timeline.arrivedDestinationAt',
+   transferOfCareAt: 'timeline.transferOfCareAt',
+   unitAvailableAt: 'timeline.unitAvailableAt',
+
+   systolicBp: 'systolicBp',
+   diastolicBp: 'diastolicBp',
+   pulseRate: 'pulseRate',
+   heartRate: 'heartRate',
+   respirationRate: 'respirationRate',
+   spo2: 'spo2',
+   temperature: 'temperature',
+   bloodSugar: 'bloodSugar',
+   glasgowComaScale: 'glasgowComaScale',
+   hemoglobin: 'hemoglobin',
+   complaints: 'complaints',
+
+   mentalStatus: 'mentalStatus',
+   ecgRhythm: 'ecgRhythm',
+   pupilsResponse: 'pupilsResponse',
+   skinCondition: 'skinCondition',
+   primaryImpression: 'primaryImpression',
+   secondaryImpression: 'secondaryImpression',
+   diagnosis: 'diagnosis',
+   treatmentProvided: 'treatmentProvided',
+   treatmentPlan: 'treatmentPlan',
+   clinicalTag: 'clinicalTag',
+   airwayManaged: 'airwayManaged',
+   diagnosticFindings: 'diagnosticFindings',
+   proceduresPerformed: 'proceduresPerformed',
+   medicationsAdministered: 'medicationsAdministered',
+
+   destinationName: 'transport.destinationName',
+   transportMode: 'transport.transportMode',
+   careLevel: 'transport.careLevel',
+   status: 'status',
+   transportReason: 'transport.transportReason',
+   refusalOfTransportReason: 'transport.refusalOfTransportReason',
+   destinationFacilityId: 'transport.destinationFacilityId',
+   destinationAddress: 'transport.destinationAddress',
+   destinationType: 'transport.destinationType',
+   receivingPhysicianName: 'transport.receivingPhysicianName',
+   receivingNurseName: 'transport.receivingNurseName',
+   patientConditionOnDeparture: 'transport.patientConditionOnDeparture',
+   hospitalNotifiedAt: 'transport.hospitalNotifiedAt',
+   hospitalNotified: 'transport.hospitalNotified',
+   continuedCPRDuringTransport: 'transport.continuedCPRDuringTransport',
+   aedUsedDuringTransport: 'transport.aedUsedDuringTransport',
+   destLatitude: 'transport.destinationGeoLocation.latitude',
+   destLongitude: 'transport.destinationGeoLocation.longitude',
+   destAltitude: 'transport.destinationGeoLocation.altitude',
+   destGeohash: 'transport.destinationGeoLocation.geohash',
+   handoffReport: 'transport.handoffReport',
+   patientConditionOnArrival: 'transport.patientConditionOnArrival',
+
+   consentType: 'consent.consentType',
+   patientConsentObtained: 'consent.patientConsentObtained',
+   patientInformedOfRisks: 'consent.patientInformedOfRisks',
+   patientHasDecisionCapacity: 'consent.patientHasDecisionCapacity',
+   refusalOfCare: 'consent.refusalOfCare',
+   refusalReason: 'consent.refusalReason',
+   refusalWitnessed: 'consent.refusalWitnessed',
+   witnessName: 'consent.witnessName',
+   witnessContact: 'consent.witnessContact',
+   capacityAssessmentNotes: 'consent.capacityAssessmentNotes',
+   guardianConsentObtained: 'consent.guardianConsentObtained',
+   guardianName: 'consent.guardianName',
+   guardianRelationship: 'consent.guardianRelationship',
+   guardianPhone: 'consent.guardianPhone',
+   patientSignatureAttachmentId: 'consent.patientSignatureAttachmentId',
+   guardianSignatureAttachmentId: 'consent.guardianSignatureAttachmentId',
+   crewSignatureAttachmentId: 'consent.crewSignatureAttachmentId'
+};
+
 const CreateRecord = () => {
    const navigate = useNavigate();
    const [searchParams] = useSearchParams();
@@ -80,6 +229,17 @@ const CreateRecord = () => {
    const [searchPhone, setSearchPhone] = useState('');
    const [searchResults, setSearchResults] = useState([]);
    const [isSearching, setIsSearching] = useState(false);
+
+   // Voice filling states
+   const [isListening, setIsListening] = useState(false);
+   const [recognition, setRecognition] = useState(null);
+   const [voiceTranscript, setVoiceTranscript] = useState('');
+   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+   const [aiMetadata, setAiMetadata] = useState({}); // { [fieldName]: { type: 'filled' | 'suggestion', value, confidence } }
+   const [voiceFilledFields, setVoiceFilledFields] = useState([]);
+   const [showVoicePanel, setShowVoicePanel] = useState(false);
+   const [voiceTranscriptId, setVoiceTranscriptId] = useState(null);
+   const voiceBaseTextRef = useRef('');
 
    const [formData, setFormData] = useState({
       // Patient
@@ -253,6 +413,177 @@ const CreateRecord = () => {
       dispatch(fetchWorkflows());
       dispatch(fetchIncidentTypes());
    }, [dispatch]);
+
+   // Initialize Web Speech API
+   useEffect(() => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+         const rec = new SpeechRecognition();
+         rec.continuous = true;
+         rec.interimResults = true;
+         rec.lang = 'en-IN';
+
+         rec.onresult = (event) => {
+            const currentText = Array.from(event.results)
+               .map(r => r[0].transcript)
+               .join(' ');
+            const baseText = voiceBaseTextRef.current ? voiceBaseTextRef.current.trim() : '';
+            setVoiceTranscript(baseText ? `${baseText} ${currentText}` : currentText);
+         };
+
+         rec.onerror = (event) => {
+            console.error('Speech recognition error', event.error);
+            if (event.error === 'not-allowed') {
+               dispatch(addToast({ type: 'error', message: 'Microphone permission denied.' }));
+               setIsListening(false);
+            }
+         };
+
+         rec.onend = () => {
+            setIsListening(false);
+         };
+
+         setRecognition(rec);
+      }
+   }, [dispatch]);
+
+   const toggleListening = () => {
+      if (!recognition) {
+         dispatch(addToast({ type: 'error', message: 'Web Speech API is not supported in this browser. Please use Chrome or Edge.' }));
+         return;
+      }
+
+      if (isListening) {
+         recognition.stop();
+         setIsListening(false);
+      } else {
+         voiceBaseTextRef.current = voiceTranscript;
+         try {
+            recognition.start();
+            setIsListening(true);
+            setShowVoicePanel(true);
+         } catch (e) {
+            console.error('Failed to start recognition', e);
+         }
+      }
+   };
+
+    const processVoiceTranscript = async () => {
+       if (!voiceTranscript.trim()) {
+          dispatch(addToast({ type: 'warning', message: 'Please speak or record some text first.' }));
+          return;
+       }
+ 
+       setIsProcessingVoice(true);
+       if (isListening && recognition) {
+          recognition.stop();
+          setIsListening(false);
+       }
+ 
+       try {
+          const { data } = await client.post('/api/ai/voice/extract-epcr-fields', {
+             transcript: voiceTranscript,
+             recordId: recordId || null
+          });
+ 
+          const CONFIDENCE_THRESHOLD = 0.80;
+          const updatedFields = [];
+          const newAiMetadata = { ...aiMetadata };
+          const nextFormData = { ...formData };
+ 
+          if (data.voiceTranscriptId) {
+             setVoiceTranscriptId(data.voiceTranscriptId);
+          }
+ 
+          Object.keys(EXTRACTION_FIELD_MAPPINGS).forEach(apiKey => {
+             const extraction = data[apiKey];
+             if (!extraction || extraction.value === null || extraction.value === undefined) return;
+ 
+             const { value, confidence } = extraction;
+             const targetPath = EXTRACTION_FIELD_MAPPINGS[apiKey];
+ 
+             const applyToField = (fieldPath, val, conf) => {
+                if (conf >= CONFIDENCE_THRESHOLD) {
+                   let mappedVal = val;
+                   if (fieldPath === 'complaints' || fieldPath === 'medicationsAdministered' || fieldPath === 'proceduresPerformed') {
+                      mappedVal = Array.isArray(val) ? val.join('\n') : String(val);
+                   }
+                   setNestedValue(nextFormData, fieldPath, mappedVal);
+                   newAiMetadata[fieldPath] = {
+                      status: 'filled',
+                      value: mappedVal,
+                      confidence: conf
+                   };
+                   updatedFields.push(fieldPath);
+                } else {
+                   newAiMetadata[fieldPath] = {
+                      status: 'suggestion',
+                      value: val,
+                      confidence: conf
+                   };
+                }
+             };
+ 
+             applyToField(targetPath, value, confidence);
+             if (apiKey === 'heartRate') {
+                applyToField('pulseRate', value, confidence);
+             }
+          });
+ 
+          setFormData(nextFormData);
+          setAiMetadata(newAiMetadata);
+          setVoiceFilledFields(prev => Array.from(new Set([...prev, ...updatedFields])));
+          dispatch(addToast({ type: 'success', message: `Voice extraction completed. Auto-filled ${updatedFields.length} fields.` }));
+       } catch (err) {
+          console.error('Error extracting fields from voice transcript', err);
+          dispatch(addToast({ type: 'error', message: 'Failed to analyze transcript.' }));
+       } finally {
+          setIsProcessingVoice(false);
+       }
+    };
+ 
+    const acceptAiSuggestion = (fieldName) => {
+       const fieldInfo = aiMetadata[fieldName];
+       if (!fieldInfo) return;
+ 
+       setFormData(prev => {
+          const next = { ...prev };
+          let val = fieldInfo.value;
+          if (fieldName === 'complaints' || fieldName === 'medicationsAdministered' || fieldName === 'proceduresPerformed') {
+             val = Array.isArray(fieldInfo.value) ? fieldInfo.value.join('\n') : String(fieldInfo.value);
+          }
+          setNestedValue(next, fieldName, val);
+          return next;
+       });
+ 
+       setAiMetadata(prev => {
+          const next = { ...prev };
+          next[fieldName] = {
+             ...fieldInfo,
+             status: 'filled'
+          };
+          return next;
+       });
+ 
+       setVoiceFilledFields(prev => Array.from(new Set([...prev, fieldName])));
+       dispatch(addToast({ type: 'success', message: `Accepted suggestion for ${fieldName}.` }));
+    };
+
+   const dismissAiInfo = (fieldName) => {
+      setAiMetadata(prev => {
+         const next = { ...prev };
+         delete next[fieldName];
+         return next;
+      });
+      setVoiceFilledFields(prev => prev.filter(f => f !== fieldName));
+   };
+
+   const clearAllAiFlags = () => {
+      setAiMetadata({});
+      setVoiceFilledFields([]);
+      setVoiceTranscriptId(null);
+      dispatch(addToast({ type: 'info', message: 'All AI highlights cleared.' }));
+   };
 
    useEffect(() => {
       const fetchRecord = async () => {
@@ -724,7 +1055,11 @@ const CreateRecord = () => {
             notes: toArr(data.notes),
             medicalHistoryNotes: toArr(mh.notes),
          },
-         dynamicFormResponses: dynamicData || {},
+          dynamicFormResponses: {
+             ...(dynamicData || {}),
+             voiceFilledFields: voiceFilledFields,
+             voiceTranscriptId: voiceTranscriptId
+          },
       };
    };
 
@@ -802,10 +1137,22 @@ const CreateRecord = () => {
                   </div>
                </div>
             </div>
-            <button onClick={handleSubmit} disabled={isSubmitting} className="bg-brand-blue text-white px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md">
-               {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
-               <span>{isSubmitting ? 'Saving...' : (recordId ? 'Update Record' : 'Save Record')}</span>
-            </button>
+            <div className="flex flex-wrap gap-3 items-center">
+               <button type="button" onClick={toggleListening} className={`px-5 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md ${isListening ? 'bg-gradient-to-br from-brand-red to-brand-red-dark hover:from-red-500 hover:to-brand-red text-white animate-pulse' : 'bg-gradient-to-br from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue text-white'}`}>
+                  {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                  <span>{isListening ? 'Stop Mic' : 'Voice-to-ePCR'}</span>
+               </button>
+               {Object.keys(aiMetadata).length > 0 && (
+                  <button type="button" onClick={clearAllAiFlags} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 border border-slate-200 transition-all">
+                     <Trash2 size={16} />
+                     <span>Clear AI Highlights</span>
+                  </button>
+               )}
+               <button onClick={handleSubmit} disabled={isSubmitting} className="bg-brand-blue text-white px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md">
+                  {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
+                  <span>{isSubmitting ? 'Saving...' : (recordId ? 'Update Record' : 'Save Record')}</span>
+               </button>
+            </div>
          </div>
 
          {/* Workflow Selector */}
@@ -895,78 +1242,135 @@ const CreateRecord = () => {
                      {/* Basic Info */}
                      <SectionTitle title="Patient Information" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Field label="Patient Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} />
+                        <Field label="Patient Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} aiInfo={aiMetadata['patientName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Patient ID" field="patientId" value={formData.patientId} update={updateField} disabled placeholder="Auto-generated on save" />
-                        <Field label="Date of Birth" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} />
-                        <div className="space-y-1.5">
-                           <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (patientMode === 'new' ? labelReqCls : labelCls)}>Gender</label>
-                           <select value={formData.patientGender} onChange={e => updateField('patientGender', e.target.value)} disabled={patientMode === 'existing' && !!formData.patientId} className={fieldErrors.patientGender ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (patientMode === 'new' ? inputReqCls : inputCls)}>
+                        <Field label="Date of Birth" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} aiInfo={aiMetadata['patientDateOfBirth']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (patientMode === 'new' ? labelReqCls : labelCls)}>Gender</label>
+                              {aiMetadata['patientGender'] && aiMetadata['patientGender'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['patientGender'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('patientGender')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['patientGender'] && aiMetadata['patientGender'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['patientGender'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('patientGender')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.patientGender} 
+                              onChange={e => {
+                                 updateField('patientGender', e.target.value);
+                                 if (aiMetadata['patientGender']) dismissAiInfo('patientGender');
+                              }} 
+                              disabled={patientMode === 'existing' && !!formData.patientId} 
+                              className={(fieldErrors.patientGender ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (patientMode === 'new' ? inputReqCls : inputCls)) + (aiMetadata['patientGender']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['patientGender']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="">Select Gender</option>
                               <option value="MALE">Male</option>
                               <option value="FEMALE">Female</option>
                               <option value="OTHER">Other</option>
                            </select>
+                           {aiMetadata['patientGender'] && aiMetadata['patientGender'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['patientGender'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('patientGender')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                            {fieldErrors.patientGender && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.patientGender}</p>}
                         </div>
-                        <Field label="Age" field="age" value={formData.age} update={updateField} type="number" />
-                        <Field label="Email Address" field="email" value={formData.email} update={updateField} type="email" />
-                        <Field label="Phone Number" field="patientPhone" value={formData.patientPhone} update={updateField} />
-                        <Field label="SSN Last 4" field="patientSSNLast4" value={formData.patientSSNLast4} update={updateField} maxLength={4} />
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Blood Group</label>
-                           <select value={formData.bloodGroup} onChange={e => updateField('bloodGroup', e.target.value)} className={inputCls}>
+                        <Field label="Age" field="age" value={formData.age} update={updateField} type="number" aiInfo={aiMetadata['age']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Email Address" field="email" value={formData.email} update={updateField} type="email" aiInfo={aiMetadata['email']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Phone Number" field="patientPhone" value={formData.patientPhone} update={updateField} aiInfo={aiMetadata['patientPhone']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="SSN Last 4" field="patientSSNLast4" value={formData.patientSSNLast4} update={updateField} maxLength={4} aiInfo={aiMetadata['patientSSNLast4']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Blood Group</label>
+                              {aiMetadata['bloodGroup'] && aiMetadata['bloodGroup'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['bloodGroup'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('bloodGroup')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['bloodGroup'] && aiMetadata['bloodGroup'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['bloodGroup'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('bloodGroup')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.bloodGroup} 
+                              onChange={e => {
+                                 updateField('bloodGroup', e.target.value);
+                                 if (aiMetadata['bloodGroup']) dismissAiInfo('bloodGroup');
+                              }} 
+                              className={inputCls + (aiMetadata['bloodGroup']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['bloodGroup']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="">Select Blood Group</option>
                               {BLOOD_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                            </select>
+                           {aiMetadata['bloodGroup'] && aiMetadata['bloodGroup'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['bloodGroup'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('bloodGroup')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <Field label="Height (cm)" field="height" value={formData.height} update={updateField} type="number" />
-                        <Field label="Weight (kg)" field="weight" value={formData.weight} update={updateField} type="number" />
+                        <Field label="Height (cm)" field="height" value={formData.height} update={updateField} type="number" aiInfo={aiMetadata['height']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Weight (kg)" field="weight" value={formData.weight} update={updateField} type="number" aiInfo={aiMetadata['weight']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
-                     <div className="space-y-1.5 mt-6">
-                        <label className={labelCls}>Address</label>
-                        <textarea rows={2} value={formData.patientAddress} onChange={e => updateField('patientAddress', e.target.value)} disabled={patientMode === 'existing' && !!formData.patientId} className={inputCls + ' resize-none'} />
+                     <div className="mt-6">
+                        <TextAreaField label="Address" field="patientAddress" value={formData.patientAddress} update={updateField} disabled={patientMode === 'existing' && !!formData.patientId} rows={2} aiInfo={aiMetadata['patientAddress']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
+                  
 
                      {/* Medical History */}
                      <SectionTitle title="Medical History" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Field label="Comorbidity" field="medicalHistory.comorbidity" value={formData.medicalHistory.comorbidity} update={updateField} />
-                        <Field label="Current Medicines" field="medicalHistory.currentMedicines" value={formData.medicalHistory.currentMedicines} update={updateField} />
-                        <Field label="Allergy" field="medicalHistory.allergy" value={formData.medicalHistory.allergy} update={updateField} />
-                        <Field label="Assigned Doctor" field="medicalHistory.doctor" value={formData.medicalHistory.doctor} update={updateField} />
-                        <Field label="Surgical History" field="medicalHistory.surgicalHistoryString" value={formData.medicalHistory.surgicalHistoryString} update={updateField} />
-                        <Field label="Primary Physician" field="medicalHistory.primaryPhysicianName" value={formData.medicalHistory.primaryPhysicianName} update={updateField} />
-                        <Field label="Physician Contact" field="medicalHistory.primaryPhysicianContact" value={formData.medicalHistory.primaryPhysicianContact} update={updateField} />
-                        <Field label="Physician Facility" field="medicalHistory.primaryPhysicianFacility" value={formData.medicalHistory.primaryPhysicianFacility} update={updateField} />
-                        <Field label="Advance Directive Type" field="medicalHistory.advanceDirectiveType" value={formData.medicalHistory.advanceDirectiveType} update={updateField} />
+                        <Field label="Comorbidity" field="medicalHistory.comorbidity" value={formData.medicalHistory.comorbidity} update={updateField} aiInfo={aiMetadata['medicalHistory.comorbidity']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Current Medicines" field="medicalHistory.currentMedicines" value={formData.medicalHistory.currentMedicines} update={updateField} aiInfo={aiMetadata['medicalHistory.currentMedicines']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Allergy" field="medicalHistory.allergy" value={formData.medicalHistory.allergy} update={updateField} aiInfo={aiMetadata['medicalHistory.allergy']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Assigned Doctor" field="medicalHistory.doctor" value={formData.medicalHistory.doctor} update={updateField} aiInfo={aiMetadata['medicalHistory.doctor']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Surgical History" field="medicalHistory.surgicalHistoryString" value={formData.medicalHistory.surgicalHistoryString} update={updateField} aiInfo={aiMetadata['medicalHistory.surgicalHistoryString']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Primary Physician" field="medicalHistory.primaryPhysicianName" value={formData.medicalHistory.primaryPhysicianName} update={updateField} aiInfo={aiMetadata['medicalHistory.primaryPhysicianName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Physician Contact" field="medicalHistory.primaryPhysicianContact" value={formData.medicalHistory.primaryPhysicianContact} update={updateField} aiInfo={aiMetadata['medicalHistory.primaryPhysicianContact']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Physician Facility" field="medicalHistory.primaryPhysicianFacility" value={formData.medicalHistory.primaryPhysicianFacility} update={updateField} aiInfo={aiMetadata['medicalHistory.primaryPhysicianFacility']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Advance Directive Type" field="medicalHistory.advanceDirectiveType" value={formData.medicalHistory.advanceDirectiveType} update={updateField} aiInfo={aiMetadata['medicalHistory.advanceDirectiveType']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
                      {/* Pregnancy */}
                      {formData.patientGender === 'FEMALE' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                           <ToggleField label="Pregnant" field="medicalHistory.pregnant" value={formData.medicalHistory.pregnant} update={updateField} />
+                           <ToggleField label="Pregnant" field="medicalHistory.pregnant" value={formData.medicalHistory.pregnant} update={updateField} aiInfo={aiMetadata['medicalHistory.pregnant']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                            {formData.medicalHistory.pregnant && (
-                              <Field label="Gestational Week" field="medicalHistory.gestationalWeekIfPregnant" value={formData.medicalHistory.gestationalWeekIfPregnant} update={updateField} type="number" />
+                              <Field label="Gestational Week" field="medicalHistory.gestationalWeekIfPregnant" value={formData.medicalHistory.gestationalWeekIfPregnant} update={updateField} type="number" aiInfo={aiMetadata['medicalHistory.gestationalWeekIfPregnant']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                            )}
                         </div>
                      )}
 
                      {/* Substance Use */}
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <ToggleField label="DNR On File" field="medicalHistory.dnrOnFile" value={formData.medicalHistory.dnrOnFile} update={updateField} />
-                        <ToggleField label="Advance Directive" field="medicalHistory.advanceDirective" value={formData.medicalHistory.advanceDirective} update={updateField} />
-                        <ToggleField label="Smoker" field="medicalHistory.smoker" value={formData.medicalHistory.smoker} update={updateField} />
-                        <ToggleField label="Alcohol Use" field="medicalHistory.alcoholUse" value={formData.medicalHistory.alcoholUse} update={updateField} />
-                        <ToggleField label="Substance Use" field="medicalHistory.substanceUse" value={formData.medicalHistory.substanceUse} update={updateField} />
+                        <ToggleField label="DNR On File" field="medicalHistory.dnrOnFile" value={formData.medicalHistory.dnrOnFile} update={updateField} aiInfo={aiMetadata['medicalHistory.dnrOnFile']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Advance Directive" field="medicalHistory.advanceDirective" value={formData.medicalHistory.advanceDirective} update={updateField} aiInfo={aiMetadata['medicalHistory.advanceDirective']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Smoker" field="medicalHistory.smoker" value={formData.medicalHistory.smoker} update={updateField} aiInfo={aiMetadata['medicalHistory.smoker']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Alcohol Use" field="medicalHistory.alcoholUse" value={formData.medicalHistory.alcoholUse} update={updateField} aiInfo={aiMetadata['medicalHistory.alcoholUse']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Substance Use" field="medicalHistory.substanceUse" value={formData.medicalHistory.substanceUse} update={updateField} aiInfo={aiMetadata['medicalHistory.substanceUse']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
                      {formData.medicalHistory.substanceUse && (
-                        <Field label="Substance Use Details" field="medicalHistory.substanceUseDetails" value={formData.medicalHistory.substanceUseDetails} update={updateField} />
+                        <Field label="Substance Use Details" field="medicalHistory.substanceUseDetails" value={formData.medicalHistory.substanceUseDetails} update={updateField} aiInfo={aiMetadata['medicalHistory.substanceUseDetails']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      )}
 
                      {/* Last Known */}
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                        <Field label="Last Known Well" field="medicalHistory.lastKnownWellDateTime" value={formData.medicalHistory.lastKnownWellDateTime} update={updateField} type="datetime-local" />
-                        <Field label="Last Oral Intake" field="medicalHistory.lastOralIntake" value={formData.medicalHistory.lastOralIntake} update={updateField} type="datetime-local" />
+                        <Field label="Last Known Well" field="medicalHistory.lastKnownWellDateTime" value={formData.medicalHistory.lastKnownWellDateTime} update={updateField} type="datetime-local" aiInfo={aiMetadata['medicalHistory.lastKnownWellDateTime']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Last Oral Intake" field="medicalHistory.lastOralIntake" value={formData.medicalHistory.lastOralIntake} update={updateField} type="datetime-local" aiInfo={aiMetadata['medicalHistory.lastOralIntake']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
                      <BulletListField
                         label="Medical History Notes"
@@ -984,82 +1388,136 @@ const CreateRecord = () => {
 
                      <SectionTitle title="Incident Details" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Field label="Incident Timestamp" field="incidentDateTime" value={formData.incidentDateTime} update={updateField} type="datetime-local" error={fieldErrors.incidentDateTime} required />
-                        <Field label="Incident Location" field="incidentLocation" value={formData.incidentLocation} update={updateField} error={fieldErrors.incidentLocation} required />
-                        <div className="space-y-1.5">
-                           <label className={fieldErrors.incidentType ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Incident Type</label>
-                           <select value={formData.incidentType} onChange={e => updateField('incidentType', e.target.value)} className={fieldErrors.incidentType ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
+                        <Field label="Incident Timestamp" field="incidentDateTime" value={formData.incidentDateTime} update={updateField} type="datetime-local" error={fieldErrors.incidentDateTime} required aiInfo={aiMetadata['incidentDateTime']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Incident Location" field="incidentLocation" value={formData.incidentLocation} update={updateField} error={fieldErrors.incidentLocation} required aiInfo={aiMetadata['incidentLocation']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={fieldErrors.incidentType ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Incident Type</label>
+                              {aiMetadata['incidentType'] && aiMetadata['incidentType'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['incidentType'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('incidentType')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['incidentType'] && aiMetadata['incidentType'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['incidentType'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('incidentType')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.incidentType} 
+                              onChange={e => {
+                                 updateField('incidentType', e.target.value);
+                                 if (aiMetadata['incidentType']) dismissAiInfo('incidentType');
+                              }} 
+                              className={(fieldErrors.incidentType ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls) + (aiMetadata['incidentType']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['incidentType']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="">Select Type</option>
                               {incidentTypesOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                            </select>
+                           {aiMetadata['incidentType'] && aiMetadata['incidentType'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['incidentType'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('incidentType')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                            {fieldErrors.incidentType && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.incidentType}</p>}
                         </div>
                         <Field label="Incident Number" field="incidentNumber" value={formData.incidentNumber} update={updateField} disabled placeholder="Auto-generated on save" />
-                        <Field label="Scene Type" field="sceneAssessment.sceneType" value={formData.sceneAssessment.sceneType} update={updateField} />
-                        <Field label="Number of Patients" field="sceneAssessment.numberOfPatients" value={formData.sceneAssessment.numberOfPatients} update={updateField} type="number" />
-                        <Field label="Mechanism of Injury" field="sceneAssessment.mechanismOfInjury" value={formData.sceneAssessment.mechanismOfInjury} update={updateField} />
-                        <Field label="Injury Location" field="sceneAssessment.injuryLocation" value={formData.sceneAssessment.injuryLocation} update={updateField} />
-                        <Field label="Scene Hazards" field="sceneAssessment.sceneHazards" value={formData.sceneAssessment.sceneHazards} update={updateField} />
-                        <Field label="Weather Conditions" field="sceneAssessment.weatherConditions" value={formData.sceneAssessment.weatherConditions} update={updateField} />
-                        <Field label="Lighting Conditions" field="sceneAssessment.lightingConditions" value={formData.sceneAssessment.lightingConditions} update={updateField} />
-                        <Field label="Patient Access Difficulty" field="sceneAssessment.patientAccessDifficulty" value={formData.sceneAssessment.patientAccessDifficulty} update={updateField} />
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Triage Tag</label>
-                           <select value={formData.sceneAssessment.triageTag} onChange={e => updateField('sceneAssessment.triageTag', e.target.value)} className={inputCls}>
+                        <Field label="Scene Type" field="sceneAssessment.sceneType" value={formData.sceneAssessment.sceneType} update={updateField} aiInfo={aiMetadata['sceneAssessment.sceneType']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Number of Patients" field="sceneAssessment.numberOfPatients" value={formData.sceneAssessment.numberOfPatients} update={updateField} type="number" aiInfo={aiMetadata['sceneAssessment.numberOfPatients']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Mechanism of Injury" field="sceneAssessment.mechanismOfInjury" value={formData.sceneAssessment.mechanismOfInjury} update={updateField} aiInfo={aiMetadata['sceneAssessment.mechanismOfInjury']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Injury Location" field="sceneAssessment.injuryLocation" value={formData.sceneAssessment.injuryLocation} update={updateField} aiInfo={aiMetadata['sceneAssessment.injuryLocation']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Scene Hazards" field="sceneAssessment.sceneHazards" value={formData.sceneAssessment.sceneHazards} update={updateField} aiInfo={aiMetadata['sceneAssessment.sceneHazards']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Weather Conditions" field="sceneAssessment.weatherConditions" value={formData.sceneAssessment.weatherConditions} update={updateField} aiInfo={aiMetadata['sceneAssessment.weatherConditions']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Lighting Conditions" field="sceneAssessment.lightingConditions" value={formData.sceneAssessment.lightingConditions} update={updateField} aiInfo={aiMetadata['sceneAssessment.lightingConditions']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Patient Access Difficulty" field="sceneAssessment.patientAccessDifficulty" value={formData.sceneAssessment.patientAccessDifficulty} update={updateField} aiInfo={aiMetadata['sceneAssessment.patientAccessDifficulty']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Triage Tag</label>
+                              {aiMetadata['sceneAssessment.triageTag'] && aiMetadata['sceneAssessment.triageTag'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['sceneAssessment.triageTag'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('sceneAssessment.triageTag')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['sceneAssessment.triageTag'] && aiMetadata['sceneAssessment.triageTag'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['sceneAssessment.triageTag'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('sceneAssessment.triageTag')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.sceneAssessment.triageTag} 
+                              onChange={e => {
+                                 updateField('sceneAssessment.triageTag', e.target.value);
+                                 if (aiMetadata['sceneAssessment.triageTag']) dismissAiInfo('sceneAssessment.triageTag');
+                              }} 
+                              className={inputCls + (aiMetadata['sceneAssessment.triageTag']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['sceneAssessment.triageTag']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="">Select Triage Tag</option>
                               {TRIAGE_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
                            </select>
+                           {aiMetadata['sceneAssessment.triageTag'] && aiMetadata['sceneAssessment.triageTag'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['sceneAssessment.triageTag'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('sceneAssessment.triageTag')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <Field label="Latitude" field="sceneAssessment.geoLocation.latitude" value={formData.sceneAssessment.geoLocation?.latitude || ''} update={updateField} type="number" />
-                        <Field label="Longitude" field="sceneAssessment.geoLocation.longitude" value={formData.sceneAssessment.geoLocation?.longitude || ''} update={updateField} type="number" />
-                        <Field label="Altitude" field="sceneAssessment.geoLocation.altitude" value={formData.sceneAssessment.geoLocation?.altitude || ''} update={updateField} type="number" />
-                        <Field label="Geohash" field="sceneAssessment.geoLocation.geohash" value={formData.sceneAssessment.geoLocation?.geohash || ''} update={updateField} />
+                        <Field label="Latitude" field="sceneAssessment.geoLocation.latitude" value={formData.sceneAssessment.geoLocation?.latitude || ''} update={updateField} type="number" aiInfo={aiMetadata['sceneAssessment.geoLocation.latitude']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Longitude" field="sceneAssessment.geoLocation.longitude" value={formData.sceneAssessment.geoLocation?.longitude || ''} update={updateField} type="number" aiInfo={aiMetadata['sceneAssessment.geoLocation.longitude']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Altitude" field="sceneAssessment.geoLocation.altitude" value={formData.sceneAssessment.geoLocation?.altitude || ''} update={updateField} type="number" aiInfo={aiMetadata['sceneAssessment.geoLocation.altitude']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Geohash" field="sceneAssessment.geoLocation.geohash" value={formData.sceneAssessment.geoLocation?.geohash || ''} update={updateField} aiInfo={aiMetadata['sceneAssessment.geoLocation.geohash']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
                      {/* Scene Toggles */}
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-6">
-                        <ToggleField label="Scene Safe" field="sceneAssessment.sceneSafe" value={formData.sceneAssessment.sceneSafe} update={updateField} />
-                        <ToggleField label="Trauma Call" field="sceneAssessment.traumaCall" value={formData.sceneAssessment.traumaCall} update={updateField} />
-                        <ToggleField label="Mass Casualty" field="sceneAssessment.massCasualtyIncident" value={formData.sceneAssessment.massCasualtyIncident} update={updateField} />
-                        <ToggleField label="Witness Present" field="sceneAssessment.witnessPresent" value={formData.sceneAssessment.witnessPresent} update={updateField} />
-                        <ToggleField label="Bystander CPR" field="sceneAssessment.bystanderCPRPerformed" value={formData.sceneAssessment.bystanderCPRPerformed} update={updateField} />
-                        <ToggleField label="AED By Bystander" field="sceneAssessment.aedUsedByBystander" value={formData.sceneAssessment.aedUsedByBystander} update={updateField} />
+                        <ToggleField label="Scene Safe" field="sceneAssessment.sceneSafe" value={formData.sceneAssessment.sceneSafe} update={updateField} aiInfo={aiMetadata['sceneAssessment.sceneSafe']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Trauma Call" field="sceneAssessment.traumaCall" value={formData.sceneAssessment.traumaCall} update={updateField} aiInfo={aiMetadata['sceneAssessment.traumaCall']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Mass Casualty" field="sceneAssessment.massCasualtyIncident" value={formData.sceneAssessment.massCasualtyIncident} update={updateField} aiInfo={aiMetadata['sceneAssessment.massCasualtyIncident']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Witness Present" field="sceneAssessment.witnessPresent" value={formData.sceneAssessment.witnessPresent} update={updateField} aiInfo={aiMetadata['sceneAssessment.witnessPresent']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Bystander CPR" field="sceneAssessment.bystanderCPRPerformed" value={formData.sceneAssessment.bystanderCPRPerformed} update={updateField} aiInfo={aiMetadata['sceneAssessment.bystanderCPRPerformed']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="AED By Bystander" field="sceneAssessment.aedUsedByBystander" value={formData.sceneAssessment.aedUsedByBystander} update={updateField} aiInfo={aiMetadata['sceneAssessment.aedUsedByBystander']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
                      {/* Witness Info */}
                      {formData.sceneAssessment.witnessPresent && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                           <Field label="Witness Name" field="sceneAssessment.witnessName" value={formData.sceneAssessment.witnessName} update={updateField} />
-                           <Field label="Witness Contact" field="sceneAssessment.witnessContact" value={formData.sceneAssessment.witnessContact} update={updateField} />
+                           <Field label="Witness Name" field="sceneAssessment.witnessName" value={formData.sceneAssessment.witnessName} update={updateField} aiInfo={aiMetadata['sceneAssessment.witnessName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                           <Field label="Witness Contact" field="sceneAssessment.witnessContact" value={formData.sceneAssessment.witnessContact} update={updateField} aiInfo={aiMetadata['sceneAssessment.witnessContact']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
                      )}
 
                      {/* Narrative */}
-                     <div className="space-y-1.5 mt-6">
-                        <label className={labelCls}>Narrative Description</label>
-                        <textarea rows={4} value={formData.incidentDescription} onChange={e => updateField('incidentDescription', e.target.value)} className={inputCls + ' resize-none'} />
+                     <div className="mt-6">
+                        <TextAreaField label="Narrative Description" field="incidentDescription" value={formData.incidentDescription} update={updateField} rows={4} aiInfo={aiMetadata['incidentDescription']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
                      {/* Timeline */}
                      <SectionTitle title="Response Timeline" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Field label="Call Received At" field="timeline.callReceivedAt" value={formData.timeline.callReceivedAt} update={updateField} type="datetime-local" />
-                        <Field label="Dispatched At" field="timeline.dispatchedAt" value={formData.timeline.dispatchedAt} update={updateField} type="datetime-local" />
-                        <Field label="En Route At" field="timeline.enRouteAt" value={formData.timeline.enRouteAt} update={updateField} type="datetime-local" />
-                        <Field label="Arrived Scene At" field="timeline.arrivedSceneAt" value={formData.timeline.arrivedSceneAt} update={updateField} type="datetime-local" />
-                        <Field label="Patient Contact At" field="timeline.patientContactAt" value={formData.timeline.patientContactAt} update={updateField} type="datetime-local" />
-                        <Field label="Departed Scene At" field="timeline.departedSceneAt" value={formData.timeline.departedSceneAt} update={updateField} type="datetime-local" />
-                        <Field label="Arrived Destination At" field="timeline.arrivedDestinationAt" value={formData.timeline.arrivedDestinationAt} update={updateField} type="datetime-local" />
-                        <Field label="Transfer of Care At" field="timeline.transferOfCareAt" value={formData.timeline.transferOfCareAt} update={updateField} type="datetime-local" />
-                        <Field label="Unit Available At" field="timeline.unitAvailableAt" value={formData.timeline.unitAvailableAt} update={updateField} type="datetime-local" />
+                        <Field label="Call Received At" field="timeline.callReceivedAt" value={formData.timeline.callReceivedAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.callReceivedAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Dispatched At" field="timeline.dispatchedAt" value={formData.timeline.dispatchedAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.dispatchedAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="En Route At" field="timeline.enRouteAt" value={formData.timeline.enRouteAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.enRouteAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Arrived Scene At" field="timeline.arrivedSceneAt" value={formData.timeline.arrivedSceneAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.arrivedSceneAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Patient Contact At" field="timeline.patientContactAt" value={formData.timeline.patientContactAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.patientContactAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Departed Scene At" field="timeline.departedSceneAt" value={formData.timeline.departedSceneAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.departedSceneAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Arrived Destination At" field="timeline.arrivedDestinationAt" value={formData.timeline.arrivedDestinationAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.arrivedDestinationAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Transfer of Care At" field="timeline.transferOfCareAt" value={formData.timeline.transferOfCareAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.transferOfCareAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Unit Available At" field="timeline.unitAvailableAt" value={formData.timeline.unitAvailableAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['timeline.unitAvailableAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
                      {/* Complaints */}
                      <SectionTitle title="Chief Complaints" />
                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Narrative Complaints (Legacy)</label>
-                           <textarea rows={6} value={formData.complaints} onChange={e => updateField('complaints', e.target.value)} className={inputCls + ' resize-none'} placeholder="Enter complaints narrative..." />
+                        <div>
+                           <TextAreaField label="Narrative Complaints (Legacy)" field="complaints" value={formData.complaints} update={updateField} rows={6} placeholder="Enter complaints narrative..." aiInfo={aiMetadata['complaints']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
                         <StructuredComplaintsListField
                            values={formData.structuredComplaints}
@@ -1074,15 +1532,15 @@ const CreateRecord = () => {
                   <div className="space-y-12">
                      <SectionTitle title="Clinical Vitals" />
                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6">
-                        <Field label="BP Systolic" field="systolicBp" value={formData.systolicBp} update={updateField} type="number" />
-                        <Field label="BP Diastolic" field="diastolicBp" value={formData.diastolicBp} update={updateField} type="number" />
-                        <Field label="Pulse (BPM)" field="pulseRate" value={formData.pulseRate} update={updateField} type="number" />
-                        <Field label="Resp (RR)" field="respirationRate" value={formData.respirationRate} update={updateField} type="number" />
-                        <Field label="SpO2 (%)" field="spo2" value={formData.spo2} update={updateField} type="number" />
-                        <Field label="Temp (°C)" field="temperature" value={formData.temperature} update={updateField} type="number" />
-                        <Field label="Blood Sugar" field="bloodSugar" value={formData.bloodSugar} update={updateField} type="number" />
-                        <Field label="GCS" field="glasgowComaScale" value={formData.glasgowComaScale} update={updateField} type="number" />
-                        <Field label="Hemoglobin (g/dL)" field="hemoglobin" value={formData.hemoglobin} update={updateField} type="number" />
+                        <Field label="BP Systolic" field="systolicBp" value={formData.systolicBp} update={updateField} type="number" aiInfo={aiMetadata['systolicBp']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="BP Diastolic" field="diastolicBp" value={formData.diastolicBp} update={updateField} type="number" aiInfo={aiMetadata['diastolicBp']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Pulse (BPM)" field="pulseRate" value={formData.pulseRate} update={updateField} type="number" aiInfo={aiMetadata['pulseRate']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Resp (RR)" field="respirationRate" value={formData.respirationRate} update={updateField} type="number" aiInfo={aiMetadata['respirationRate']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="SpO2 (%)" field="spo2" value={formData.spo2} update={updateField} type="number" aiInfo={aiMetadata['spo2']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Temp (°C)" field="temperature" value={formData.temperature} update={updateField} type="number" aiInfo={aiMetadata['temperature']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Blood Sugar" field="bloodSugar" value={formData.bloodSugar} update={updateField} type="number" aiInfo={aiMetadata['bloodSugar']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="GCS" field="glasgowComaScale" value={formData.glasgowComaScale} update={updateField} type="number" aiInfo={aiMetadata['glasgowComaScale']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Hemoglobin (g/dL)" field="hemoglobin" value={formData.hemoglobin} update={updateField} type="number" aiInfo={aiMetadata['hemoglobin']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
                      <StructuredVitalsListField
                         values={formData.structuredVitals}
@@ -1092,30 +1550,28 @@ const CreateRecord = () => {
                      {/* Clinical Assessment */}
                      <SectionTitle title="Clinical Assessment" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Field label="Mental Status" field="mentalStatus" value={formData.mentalStatus} update={updateField} />
-                        <Field label="ECG Rhythm" field="ecgRhythm" value={formData.ecgRhythm} update={updateField} />
-                        <Field label="Pupils Response" field="pupilsResponse" value={formData.pupilsResponse} update={updateField} />
-                        <Field label="Skin Condition" field="skinCondition" value={formData.skinCondition} update={updateField} />
-                        <Field label="Primary Impression" field="primaryImpression" value={formData.primaryImpression} update={updateField} />
-                        <Field label="Secondary Impression" field="secondaryImpression" value={formData.secondaryImpression} update={updateField} />
-                        <Field label="Diagnosis" field="diagnosis" value={formData.diagnosis} update={updateField} />
-                        <Field label="Treatment Provided" field="treatmentProvided" value={formData.treatmentProvided} update={updateField} />
-                        <Field label="Treatment Plan" field="treatmentPlan" value={formData.treatmentPlan} update={updateField} />
-                        <Field label="Clinical Tag (Manual Override)" field="clinicalTag" value={formData.clinicalTag || ''} update={updateField} placeholder="e.g. Implant Case (Leave blank to auto-detect)" />
+                        <Field label="Mental Status" field="mentalStatus" value={formData.mentalStatus} update={updateField} aiInfo={aiMetadata['mentalStatus']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="ECG Rhythm" field="ecgRhythm" value={formData.ecgRhythm} update={updateField} aiInfo={aiMetadata['ecgRhythm']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Pupils Response" field="pupilsResponse" value={formData.pupilsResponse} update={updateField} aiInfo={aiMetadata['pupilsResponse']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Skin Condition" field="skinCondition" value={formData.skinCondition} update={updateField} aiInfo={aiMetadata['skinCondition']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Primary Impression" field="primaryImpression" value={formData.primaryImpression} update={updateField} aiInfo={aiMetadata['primaryImpression']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Secondary Impression" field="secondaryImpression" value={formData.secondaryImpression} update={updateField} aiInfo={aiMetadata['secondaryImpression']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Diagnosis" field="diagnosis" value={formData.diagnosis} update={updateField} aiInfo={aiMetadata['diagnosis']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Treatment Provided" field="treatmentProvided" value={formData.treatmentProvided} update={updateField} aiInfo={aiMetadata['treatmentProvided']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Treatment Plan" field="treatmentPlan" value={formData.treatmentPlan} update={updateField} aiInfo={aiMetadata['treatmentPlan']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Clinical Tag (Manual Override)" field="clinicalTag" value={formData.clinicalTag || ''} update={updateField} placeholder="e.g. Implant Case (Leave blank to auto-detect)" aiInfo={aiMetadata['clinicalTag']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <ToggleField label="Airway Managed" field="airwayManaged" value={formData.airwayManaged} update={updateField} />
+                        <ToggleField label="Airway Managed" field="airwayManaged" value={formData.airwayManaged} update={updateField} aiInfo={aiMetadata['airwayManaged']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
 
-                     <div className="space-y-1.5 mt-6">
-                        <label className={labelCls}>Diagnostic Findings</label>
-                        <textarea rows={3} value={formData.diagnosticFindings} onChange={e => updateField('diagnosticFindings', e.target.value)} className={inputCls + ' resize-none'} />
+                     <div className="mt-6">
+                        <TextAreaField label="Diagnostic Findings" field="diagnosticFindings" value={formData.diagnosticFindings} update={updateField} rows={3} aiInfo={aiMetadata['diagnosticFindings']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                      </div>
                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Procedures Performed (Legacy)</label>
-                           <textarea rows={6} value={formData.proceduresPerformed} onChange={e => updateField('proceduresPerformed', e.target.value)} className={inputCls + ' resize-none'} placeholder="Enter procedures narrative..." />
+                        <div>
+                           <TextAreaField label="Procedures Performed (Legacy)" field="proceduresPerformed" value={formData.proceduresPerformed} update={updateField} rows={6} placeholder="Enter procedures narrative..." aiInfo={aiMetadata['proceduresPerformed']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
                         <StructuredProceduresListField
                            values={formData.structuredProcedures}
@@ -1123,9 +1579,8 @@ const CreateRecord = () => {
                         />
                      </div>
                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Medications Administered (Legacy)</label>
-                           <textarea rows={6} value={formData.medicationsAdministered} onChange={e => updateField('medicationsAdministered', e.target.value)} className={inputCls + ' resize-none'} placeholder="Enter medications narrative..." />
+                        <div>
+                           <TextAreaField label="Medications Administered (Legacy)" field="medicationsAdministered" value={formData.medicationsAdministered} update={updateField} rows={6} placeholder="Enter medications narrative..." aiInfo={aiMetadata['medicationsAdministered']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
                         <StructuredMedicationsListField
                            values={formData.structuredMedications}
@@ -1174,76 +1629,216 @@ const CreateRecord = () => {
                   <div className="space-y-12">
                      <SectionTitle title="Disposition & Transport" />
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Field label="Destination Facility" field="transport.destinationName" value={formData.transport.destinationName} update={updateField} error={fieldErrors['transport.destinationName']} required />
-                        <div className="space-y-1.5">
-                           <label className={fieldErrors['transport.transportMode'] ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Transport Mode</label>
-                           <select value={formData.transport.transportMode} onChange={e => updateField('transport.transportMode', e.target.value)} required className={fieldErrors['transport.transportMode'] ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls}>
+                        <Field label="Destination Facility" field="transport.destinationName" value={formData.transport.destinationName} update={updateField} error={fieldErrors['transport.destinationName']} required aiInfo={aiMetadata['transport.destinationName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={fieldErrors['transport.transportMode'] ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Transport Mode</label>
+                              {aiMetadata['transport.transportMode'] && aiMetadata['transport.transportMode'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['transport.transportMode'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.transportMode')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['transport.transportMode'] && aiMetadata['transport.transportMode'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['transport.transportMode'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.transportMode')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )} 
+                           </div>
+                           <select 
+                              value={formData.transport.transportMode} 
+                              onChange={e => {
+                                 updateField('transport.transportMode', e.target.value);
+                                 if (aiMetadata['transport.transportMode']) dismissAiInfo('transport.transportMode');
+                              }} 
+                              required 
+                              className={(fieldErrors['transport.transportMode'] ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputReqCls) + (aiMetadata['transport.transportMode']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['transport.transportMode']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="">Select Transport Mode</option>
                               {TRANSPORT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                            </select>
+                           {aiMetadata['transport.transportMode'] && aiMetadata['transport.transportMode'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['transport.transportMode'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('transport.transportMode')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                            {fieldErrors['transport.transportMode'] && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors['transport.transportMode']}</p>}
                         </div>
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Care Level</label>
-                           <select value={formData.transport.careLevel} onChange={e => updateField('transport.careLevel', e.target.value)} className={inputCls}>
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Care Level</label>
+                              {aiMetadata['transport.careLevel'] && aiMetadata['transport.careLevel'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['transport.careLevel'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.careLevel')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['transport.careLevel'] && aiMetadata['transport.careLevel'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['transport.careLevel'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.careLevel')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.transport.careLevel} 
+                              onChange={e => {
+                                 updateField('transport.careLevel', e.target.value);
+                                 if (aiMetadata['transport.careLevel']) dismissAiInfo('transport.careLevel');
+                              }} 
+                              className={inputCls + (aiMetadata['transport.careLevel']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['transport.careLevel']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="">Select Care Level</option>
                               <option value="BASIC">Basic</option>
                               <option value="STABLE">Stable</option>
                               <option value="URGENT">Urgent</option>
                               <option value="CRITICAL">Critical</option>
                            </select>
+                           {aiMetadata['transport.careLevel'] && aiMetadata['transport.careLevel'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['transport.careLevel'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('transport.careLevel')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Record Status</label>
-                           <select value={formData.status} onChange={e => updateField('status', e.target.value)} className={inputCls}>
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Record Status</label>
+                              {aiMetadata['status'] && aiMetadata['status'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['status'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('status')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['status'] && aiMetadata['status'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['status'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('status')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.status} 
+                              onChange={e => {
+                                 updateField('status', e.target.value);
+                                 if (aiMetadata['status']) dismissAiInfo('status');
+                              }} 
+                              className={inputCls + (aiMetadata['status']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['status']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="PENDING">Pending</option>
                               <option value="ACTIVE">Active</option>
                               <option value="COMPLETED">Completed</option>
                               <option value="CANCELLED">Cancelled</option>
                            </select>
+                           {aiMetadata['status'] && aiMetadata['status'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['status'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('status')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <Field label="Transport Reason" field="transport.transportReason" value={formData.transport.transportReason} update={updateField} />
-                        <Field label="Refusal of Transport Reason" field="transport.refusalOfTransportReason" value={formData.transport.refusalOfTransportReason} update={updateField} />
-                        <Field label="Destination Facility ID" field="transport.destinationFacilityId" value={formData.transport.destinationFacilityId} update={updateField} />
-                        <Field label="Destination Address" field="transport.destinationAddress" value={formData.transport.destinationAddress} update={updateField} />
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Destination Type</label>
-                           <select value={formData.transport.destinationType} onChange={e => updateField('transport.destinationType', e.target.value)} className={inputCls}>
+                        <Field label="Transport Reason" field="transport.transportReason" value={formData.transport.transportReason} update={updateField} aiInfo={aiMetadata['transport.transportReason']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Refusal of Transport Reason" field="transport.refusalOfTransportReason" value={formData.transport.refusalOfTransportReason} update={updateField} aiInfo={aiMetadata['transport.refusalOfTransportReason']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Destination Facility ID" field="transport.destinationFacilityId" value={formData.transport.destinationFacilityId} update={updateField} aiInfo={aiMetadata['transport.destinationFacilityId']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Destination Address" field="transport.destinationAddress" value={formData.transport.destinationAddress} update={updateField} aiInfo={aiMetadata['transport.destinationAddress']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Destination Type</label>
+                              {aiMetadata['transport.destinationType'] && aiMetadata['transport.destinationType'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['transport.destinationType'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.destinationType')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['transport.destinationType'] && aiMetadata['transport.destinationType'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['transport.destinationType'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.destinationType')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.transport.destinationType} 
+                              onChange={e => {
+                                 updateField('transport.destinationType', e.target.value);
+                                 if (aiMetadata['transport.destinationType']) dismissAiInfo('transport.destinationType');
+                              }} 
+                              className={inputCls + (aiMetadata['transport.destinationType']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['transport.destinationType']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="HOSPITAL">Hospital</option>
                               <option value="CLINIC">Clinic</option>
                               <option value="NURSING_HOME">Nursing Home</option>
                               <option value="RESIDENCE">Residence</option>
                               <option value="OTHER">Other</option>
                            </select>
+                           {aiMetadata['transport.destinationType'] && aiMetadata['transport.destinationType'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['transport.destinationType'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('transport.destinationType')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <Field label="Receiving Physician Name" field="transport.receivingPhysicianName" value={formData.transport.receivingPhysicianName} update={updateField} />
-                        <Field label="Receiving Nurse Name" field="transport.receivingNurseName" value={formData.transport.receivingNurseName} update={updateField} />
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Patient Condition on Departure</label>
-                           <select value={formData.transport.patientConditionOnDeparture} onChange={e => updateField('transport.patientConditionOnDeparture', e.target.value)} className={inputCls}>
+                        <Field label="Receiving Physician Name" field="transport.receivingPhysicianName" value={formData.transport.receivingPhysicianName} update={updateField} aiInfo={aiMetadata['transport.receivingPhysicianName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <Field label="Receiving Nurse Name" field="transport.receivingNurseName" value={formData.transport.receivingNurseName} update={updateField} aiInfo={aiMetadata['transport.receivingNurseName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Patient Condition on Departure</label>
+                              {aiMetadata['transport.patientConditionOnDeparture'] && aiMetadata['transport.patientConditionOnDeparture'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['transport.patientConditionOnDeparture'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.patientConditionOnDeparture')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['transport.patientConditionOnDeparture'] && aiMetadata['transport.patientConditionOnDeparture'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['transport.patientConditionOnDeparture'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('transport.patientConditionOnDeparture')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.transport.patientConditionOnDeparture} 
+                              onChange={e => {
+                                 updateField('transport.patientConditionOnDeparture', e.target.value);
+                                 if (aiMetadata['transport.patientConditionOnDeparture']) dismissAiInfo('transport.patientConditionOnDeparture');
+                              }} 
+                              className={inputCls + (aiMetadata['transport.patientConditionOnDeparture']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['transport.patientConditionOnDeparture']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="STABLE">Stable</option>
                               <option value="URGENT">Urgent</option>
                               <option value="CRITICAL">Critical</option>
                            </select>
+                           {aiMetadata['transport.patientConditionOnDeparture'] && aiMetadata['transport.patientConditionOnDeparture'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['transport.patientConditionOnDeparture'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('transport.patientConditionOnDeparture')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <Field label="Hospital Notified At" field="transport.hospitalNotifiedAt" value={formData.transport.hospitalNotifiedAt} update={updateField} type="datetime-local" />
-                        <ToggleField label="Hospital Notified" field="transport.hospitalNotified" value={formData.transport.hospitalNotified} update={updateField} />
-                        <ToggleField label="Continued CPR During Transport" field="transport.continuedCPRDuringTransport" value={formData.transport.continuedCPRDuringTransport} update={updateField} />
-                        <ToggleField label="AED Used During Transport" field="transport.aedUsedDuringTransport" value={formData.transport.aedUsedDuringTransport} update={updateField} />
-
+                        <Field label="Hospital Notified At" field="transport.hospitalNotifiedAt" value={formData.transport.hospitalNotifiedAt} update={updateField} type="datetime-local" aiInfo={aiMetadata['transport.hospitalNotifiedAt']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Hospital Notified" field="transport.hospitalNotified" value={formData.transport.hospitalNotified} update={updateField} aiInfo={aiMetadata['transport.hospitalNotified']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Continued CPR During Transport" field="transport.continuedCPRDuringTransport" value={formData.transport.continuedCPRDuringTransport} update={updateField} aiInfo={aiMetadata['transport.continuedCPRDuringTransport']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="AED Used During Transport" field="transport.aedUsedDuringTransport" value={formData.transport.aedUsedDuringTransport} update={updateField} aiInfo={aiMetadata['transport.aedUsedDuringTransport']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+ 
                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                            <div className="md:col-span-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Destination Geo-Coordinates</div>
-                           <Field label="Destination Latitude" field="transport.destinationGeoLocation.latitude" value={formData.transport.destinationGeoLocation?.latitude || ''} update={updateField} type="number" />
-                           <Field label="Destination Longitude" field="transport.destinationGeoLocation.longitude" value={formData.transport.destinationGeoLocation?.longitude || ''} update={updateField} type="number" />
-                           <Field label="Destination Altitude" field="transport.destinationGeoLocation.altitude" value={formData.transport.destinationGeoLocation?.altitude || ''} update={updateField} type="number" />
-                           <Field label="Destination Geohash" field="transport.destinationGeoLocation.geohash" value={formData.transport.destinationGeoLocation?.geohash || ''} update={updateField} />
+                           <Field label="Destination Latitude" field="transport.destinationGeoLocation.latitude" value={formData.transport.destinationGeoLocation?.latitude || ''} update={updateField} type="number" aiInfo={aiMetadata['transport.destinationGeoLocation.latitude']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                           <Field label="Destination Longitude" field="transport.destinationGeoLocation.longitude" value={formData.transport.destinationGeoLocation?.longitude || ''} update={updateField} type="number" aiInfo={aiMetadata['transport.destinationGeoLocation.longitude']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                           <Field label="Destination Altitude" field="transport.destinationGeoLocation.altitude" value={formData.transport.destinationGeoLocation?.altitude || ''} update={updateField} type="number" aiInfo={aiMetadata['transport.destinationGeoLocation.altitude']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                           <Field label="Destination Geohash" field="transport.destinationGeoLocation.geohash" value={formData.transport.destinationGeoLocation?.geohash || ''} update={updateField} aiInfo={aiMetadata['transport.destinationGeoLocation.geohash']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
-
-                        <div className="space-y-1.5 md:col-span-2">
-                           <label className={labelCls}>Handoff Report</label>
-                           <textarea rows={3} value={formData.transport.handoffReport} onChange={e => updateField('transport.handoffReport', e.target.value)} className={inputCls + ' resize-none'} placeholder="Handoff report details..." />
+ 
+                        <div className="md:col-span-2">
+                           <TextAreaField label="Handoff Report" field="transport.handoffReport" value={formData.transport.handoffReport} update={updateField} rows={3} placeholder="Handoff report details..." aiInfo={aiMetadata['transport.handoffReport']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
-
+ 
                         <div className="space-y-1.5 md:col-span-2 mt-6">
                            <label className={labelReqCls}>Patient Condition on Arrival</label>
                            <div className="flex gap-3">
@@ -1259,58 +1854,86 @@ const CreateRecord = () => {
                            </div>
                         </div>
                      </div>
-
+ 
                      <SectionTitle title="Incident Crew" />
                      <CrewMembersListField
                         values={formData.crew}
                         onChange={(next) => updateField('crew', next)}
                      />
-
+ 
                      <SectionTitle title="Patient Consent & Signatures" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="space-y-1.5">
-                           <label className={labelCls}>Consent Type</label>
-                           <select value={formData.consent.consentType} onChange={e => updateField('consent.consentType', e.target.value)} className={inputCls}>
+                        <div className="space-y-1.5 relative group">
+                           <div className="flex justify-between items-center">
+                              <label className={labelCls}>Consent Type</label>
+                              {aiMetadata['consent.consentType'] && aiMetadata['consent.consentType'].status === 'filled' && (
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                    ✔ AI Filled ({Math.round(aiMetadata['consent.consentType'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('consent.consentType')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                              {aiMetadata['consent.consentType'] && aiMetadata['consent.consentType'].status === 'suggestion' && (
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                    💡 Suggestion ({Math.round(aiMetadata['consent.consentType'].confidence * 100)}%)
+                                    <button type="button" onClick={() => dismissAiInfo('consent.consentType')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+                                 </span>
+                              )}
+                           </div>
+                           <select 
+                              value={formData.consent.consentType} 
+                              onChange={e => {
+                                 updateField('consent.consentType', e.target.value);
+                                 if (aiMetadata['consent.consentType']) dismissAiInfo('consent.consentType');
+                              }} 
+                              className={inputCls + (aiMetadata['consent.consentType']?.status === 'filled' ? ' border-emerald-500 ring-1 ring-emerald-500' : (aiMetadata['consent.consentType']?.status === 'suggestion' ? ' border-amber-500 ring-1 ring-amber-500' : ''))}>
                               <option value="VERBAL">Verbal</option>
                               <option value="WRITTEN">Written</option>
                               <option value="IMPLIED">Implied</option>
                               <option value="GUARDIAN">Guardian</option>
                               <option value="REFUSED">Refused</option>
                            </select>
+                           {aiMetadata['consent.consentType'] && aiMetadata['consent.consentType'].status === 'suggestion' && (
+                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                                 <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['consent.consentType'].value}&quot;</span>
+                                 <button type="button" onClick={() => acceptAiSuggestion('consent.consentType')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                                    Accept
+                                 </button>
+                              </div>
+                           )}
                         </div>
-                        <ToggleField label="Patient Consent Obtained" field="consent.patientConsentObtained" value={formData.consent.patientConsentObtained} update={updateField} />
-                        <ToggleField label="Patient Informed of Risks" field="consent.patientInformedOfRisks" value={formData.consent.patientInformedOfRisks} update={updateField} />
-                        <ToggleField label="Patient Has Decision Capacity" field="consent.patientHasDecisionCapacity" value={formData.consent.patientHasDecisionCapacity} update={updateField} />
-                        <ToggleField label="Refusal of Care" field="consent.refusalOfCare" value={formData.consent.refusalOfCare} update={updateField} />
+                        <ToggleField label="Patient Consent Obtained" field="consent.patientConsentObtained" value={formData.consent.patientConsentObtained} update={updateField} aiInfo={aiMetadata['consent.patientConsentObtained']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Patient Informed of Risks" field="consent.patientInformedOfRisks" value={formData.consent.patientInformedOfRisks} update={updateField} aiInfo={aiMetadata['consent.patientInformedOfRisks']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Patient Has Decision Capacity" field="consent.patientHasDecisionCapacity" value={formData.consent.patientHasDecisionCapacity} update={updateField} aiInfo={aiMetadata['consent.patientHasDecisionCapacity']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                        <ToggleField label="Refusal of Care" field="consent.refusalOfCare" value={formData.consent.refusalOfCare} update={updateField} aiInfo={aiMetadata['consent.refusalOfCare']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         
                         {formData.consent.refusalOfCare && (
                            <>
-                              <Field label="Refusal Reason" field="consent.refusalReason" value={formData.consent.refusalReason} update={updateField} />
-                              <ToggleField label="Refusal Witnessed" field="consent.refusalWitnessed" value={formData.consent.refusalWitnessed} update={updateField} />
-                              <Field label="Refusal Witness Name" field="consent.witnessName" value={formData.consent.witnessName} update={updateField} />
-                              <Field label="Refusal Witness Contact" field="consent.witnessContact" value={formData.consent.witnessContact} update={updateField} />
+                              <Field label="Refusal Reason" field="consent.refusalReason" value={formData.consent.refusalReason} update={updateField} aiInfo={aiMetadata['consent.refusalReason']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <ToggleField label="Refusal Witnessed" field="consent.refusalWitnessed" value={formData.consent.refusalWitnessed} update={updateField} aiInfo={aiMetadata['consent.refusalWitnessed']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <Field label="Refusal Witness Name" field="consent.witnessName" value={formData.consent.witnessName} update={updateField} aiInfo={aiMetadata['consent.witnessName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <Field label="Refusal Witness Contact" field="consent.witnessContact" value={formData.consent.witnessContact} update={updateField} aiInfo={aiMetadata['consent.witnessContact']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                            </>
                         )}
-
+ 
                         <div className="md:col-span-2 lg:col-span-3">
-                           <Field label="Decision Capacity Assessment Notes" field="consent.capacityAssessmentNotes" value={formData.consent.capacityAssessmentNotes} update={updateField} />
+                           <Field label="Decision Capacity Assessment Notes" field="consent.capacityAssessmentNotes" value={formData.consent.capacityAssessmentNotes} update={updateField} aiInfo={aiMetadata['consent.capacityAssessmentNotes']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
-
-                        <ToggleField label="Guardian Consent Obtained" field="consent.guardianConsentObtained" value={formData.consent.guardianConsentObtained} update={updateField} />
+ 
+                        <ToggleField label="Guardian Consent Obtained" field="consent.guardianConsentObtained" value={formData.consent.guardianConsentObtained} update={updateField} aiInfo={aiMetadata['consent.guardianConsentObtained']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         {formData.consent.guardianConsentObtained && (
                            <>
-                              <Field label="Guardian Name" field="consent.guardianName" value={formData.consent.guardianName} update={updateField} />
-                              <Field label="Guardian Relationship" field="consent.guardianRelationship" value={formData.consent.guardianRelationship} update={updateField} />
-                              <Field label="Guardian Phone" field="consent.guardianPhone" value={formData.consent.guardianPhone} update={updateField} />
+                              <Field label="Guardian Name" field="consent.guardianName" value={formData.consent.guardianName} update={updateField} aiInfo={aiMetadata['consent.guardianName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <Field label="Guardian Relationship" field="consent.guardianRelationship" value={formData.consent.guardianRelationship} update={updateField} aiInfo={aiMetadata['consent.guardianRelationship']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <Field label="Guardian Phone" field="consent.guardianPhone" value={formData.consent.guardianPhone} update={updateField} aiInfo={aiMetadata['consent.guardianPhone']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                            </>
                         )}
-
+ 
                         <div className="md:col-span-2 lg:col-span-3 border-t border-slate-100 pt-6 mt-6">
                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Signature Attachments</h4>
                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                              <Field label="Patient Signature Attachment ID" field="consent.patientSignatureAttachmentId" value={formData.consent.patientSignatureAttachmentId} update={updateField} placeholder="att-patient-sig" />
-                              <Field label="Guardian Signature Attachment ID" field="consent.guardianSignatureAttachmentId" value={formData.consent.guardianSignatureAttachmentId} update={updateField} placeholder="att-guardian-sig" />
-                              <Field label="Crew Signature Attachment ID" field="consent.crewSignatureAttachmentId" value={formData.consent.crewSignatureAttachmentId} update={updateField} placeholder="att-crew-sig" />
+                              <Field label="Patient Signature Attachment ID" field="consent.patientSignatureAttachmentId" value={formData.consent.patientSignatureAttachmentId} update={updateField} placeholder="att-patient-sig" aiInfo={aiMetadata['consent.patientSignatureAttachmentId']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <Field label="Guardian Signature Attachment ID" field="consent.guardianSignatureAttachmentId" value={formData.consent.guardianSignatureAttachmentId} update={updateField} placeholder="att-guardian-sig" aiInfo={aiMetadata['consent.guardianSignatureAttachmentId']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
+                              <Field label="Crew Signature Attachment ID" field="consent.crewSignatureAttachmentId" value={formData.consent.crewSignatureAttachmentId} update={updateField} placeholder="att-crew-sig" aiInfo={aiMetadata['consent.crewSignatureAttachmentId']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                            </div>
                         </div>
                      </div>
@@ -1323,11 +1946,11 @@ const CreateRecord = () => {
                      <ChevronLeft size={18} /> Previous Step
                   </button>
                   {currentStep < 4 ? (
-                     <button type="button" onClick={handleNext} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md flex items-center gap-2">
+                     <button key="btn-next" type="button" onClick={handleNext} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md flex items-center gap-2">
                         Next Step <ChevronRight size={18} />
                      </button>
                   ) : (
-                     <button type="submit" disabled={isSubmitting} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md flex items-center gap-2">
+                     <button key="btn-submit" type="submit" disabled={isSubmitting} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md flex items-center gap-2">
                         {isSubmitting ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
                         {recordId ? 'Update Record' : 'Save Record'}
                      </button>
@@ -1335,6 +1958,96 @@ const CreateRecord = () => {
                </div>
             </form>
          </div>
+
+         {/* Floating Voice Assistant Panel */}
+         {showVoicePanel && (
+            <div className="fixed bottom-6 right-6 w-96 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden z-50 text-white transition-all duration-300">
+               <div className="bg-slate-800/80 px-4 py-3 border-b border-slate-700/50 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                     <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-red-500 animate-ping' : 'bg-slate-500'}`} />
+                     <span className="font-bold text-xs tracking-wider uppercase text-slate-300">ePCR Voice Assistant</span>
+                  </div>
+                  <button type="button" onClick={() => setShowVoicePanel(false)} className="text-slate-400 hover:text-white transition-colors text-sm font-bold font-sans">×</button>
+               </div>
+               
+               <div className="p-5 space-y-4">
+                  <textarea
+                     value={voiceTranscript}
+                     onChange={(e) => setVoiceTranscript(e.target.value)}
+                     disabled={isListening || isProcessingVoice}
+                     placeholder={isListening ? 'Listening for speech...' : 'Type or paste patient care details here, or click "Start Dictation" to speak...'}
+                     className="w-full bg-slate-950/60 text-slate-200 rounded-xl p-3 border border-slate-800/80 h-36 outline-none resize-none scrollbar-thin text-xs focus:border-brand-blue/50 transition-colors"
+                  />
+                  
+                  <div className="flex gap-2">
+                     <button
+                        type="button"
+                        onClick={toggleListening}
+                        className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-2 shadow ${
+                           isListening 
+                              ? 'bg-gradient-to-br from-brand-red to-brand-red-dark hover:from-red-500 hover:to-brand-red text-white animate-pulse' 
+                              : 'bg-gradient-to-br from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue text-white'
+                        }`}
+                     >
+                        {isListening ? (
+                           <>
+                              <MicOff size={14} />
+                              <span>Stop Recording</span>
+                           </>
+                        ) : (
+                           <>
+                              <Mic size={14} />
+                              <span>Start Dictation</span>
+                           </>
+                        )}
+                     </button>
+                     
+                     <button
+                        type="button"
+                        onClick={processVoiceTranscript}
+                        disabled={isProcessingVoice || !voiceTranscript.trim()}
+                        className="flex-1 bg-brand-blue text-white py-2.5 rounded-xl text-[11px] font-bold hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow"
+                     >
+                        {isProcessingVoice ? (
+                           <>
+                              <RefreshCw size={14} className="animate-spin" />
+                              <span>Extracting...</span>
+                           </>
+                        ) : (
+                           <>
+                              <Sparkles size={14} />
+                              <span>Fill Form</span>
+                           </>
+                        )}
+                     </button>
+                  </div>
+                  
+                  {voiceTranscript && (
+                     <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-800 pt-3">
+                        <span>{voiceTranscript.split(' ').length} words captured</span>
+                        <button 
+                           type="button" 
+                           onClick={() => setVoiceTranscript('')} 
+                           className="text-slate-400 hover:text-red-400 font-bold transition-colors uppercase tracking-wider"
+                        >
+                           Clear Text
+                        </button>
+                     </div>
+                  )}
+               </div>
+            </div>
+         )}
+         
+         {/* Small restore button if panel is closed but mic is active */}
+         {!showVoicePanel && isListening && (
+            <button
+               type="button"
+               onClick={() => setShowVoicePanel(true)}
+               className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-brand-red to-brand-red-dark hover:from-red-500 hover:to-brand-red text-white rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 transition-all border border-red-500"
+            >
+               <Mic size={24} className="animate-pulse" />
+            </button>
+         )}
       </div>
    );
 };
@@ -1346,16 +2059,99 @@ const SectionTitle = ({ title }) => (
    </div>
 );
 
-const Field = ({ label, field, value, update, type = 'text', required = false, disabled = false, maxLength, error, placeholder = '' }) => (
-   <div className="space-y-1.5">
-      <label className={error ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (required ? labelReqCls : labelCls)}>{label}</label>
-      <input
-         type={type} value={value} onChange={e => update(field, e.target.value)} required={required} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
-         className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (required ? inputReqCls : inputCls)) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '')}
-      />
-      {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
-   </div>
-);
+const Field = ({ label, field, value, update, type = 'text', required = false, disabled = false, maxLength, error, placeholder = '', aiInfo, onAcceptSuggestion, onDismiss }) => {
+   let borderStyle = '';
+   if (aiInfo) {
+      if (aiInfo.status === 'filled') {
+         borderStyle = ' border-emerald-500 ring-1 ring-emerald-500 focus:border-emerald-500 focus:ring-emerald-500';
+      } else if (aiInfo.status === 'suggestion') {
+         borderStyle = ' border-amber-500 ring-1 ring-amber-500 focus:border-amber-500 focus:ring-amber-500';
+      }
+   }
+
+   return (
+      <div className="space-y-1.5 relative group">
+         <div className="flex justify-between items-center">
+            <label className={error ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (required ? labelReqCls : labelCls)}>{label}</label>
+            {aiInfo && aiInfo.status === 'filled' && (
+               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                  ✔ AI Filled ({Math.round(aiInfo.confidence * 100)}%)
+                  <button type="button" onClick={() => onDismiss(field)} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+               </span>
+            )}
+            {aiInfo && aiInfo.status === 'suggestion' && (
+               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                  💡 Suggestion ({Math.round(aiInfo.confidence * 100)}%)
+                  <button type="button" onClick={() => onDismiss(field)} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+               </span>
+            )}
+         </div>
+         <input
+            type={type} value={value ?? ''} onChange={e => {
+               update(field, e.target.value);
+               if (aiInfo) onDismiss(field);
+            }} required={required} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
+            className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (required ? inputReqCls : inputCls)) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '') + borderStyle}
+         />
+         {aiInfo && aiInfo.status === 'suggestion' && (
+            <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+               <span className="text-amber-800 font-medium truncate">AI: &quot;{aiInfo.value}&quot;</span>
+               <button type="button" onClick={() => onAcceptSuggestion(field)} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                  Accept
+               </button>
+            </div>
+         )}
+         {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
+      </div>
+   );
+};
+
+const TextAreaField = ({ label, field, value, update, rows = 3, required = false, disabled = false, placeholder = '', error, aiInfo, onAcceptSuggestion, onDismiss }) => {
+   let borderStyle = '';
+   if (aiInfo) {
+      if (aiInfo.status === 'filled') {
+         borderStyle = ' border-emerald-500 ring-1 ring-emerald-500 focus:border-emerald-500 focus:ring-emerald-500';
+      } else if (aiInfo.status === 'suggestion') {
+         borderStyle = ' border-amber-500 ring-1 ring-amber-500 focus:border-amber-500 focus:ring-amber-500';
+      }
+   }
+
+   return (
+      <div className="space-y-1.5 relative group w-full">
+         <div className="flex justify-between items-center">
+            <label className={required ? labelReqCls : labelCls}>{label}</label>
+            {aiInfo && aiInfo.status === 'filled' && (
+               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                  ✔ AI Filled ({Math.round(aiInfo.confidence * 100)}%)
+                  <button type="button" onClick={() => onDismiss(field)} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+               </span>
+            )}
+            {aiInfo && aiInfo.status === 'suggestion' && (
+               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                  💡 Suggestion ({Math.round(aiInfo.confidence * 100)}%)
+                  <button type="button" onClick={() => onDismiss(field)} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+               </span>
+            )}
+         </div>
+         <textarea
+            rows={rows} value={value ?? ''} onChange={e => {
+               update(field, e.target.value);
+               if (aiInfo) onDismiss(field);
+            }} required={required} disabled={disabled} placeholder={placeholder}
+            className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputCls) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '') + ' resize-none ' + borderStyle}
+         />
+         {aiInfo && aiInfo.status === 'suggestion' && (
+            <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+               <span className="text-amber-800 font-medium truncate">AI: &quot;{aiInfo.value}&quot;</span>
+               <button type="button" onClick={() => onAcceptSuggestion(field)} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                  Accept
+               </button>
+            </div>
+         )}
+         {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
+      </div>
+   );
+};
 
 const BulletListField = ({ label, addLabel, values = [], onChange, placeholder }) => {
    const list = Array.isArray(values) ? values : [];
@@ -1402,18 +2198,53 @@ const BulletListField = ({ label, addLabel, values = [], onChange, placeholder }
    );
 };
 
-const ToggleField = ({ label, field, value, update }) => (
-   <div className="space-y-1.5">
-      <label className={labelCls}>{label}</label>
-      <button
-         type="button"
-         onClick={() => update(field, !value)}
-         className={`w-full py-3 rounded-lg text-sm font-semibold border transition-all ${value ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue/50'}`}
-      >
-         {value ? 'Yes' : 'No'}
-      </button>
-   </div>
-);
+const ToggleField = ({ label, field, value, update, aiInfo, onAcceptSuggestion, onDismiss }) => {
+   let borderStyle = '';
+   if (aiInfo) {
+      if (aiInfo.status === 'filled') {
+         borderStyle = ' border-emerald-500 ring-1 ring-emerald-500';
+      } else if (aiInfo.status === 'suggestion') {
+         borderStyle = ' border-amber-500 ring-1 ring-amber-500';
+      }
+   }
+   return (
+      <div className="space-y-1.5 relative group">
+         <div className="flex justify-between items-center">
+            <label className={labelCls}>{label}</label>
+            {aiInfo && aiInfo.status === 'filled' && (
+               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                  ✔ AI Filled ({Math.round(aiInfo.confidence * 100)}%)
+                  <button type="button" onClick={() => onDismiss(field)} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
+               </span>
+            )}
+            {aiInfo && aiInfo.status === 'suggestion' && (
+               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                  💡 Suggestion ({Math.round(aiInfo.confidence * 100)}%)
+                  <button type="button" onClick={() => onDismiss(field)} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
+               </span>
+            )}
+         </div>
+         <button
+            type="button"
+            onClick={() => {
+               update(field, !value);
+               if (aiInfo) onDismiss(field);
+            }}
+            className={`w-full py-3 rounded-lg text-sm font-semibold border transition-all ${value ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue/50'} ${borderStyle}`}
+         >
+            {value ? 'Yes' : 'No'}
+         </button>
+         {aiInfo && aiInfo.status === 'suggestion' && (
+            <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+               <span className="text-amber-800 font-medium truncate">AI Suggestion: &quot;{aiInfo.value ? 'Yes' : 'No'}&quot;</span>
+               <button type="button" onClick={() => onAcceptSuggestion(field)} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
+                  Accept
+               </button>
+            </div>
+         )}
+      </div>
+   );
+};
 
 const CrewMembersListField = ({ values = [], onChange }) => {
    const list = Array.isArray(values) ? values : [];

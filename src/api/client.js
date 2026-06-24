@@ -17,7 +17,7 @@ const client = axios.create({
 // AI suggestion / Q&A endpoints can take 30-90 s (Gemini + attachments)
 // Override timeout for those paths only.
 client.interceptors.request.use((config) => {
-  if (config.url && config.url.includes('/api/ai/suggestions')) {
+  if (config.url && (config.url.includes('/api/ai/suggestions') || config.url.includes('/api/ai/voice'))) {
     config.timeout = 120000; // 2 minutes
   }
   return config;
