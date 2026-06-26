@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, X, CheckCircle, RefreshCw, AlertCircle, FileText, RotateCcw, Search } from 'lucide-react';
+import { Mic, X, CheckCircle, RefreshCw, AlertCircle, FileText, RotateCcw, Search, User } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '../../store/slices/uiSlice';
 import client from '../../api/client';
@@ -102,23 +102,32 @@ export default function VoiceCommandButton({ visible = true }) {
   }, []);
 
   // ── open a found record ────────────────────────────────────────────────────
-  const openRecord = useCallback((record) => {
+  const openRecord = useCallback((patient) => {
     setShowPicker(false);
     setMatches([]);
     setShowManual(false);
     setManualInput('');
     setPhase(P.SUCCESS);
-    navigate('/epcr', { state: { autoOpenId: record.id, autoOpenRecord: record } });
+    const id = patient.patientId || patient.id || patient.userId;
+    if (id) {
+      navigate(`/patient-history/${id}`);
+    }
     scheduleReset(1800);
   }, [navigate, scheduleReset]);
 
   // ── search backend for a name ──────────────────────────────────────────────
   const searchByName = useCallback(async (name) => {
-    const res = await client.get('/api/epcr/records', {
-      params: { search: name, page: 0, size: 10 },
+    const res = await client.get('/api/admin/patients/search', {
+      params: { phone: name, limit: 10 },
       hideToast: true,
     });
-    return Array.isArray(res.data) ? res.data : (res.data?.content || []);
+    const data = res.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.content)) return data.content;
+    if (Array.isArray(data?.items)) return data.items;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
   }, []);
 
   // ── process: try all alternatives + word fallback ─────────────────────────
@@ -126,38 +135,55 @@ export default function VoiceCommandButton({ visible = true }) {
     setPhase(P.PROCESSING);
     setInterim('');
 
-    // Attempt 1: try each full alternative transcript
+    // Build a de-duplicated list of queries to try (full phrase + individual words)
+    const queries = new Map(); // query → altText (for setHeard)
     for (const alt of alternatives) {
       const name = extractName(alt);
       if (!name || name.length < 2) continue;
-      setHeard(alt);
-      try {
-        const list = await searchByName(name);
-        if (list.length === 1) { openRecord(list[0]); return; }
-        if (list.length > 1)  { setMatches(list.slice(0, 8)); setShowPicker(true); setPhase(P.IDLE); return; }
-      } catch { /* try next */ }
+      queries.set(name, alt); // full-phrase query
+    }
+    // Word-level fallback queries from the best alternative
+    const bestName = extractName(alternatives[0] || '');
+    const words = bestName.split(/\s+/).filter(w => w.length >= 3);
+    for (const word of words) {
+      if (!queries.has(word)) queries.set(word, word);
     }
 
-    // Attempt 2: word-by-word from the best (first) alternative
-    const bestName = extractName(alternatives[0] || '');
-    const words    = bestName.split(/\s+/).filter(w => w.length >= 3);
-    for (const word of words) {
-      try {
-        const list = await searchByName(word);
-        if (list.length > 0) {
-          setMatches(list.slice(0, 8));
-          setShowPicker(true);
-          setPhase(P.IDLE);
-          return;
-        }
-      } catch { /* continue */ }
+    if (queries.size === 0) {
+      setHeard(alternatives[0] || '');
+      setPhase(P.ERROR);
+      scheduleReset(6000);
+      return;
     }
+
+    // Fire ALL queries simultaneously — first meaningful result wins
+    const entries = [...queries.entries()]; // [[query, altText], ...]
+    setHeard(entries[0]?.[1] || alternatives[0] || '');
+
+    const results = await Promise.allSettled(
+      entries.map(([q]) => searchByName(q))
+    );
+
+    // Prefer an exact single-match; fall back to first multi-match
+    let singleHit = null;
+    let multiHit  = null;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status !== 'fulfilled') continue;
+      const list = r.value;
+      if (list.length === 1 && !singleHit) singleHit = list[0];
+      if (list.length > 1  && !multiHit)  multiHit  = list;
+    }
+
+    if (singleHit) { openRecord(singleHit); return; }
+    if (multiHit)  { setMatches(multiHit.slice(0, 8)); setShowPicker(true); setPhase(P.IDLE); return; }
 
     // Nothing found — show error + offer manual fallback
     setHeard(alternatives[0] || '');
     setPhase(P.ERROR);
     scheduleReset(6000); // give user time to use manual search
   }, [searchByName, openRecord, scheduleReset]);
+
 
   // ── manual search submit ───────────────────────────────────────────────────
   const handleManualSearch = useCallback(async (e) => {
@@ -196,7 +222,7 @@ export default function VoiceCommandButton({ visible = true }) {
 
     const SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
     const rec = new SR();
-    rec.lang            = 'en-US';
+    rec.lang            = navigator.language || 'en-US';
     rec.interimResults  = true;   // ✅ FIX: live caption
     rec.maxAlternatives = 5;      // ✅ FIX: try 5 alternatives
     rec.continuous      = false;
@@ -332,7 +358,7 @@ export default function VoiceCommandButton({ visible = true }) {
           <div style={{ maxHeight:'280px', overflowY:'auto' }}>
             {matches.map((r, i) => (
               <button
-                key={r.id}
+                key={r.patientId || r.id || i}
                 onClick={() => openRecord(r)}
                 style={{
                   display:'flex', alignItems:'center', gap:'12px',
@@ -345,17 +371,17 @@ export default function VoiceCommandButton({ visible = true }) {
                 onMouseLeave={e => { e.currentTarget.style.background='transparent'; }}
               >
                 <div style={{ width:'36px', height:'36px', borderRadius:'12px', background:'#EEF2FF', color:'#1A3C8F', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:900, flexShrink:0 }}>
-                  {(r.patientName || 'A').charAt(0).toUpperCase()}
+                  {(r.patientName || r.name || 'P').charAt(0).toUpperCase()}
                 </div>
                 <div style={{ minWidth:0, flex:1 }}>
                   <p style={{ fontSize:'13px', fontWeight:600, color:'#0F1A3A', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {r.patientName || 'Anonymous'}
+                    {r.patientName || r.name || [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Anonymous'}
                   </p>
                   <p style={{ fontSize:'10px', color:'#A0AECB', fontFamily:'monospace', margin:'1px 0 0' }}>
-                    #{r.id?.substring(0,8).toUpperCase()} · {r.incidentType?.replace(/_/g,' ') || 'GENERAL'}
+                    #{String(r.patientId || r.id || '').substring(0,8).toUpperCase()} · {r.phone || r.email || 'Patient'}
                   </p>
                 </div>
-                <FileText size={13} style={{ color:'#C0CADF', flexShrink:0 }} />
+                <User size={13} style={{ color:'#C0CADF', flexShrink:0 }} />
               </button>
             ))}
           </div>

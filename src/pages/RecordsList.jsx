@@ -221,19 +221,18 @@ const RecordsList = () => {
   };
 
   // ── Voice-command auto-open ─────────────────────────────────────────────
-  // Fires once on mount. If the route was triggered by the voice button,
+  // If the route was triggered by the voice button,
   // autoOpenId will be in location state — open the record modal immediately.
-  const voiceStateRef = useRef(
-    location.state?.autoOpenId ? location.state : null
-  );
   useEffect(() => {
-    const vs = voiceStateRef.current;
-    if (!vs?.autoOpenId) return;
-    voiceStateRef.current = null; // prevent re-trigger
+    const autoOpenId = location.state?.autoOpenId;
+    if (!autoOpenId) return;
+
+    const record = location.state.autoOpenRecord || { id: autoOpenId };
+
     // Clear router state so a page refresh doesn't re-open
     navigate(location.pathname, { replace: true, state: {} });
-    const record = vs.autoOpenRecord || { id: vs.autoOpenId };
-    // Small delay so the page renders before the modal opens
+
+    // Open detail modal immediately
     setTimeout(() => {
       setViewRecord(record);
       setIsViewOpen(true);
@@ -246,7 +245,7 @@ const RecordsList = () => {
         })
         .finally(() => setModalLoading(false));
     }, 150);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.state?.autoOpenId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user?.accessToken) return;

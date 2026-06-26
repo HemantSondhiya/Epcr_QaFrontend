@@ -405,7 +405,7 @@ const AiSuggestionPanel = ({ recordId, userRole, allowedRoles = ['PHYSICIAN', 'A
     transcriptRef.current = '';
 
     const rec = new SpeechRecognition();
-    rec.lang           = 'en-US';
+    rec.lang           = navigator.language || 'en-US';
     rec.continuous     = true;   // ✅ KEY FIX: keep recording through natural pauses
     rec.interimResults = true;   // show live transcript
     rec.maxAlternatives = 1;

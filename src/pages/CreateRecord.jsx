@@ -48,10 +48,10 @@ const CARE_LEVELS = ['ALS', 'BLS', 'CCT', 'SCT', 'MFR', 'EMT', 'PARAMEDIC'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const TRIAGE_TAGS = ['RED', 'YELLOW', 'GREEN', 'BLACK'];
 
-const inputCls = 'w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all';
-const inputReqCls = 'w-full bg-white border border-brand-blue/40 rounded-lg px-4 py-3 text-sm text-slate-800 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all';
-const labelCls = 'text-xs font-semibold text-slate-600 mb-1.5 block';
-const labelReqCls = 'text-xs font-semibold text-slate-800 mb-1.5 block after:content-["*"] after:ml-1 after:text-brand-red';
+const inputCls = 'w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all';
+const inputReqCls = 'w-full bg-white border border-brand-blue/40 rounded-lg px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none transition-all';
+const labelCls = 'text-xs font-semibold text-slate-600 leading-none';
+const labelReqCls = 'text-xs font-semibold text-slate-800 leading-none after:content-["*"] after:ml-0.5 after:text-brand-red';
 
 const setNestedValue = (obj, path, value) => {
    const keys = path.split('.');
@@ -421,7 +421,7 @@ const CreateRecord = () => {
          const rec = new SpeechRecognition();
          rec.continuous = true;
          rec.interimResults = true;
-         rec.lang = 'en-IN';
+         rec.lang = navigator.language || 'en-US';
 
          rec.onresult = (event) => {
             const currentText = Array.from(event.results)
@@ -1245,17 +1245,17 @@ const CreateRecord = () => {
                         <Field label="Patient Name" field="patientName" value={formData.patientName} update={updateField} error={fieldErrors.patientName} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} aiInfo={aiMetadata['patientName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Patient ID" field="patientId" value={formData.patientId} update={updateField} disabled placeholder="Auto-generated on save" />
                         <Field label="Date of Birth" field="patientDateOfBirth" value={formData.patientDateOfBirth} update={updateField} type="date" error={fieldErrors.patientDateOfBirth} required={patientMode === 'new'} disabled={patientMode === 'existing' && !!formData.patientId} aiInfo={aiMetadata['patientDateOfBirth']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
-                              <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (patientMode === 'new' ? labelReqCls : labelCls)}>Gender</label>
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
+                              <label className={fieldErrors.patientGender ? 'text-xs font-semibold text-brand-red leading-none' : (patientMode === 'new' ? labelReqCls : labelCls)}>Gender</label>
                               {aiMetadata['patientGender'] && aiMetadata['patientGender'].status === 'filled' && (
-                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                                     ✔ AI Filled ({Math.round(aiMetadata['patientGender'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('patientGender')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                                  </span>
                               )}
                               {aiMetadata['patientGender'] && aiMetadata['patientGender'].status === 'suggestion' && (
-                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                                     💡 Suggestion ({Math.round(aiMetadata['patientGender'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('patientGender')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                                  </span>
@@ -1275,30 +1275,30 @@ const CreateRecord = () => {
                               <option value="OTHER">Other</option>
                            </select>
                            {aiMetadata['patientGender'] && aiMetadata['patientGender'].status === 'suggestion' && (
-                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                              <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                                  <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['patientGender'].value}&quot;</span>
                                  <button type="button" onClick={() => acceptAiSuggestion('patientGender')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                                     Accept
                                  </button>
                               </div>
                            )}
-                           {fieldErrors.patientGender && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.patientGender}</p>}
+                           {fieldErrors.patientGender && <p className="text-xs font-medium text-brand-red">{fieldErrors.patientGender}</p>}
                         </div>
                         <Field label="Age" field="age" value={formData.age} update={updateField} type="number" aiInfo={aiMetadata['age']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Email Address" field="email" value={formData.email} update={updateField} type="email" aiInfo={aiMetadata['email']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Phone Number" field="patientPhone" value={formData.patientPhone} update={updateField} aiInfo={aiMetadata['patientPhone']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="SSN Last 4" field="patientSSNLast4" value={formData.patientSSNLast4} update={updateField} maxLength={4} aiInfo={aiMetadata['patientSSNLast4']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Blood Group</label>
                               {aiMetadata['bloodGroup'] && aiMetadata['bloodGroup'].status === 'filled' && (
-                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                                     ✔ AI Filled ({Math.round(aiMetadata['bloodGroup'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('bloodGroup')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                                  </span>
                               )}
                               {aiMetadata['bloodGroup'] && aiMetadata['bloodGroup'].status === 'suggestion' && (
-                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                                     💡 Suggestion ({Math.round(aiMetadata['bloodGroup'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('bloodGroup')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                                  </span>
@@ -1315,7 +1315,7 @@ const CreateRecord = () => {
                               {BLOOD_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                            </select>
                            {aiMetadata['bloodGroup'] && aiMetadata['bloodGroup'].status === 'suggestion' && (
-                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                              <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                                  <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['bloodGroup'].value}&quot;</span>
                                  <button type="button" onClick={() => acceptAiSuggestion('bloodGroup')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                                     Accept
@@ -1390,17 +1390,17 @@ const CreateRecord = () => {
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Field label="Incident Timestamp" field="incidentDateTime" value={formData.incidentDateTime} update={updateField} type="datetime-local" error={fieldErrors.incidentDateTime} required aiInfo={aiMetadata['incidentDateTime']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Incident Location" field="incidentLocation" value={formData.incidentLocation} update={updateField} error={fieldErrors.incidentLocation} required aiInfo={aiMetadata['incidentLocation']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
-                              <label className={fieldErrors.incidentType ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Incident Type</label>
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
+                              <label className={fieldErrors.incidentType ? 'text-xs font-semibold text-brand-red leading-none' : labelReqCls}>Incident Type</label>
                               {aiMetadata['incidentType'] && aiMetadata['incidentType'].status === 'filled' && (
-                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                                     ✔ AI Filled ({Math.round(aiMetadata['incidentType'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('incidentType')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                                  </span>
                               )}
                               {aiMetadata['incidentType'] && aiMetadata['incidentType'].status === 'suggestion' && (
-                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                                     💡 Suggestion ({Math.round(aiMetadata['incidentType'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('incidentType')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                                  </span>
@@ -1417,14 +1417,14 @@ const CreateRecord = () => {
                               {incidentTypesOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                            </select>
                            {aiMetadata['incidentType'] && aiMetadata['incidentType'].status === 'suggestion' && (
-                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                              <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                                  <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['incidentType'].value}&quot;</span>
                                  <button type="button" onClick={() => acceptAiSuggestion('incidentType')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                                     Accept
                                  </button>
                               </div>
                            )}
-                           {fieldErrors.incidentType && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors.incidentType}</p>}
+                           {fieldErrors.incidentType && <p className="text-xs font-medium text-brand-red">{fieldErrors.incidentType}</p>}
                         </div>
                         <Field label="Incident Number" field="incidentNumber" value={formData.incidentNumber} update={updateField} disabled placeholder="Auto-generated on save" />
                         <Field label="Scene Type" field="sceneAssessment.sceneType" value={formData.sceneAssessment.sceneType} update={updateField} aiInfo={aiMetadata['sceneAssessment.sceneType']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
@@ -1435,17 +1435,17 @@ const CreateRecord = () => {
                         <Field label="Weather Conditions" field="sceneAssessment.weatherConditions" value={formData.sceneAssessment.weatherConditions} update={updateField} aiInfo={aiMetadata['sceneAssessment.weatherConditions']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Lighting Conditions" field="sceneAssessment.lightingConditions" value={formData.sceneAssessment.lightingConditions} update={updateField} aiInfo={aiMetadata['sceneAssessment.lightingConditions']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Patient Access Difficulty" field="sceneAssessment.patientAccessDifficulty" value={formData.sceneAssessment.patientAccessDifficulty} update={updateField} aiInfo={aiMetadata['sceneAssessment.patientAccessDifficulty']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Triage Tag</label>
                               {aiMetadata['sceneAssessment.triageTag'] && aiMetadata['sceneAssessment.triageTag'].status === 'filled' && (
-                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+                                 <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                                     ✔ AI Filled ({Math.round(aiMetadata['sceneAssessment.triageTag'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('sceneAssessment.triageTag')} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                                  </span>
                               )}
                               {aiMetadata['sceneAssessment.triageTag'] && aiMetadata['sceneAssessment.triageTag'].status === 'suggestion' && (
-                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+                                 <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                                     💡 Suggestion ({Math.round(aiMetadata['sceneAssessment.triageTag'].confidence * 100)}%)
                                     <button type="button" onClick={() => dismissAiInfo('sceneAssessment.triageTag')} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                                  </span>
@@ -1462,7 +1462,7 @@ const CreateRecord = () => {
                               {TRIAGE_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
                            </select>
                            {aiMetadata['sceneAssessment.triageTag'] && aiMetadata['sceneAssessment.triageTag'].status === 'suggestion' && (
-                              <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                              <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                                  <span className="text-amber-800 font-medium truncate">AI: &quot;{aiMetadata['sceneAssessment.triageTag'].value}&quot;</span>
                                  <button type="button" onClick={() => acceptAiSuggestion('sceneAssessment.triageTag')} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                                     Accept
@@ -1630,9 +1630,9 @@ const CreateRecord = () => {
                      <SectionTitle title="Disposition & Transport" />
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Field label="Destination Facility" field="transport.destinationName" value={formData.transport.destinationName} update={updateField} error={fieldErrors['transport.destinationName']} required aiInfo={aiMetadata['transport.destinationName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
-                              <label className={fieldErrors['transport.transportMode'] ? 'text-xs font-semibold text-brand-red mb-1.5 block' : labelReqCls}>Transport Mode</label>
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
+                              <label className={fieldErrors['transport.transportMode'] ? 'text-xs font-semibold text-brand-red leading-none' : labelReqCls}>Transport Mode</label>
                               {aiMetadata['transport.transportMode'] && aiMetadata['transport.transportMode'].status === 'filled' && (
                                  <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
                                     ✔ AI Filled ({Math.round(aiMetadata['transport.transportMode'].confidence * 100)}%)
@@ -1667,8 +1667,8 @@ const CreateRecord = () => {
                            )}
                            {fieldErrors['transport.transportMode'] && <p className="text-xs font-medium text-brand-red mt-1">{fieldErrors['transport.transportMode']}</p>}
                         </div>
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Care Level</label>
                               {aiMetadata['transport.careLevel'] && aiMetadata['transport.careLevel'].status === 'filled' && (
                                  <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
@@ -1705,8 +1705,8 @@ const CreateRecord = () => {
                               </div>
                            )}
                         </div>
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Record Status</label>
                               {aiMetadata['status'] && aiMetadata['status'].status === 'filled' && (
                                  <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
@@ -1746,8 +1746,8 @@ const CreateRecord = () => {
                         <Field label="Refusal of Transport Reason" field="transport.refusalOfTransportReason" value={formData.transport.refusalOfTransportReason} update={updateField} aiInfo={aiMetadata['transport.refusalOfTransportReason']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Destination Facility ID" field="transport.destinationFacilityId" value={formData.transport.destinationFacilityId} update={updateField} aiInfo={aiMetadata['transport.destinationFacilityId']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Destination Address" field="transport.destinationAddress" value={formData.transport.destinationAddress} update={updateField} aiInfo={aiMetadata['transport.destinationAddress']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Destination Type</label>
                               {aiMetadata['transport.destinationType'] && aiMetadata['transport.destinationType'].status === 'filled' && (
                                  <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
@@ -1786,8 +1786,8 @@ const CreateRecord = () => {
                         </div>
                         <Field label="Receiving Physician Name" field="transport.receivingPhysicianName" value={formData.transport.receivingPhysicianName} update={updateField} aiInfo={aiMetadata['transport.receivingPhysicianName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         <Field label="Receiving Nurse Name" field="transport.receivingNurseName" value={formData.transport.receivingNurseName} update={updateField} aiInfo={aiMetadata['transport.receivingNurseName']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Patient Condition on Departure</label>
                               {aiMetadata['transport.patientConditionOnDeparture'] && aiMetadata['transport.patientConditionOnDeparture'].status === 'filled' && (
                                  <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
@@ -1839,7 +1839,7 @@ const CreateRecord = () => {
                            <TextAreaField label="Handoff Report" field="transport.handoffReport" value={formData.transport.handoffReport} update={updateField} rows={3} placeholder="Handoff report details..." aiInfo={aiMetadata['transport.handoffReport']} onAcceptSuggestion={acceptAiSuggestion} onDismiss={dismissAiInfo} />
                         </div>
  
-                        <div className="space-y-1.5 md:col-span-2 mt-6">
+                        <div className="flex flex-col gap-1.5 md:col-span-2 mt-6">
                            <label className={labelReqCls}>Patient Condition on Arrival</label>
                            <div className="flex gap-3">
                               {[
@@ -1863,8 +1863,8 @@ const CreateRecord = () => {
  
                      <SectionTitle title="Patient Consent & Signatures" />
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="space-y-1.5 relative group">
-                           <div className="flex justify-between items-center">
+                        <div className="flex flex-col gap-1.5 relative group">
+                           <div className="flex justify-between items-center min-h-[18px]">
                               <label className={labelCls}>Consent Type</label>
                               {aiMetadata['consent.consentType'] && aiMetadata['consent.consentType'].status === 'filled' && (
                                  <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
@@ -2070,17 +2070,17 @@ const Field = ({ label, field, value, update, type = 'text', required = false, d
    }
 
    return (
-      <div className="space-y-1.5 relative group">
-         <div className="flex justify-between items-center">
-            <label className={error ? 'text-xs font-semibold text-brand-red mb-1.5 block' : (required ? labelReqCls : labelCls)}>{label}</label>
+      <div className="flex flex-col gap-1.5 relative group">
+         <div className="flex justify-between items-center min-h-[18px]">
+            <label className={error ? 'text-xs font-semibold text-brand-red leading-none' : (required ? labelReqCls : labelCls)}>{label}</label>
             {aiInfo && aiInfo.status === 'filled' && (
-               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                   ✔ AI Filled ({Math.round(aiInfo.confidence * 100)}%)
                   <button type="button" onClick={() => onDismiss(field)} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                </span>
             )}
             {aiInfo && aiInfo.status === 'suggestion' && (
-               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                   💡 Suggestion ({Math.round(aiInfo.confidence * 100)}%)
                   <button type="button" onClick={() => onDismiss(field)} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                </span>
@@ -2091,17 +2091,17 @@ const Field = ({ label, field, value, update, type = 'text', required = false, d
                update(field, e.target.value);
                if (aiInfo) onDismiss(field);
             }} required={required} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
-            className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (required ? inputReqCls : inputCls)) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '') + borderStyle}
+            className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red placeholder:text-red-300 focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : (required ? inputReqCls : inputCls)) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '') + borderStyle}
          />
          {aiInfo && aiInfo.status === 'suggestion' && (
-            <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+            <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                <span className="text-amber-800 font-medium truncate">AI: &quot;{aiInfo.value}&quot;</span>
                <button type="button" onClick={() => onAcceptSuggestion(field)} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                   Accept
                </button>
             </div>
          )}
-         {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
+         {error && <p className="text-xs font-medium text-brand-red">{error}</p>}
       </div>
    );
 };
@@ -2117,17 +2117,17 @@ const TextAreaField = ({ label, field, value, update, rows = 3, required = false
    }
 
    return (
-      <div className="space-y-1.5 relative group w-full">
-         <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-1.5 relative group w-full">
+         <div className="flex justify-between items-center min-h-[18px]">
             <label className={required ? labelReqCls : labelCls}>{label}</label>
             {aiInfo && aiInfo.status === 'filled' && (
-               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                   ✔ AI Filled ({Math.round(aiInfo.confidence * 100)}%)
                   <button type="button" onClick={() => onDismiss(field)} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                </span>
             )}
             {aiInfo && aiInfo.status === 'suggestion' && (
-               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                   💡 Suggestion ({Math.round(aiInfo.confidence * 100)}%)
                   <button type="button" onClick={() => onDismiss(field)} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                </span>
@@ -2138,17 +2138,17 @@ const TextAreaField = ({ label, field, value, update, rows = 3, required = false
                update(field, e.target.value);
                if (aiInfo) onDismiss(field);
             }} required={required} disabled={disabled} placeholder={placeholder}
-            className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputCls) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '') + ' resize-none ' + borderStyle}
+            className={(error ? 'w-full bg-white border border-brand-red rounded-lg px-4 py-3 text-sm text-brand-red placeholder:text-red-300 focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all' : inputCls) + (disabled ? ' opacity-60 bg-slate-100 cursor-not-allowed' : '') + ' resize-none ' + borderStyle}
          />
          {aiInfo && aiInfo.status === 'suggestion' && (
-            <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+            <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                <span className="text-amber-800 font-medium truncate">AI: &quot;{aiInfo.value}&quot;</span>
                <button type="button" onClick={() => onAcceptSuggestion(field)} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                   Accept
                </button>
             </div>
          )}
-         {error && <p className="text-xs font-medium text-brand-red mt-1">{error}</p>}
+         {error && <p className="text-xs font-medium text-brand-red">{error}</p>}
       </div>
    );
 };
@@ -2208,17 +2208,17 @@ const ToggleField = ({ label, field, value, update, aiInfo, onAcceptSuggestion, 
       }
    }
    return (
-      <div className="space-y-1.5 relative group">
-         <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-1.5 relative group">
+         <div className="flex justify-between items-center min-h-[18px]">
             <label className={labelCls}>{label}</label>
             {aiInfo && aiInfo.status === 'filled' && (
-               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase">
+               <span className="text-[10px] font-black tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 uppercase shrink-0">
                   ✔ AI Filled ({Math.round(aiInfo.confidence * 100)}%)
                   <button type="button" onClick={() => onDismiss(field)} className="text-emerald-500 hover:text-emerald-800 font-bold ml-1 font-sans">×</button>
                </span>
             )}
             {aiInfo && aiInfo.status === 'suggestion' && (
-               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse">
+               <span className="text-[10px] font-black tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 uppercase animate-pulse shrink-0">
                   💡 Suggestion ({Math.round(aiInfo.confidence * 100)}%)
                   <button type="button" onClick={() => onDismiss(field)} className="text-amber-500 hover:text-amber-800 font-bold ml-1 font-sans">×</button>
                </span>
@@ -2235,7 +2235,7 @@ const ToggleField = ({ label, field, value, update, aiInfo, onAcceptSuggestion, 
             {value ? 'Yes' : 'No'}
          </button>
          {aiInfo && aiInfo.status === 'suggestion' && (
-            <div className="mt-1 flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+            <div className="flex items-center justify-between text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                <span className="text-amber-800 font-medium truncate">AI Suggestion: &quot;{aiInfo.value ? 'Yes' : 'No'}&quot;</span>
                <button type="button" onClick={() => onAcceptSuggestion(field)} className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded hover:bg-amber-600 transition-all shrink-0">
                   Accept
