@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { loginSuccess, checkAuth } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 import client from '../api/client';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, RefreshCw, Shield, AlertCircle, Activity, Heart, Fingerprint } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, RefreshCw, Shield, AlertCircle, Activity, Heart, Fingerprint, WifiOff } from 'lucide-react';
+import { attemptOfflineLogin, seedOfflineVault, isOfflineLoginAvailable, getOfflineCachedEmail, getOfflineCachedName } from '../utils/offlineAuth';
 
 
 const Login = () => {
@@ -20,20 +21,145 @@ const Login = () => {
   const [patientOtp, setPatientOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
 
+  // ── Offline state ──────────────────────────────────────────────────────────────
+  const [isOnline, setIsOnline]             = useState(navigator.onLine);
+  const [offlineAvailable, setOfflineAvailable] = useState(false);
+  const [cachedName, setCachedName]         = useState('');
+
+  // Track browser network status
+  useEffect(() => {
+    const goOnline  = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online',  goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  // On mount: check if an offline vault exists and pre-fill the email field
+  useEffect(() => {
+    const available = isOfflineLoginAvailable();
+    setOfflineAvailable(available);
+    if (available) {
+      const cachedEmail = getOfflineCachedEmail();
+      const name        = getOfflineCachedName();
+      if (cachedEmail) setEmail(cachedEmail);
+      if (name)        setCachedName(name);
+    }
+  }, []);
+  // ──────────────────────────────────────────────────────────────────────
+
   const handleStaffSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
+
+    // ── OFFLINE PATH ─────────────────────────────────────────────────
+    if (!isOnline) {
+      try {
+        const result = await attemptOfflineLogin(email, password);
+        if (result.success) {
+          const user = result.user;
+          // Log offline login success to the audit queue
+          import('../utils/offlineAudit').then(({ logOfflineAction }) => {
+            logOfflineAction({
+              action: 'OFFLINE_LOGIN',
+              userId: user.userId || user.id,
+              userDisplayName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
+              details: 'User successfully signed in using offline PBKDF2 cached credentials vault.',
+              status: 'SUCCESS'
+            });
+          });
+
+          dispatch(loginSuccess({ user }));
+          dispatch(addToast({ type: 'info', message: '📴 Signed in offline. Changes will sync when you reconnect.' }));
+          navigate('/dashboard');
+        } else {
+          const msgs = {
+            no_vault:       'No offline credentials found. Please sign in online at least once to enable offline access.',
+            email_mismatch: 'No offline credentials found for this email address.',
+            wrong_password: 'Incorrect password. Please try again.',
+            vault_expired:  'Offline access expired (8-hour limit). Please reconnect to the internet to sign in.',
+          };
+          const reasonMsg = msgs[result.reason] || 'Offline sign-in failed. Please check your credentials.';
+          
+          // Log offline login failure to the audit queue if a vault was actually present but password/email was wrong
+          if (result.reason !== 'no_vault') {
+            import('../utils/offlineAudit').then(({ logOfflineAction }) => {
+              logOfflineAction({
+                action: 'OFFLINE_LOGIN',
+                userId: 'unknown',
+                userDisplayName: email,
+                details: `Failed offline sign-in attempt. Reason: ${result.reason}`,
+                status: 'FAILURE'
+              });
+            });
+          }
+
+          setError(reasonMsg);
+        }
+      } catch {
+        setError('Offline sign-in failed. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── ONLINE PATH (existing logic + silent vault seeding) ─────────────────
     try {
       const res = await client.post('/api/auth/login', { email, password });
       const { userId, role, organizationId, accessToken, refreshToken, token, firstName, lastName } = res.data;
-      const finalToken = accessToken || token;
-      dispatch(loginSuccess({
-        user: { id: userId, userId, email, firstName, lastName, role, organizationId, accessToken: finalToken, refreshToken, ...res.data },
-      }));
+      const finalToken  = accessToken || token;
+      const userProfile = { id: userId, userId, email, firstName, lastName, role, organizationId, accessToken: finalToken, refreshToken, ...res.data };
+      dispatch(loginSuccess({ user: userProfile }));
+      // Seed the offline vault silently in the background after every successful login
+      seedOfflineVault(email, password, userProfile).catch(() => { /* ignore vault errors */ });
+      
+      // Sync any pending offline audits that were accumulated earlier
+      import('../utils/offlineAudit').then(({ syncOfflineAudits }) => {
+        syncOfflineAudits().catch(() => {});
+      });
+
       dispatch(checkAuth());
       dispatch(addToast({ type: 'success', message: 'Login successful' }));
       navigate('/dashboard');
     } catch (err) {
+      // ── AUTO-FALLBACK TO OFFLINE LOGIN ON NETWORK ERROR ───────────────────
+      if (!err.response && offlineAvailable) {
+        try {
+          const result = await attemptOfflineLogin(email, password);
+          if (result.success) {
+            const user = result.user;
+            import('../utils/offlineAudit').then(({ logOfflineAction }) => {
+              logOfflineAction({
+                action: 'OFFLINE_LOGIN',
+                userId: user.userId || user.id,
+                userDisplayName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
+                details: 'User successfully signed in using offline PBKDF2 cached credentials vault (auto-fallback).',
+                status: 'SUCCESS'
+              });
+            });
+            dispatch(loginSuccess({ user }));
+            dispatch(addToast({ type: 'info', message: '📴 Signed in offline. Changes will sync when you reconnect.' }));
+            navigate('/dashboard');
+            return;
+          } else {
+            const msgs = {
+              email_mismatch: 'No offline credentials found for this email address.',
+              wrong_password: 'Incorrect password. Please try again.',
+              vault_expired:  'Offline access expired (8-hour limit). Please reconnect to the internet to sign in.',
+            };
+            setError(msgs[result.reason] || 'Offline sign-in failed. Please check your credentials.');
+            return;
+          }
+        } catch {
+          // ignore and fall through to standard error
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
     } finally { setLoading(false); }
   };
@@ -151,7 +277,18 @@ const Login = () => {
             </div>
 
             <div className="mb-8">
-              <h2 className="text-3xl font-black text-[#0F1A3A] tracking-tight">Welcome back</h2>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-3xl font-black text-[#0F1A3A] tracking-tight">Welcome back</h2>
+                {/* Online / offline status pill */}
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-colors ${
+                  isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                  }`} />
+                  {isOnline ? 'Online' : 'Offline'}
+                </span>
+              </div>
               <p className="text-[#8A97B0] text-sm mt-1">Sign in to access the QA/QI platform</p>
             </div>
 
@@ -170,6 +307,27 @@ const Login = () => {
 
             {/* Card */}
             <div className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(26,60,143,0.10)] border border-[#DDE3F0] p-8 space-y-5">
+
+              {/* Offline mode notice — shown only when the browser is offline */}
+              {!isOnline && (
+                <div className="flex items-start gap-3 p-4 rounded-xl border"
+                  style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
+                  <WifiOff size={17} className="shrink-0 mt-0.5" style={{ color: '#d97706' }} />
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: '#92400e' }}>Offline Mode</p>
+                    {offlineAvailable ? (
+                      <p className="text-xs mt-0.5" style={{ color: '#b45309' }}>
+                        {cachedName ? `Welcome back, ${cachedName}. ` : ''}Cached credentials available — enter your password below.
+                      </p>
+                    ) : (
+                      <p className="text-xs mt-0.5" style={{ color: '#b45309' }}>
+                        No cached credentials found. You must sign in online at least once to enable offline access.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl text-brand-red text-sm font-semibold">
                   <AlertCircle size={18} className="shrink-0" /> {error}
@@ -203,10 +361,15 @@ const Login = () => {
                     </div>
                   </div>
 
-                  <button type="submit" disabled={loading}
-                    className="btn-primary w-full justify-center py-3.5 text-sm mt-2">
+                  <button
+                    type="submit"
+                    disabled={loading || (!isOnline && !offlineAvailable)}
+                    className={`btn-primary w-full justify-center py-3.5 text-sm mt-2 ${
+                      !isOnline && !offlineAvailable ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
                     {loading ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
-                    {loading ? 'Verifying…' : 'Sign In'}
+                    {loading ? 'Verifying…' : !isOnline ? '📴 Sign In Offline' : 'Sign In'}
                   </button>
                 </form>
               ) : (

@@ -24,6 +24,18 @@ export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { getState
       if (error.response?.status === 429) {
         return rejectWithValue('Too many authentication checks. Please wait a moment and try again.');
       }
+      // ── Network error (no response) = device is offline ──────────────
+      if (!error.response) {
+        const existingUser = getState().auth.user;
+        if (existingUser) {
+          // Device is offline but user was already authenticated —
+          // preserve their session and mark it as an offline session.
+          return { ...existingUser, isOfflineSession: true };
+        }
+        // No cached user, nothing to preserve.
+        return rejectWithValue('network_offline');
+      }
+      // ─────────────────────────────────────────────────────────────────
       // Silently catch 400/401 and try the next endpoint in the array
       continue;
     }
@@ -79,6 +91,8 @@ const initialState = {
   isAuthenticated: !!initialUser,
   isInitializing: true,
   isChecking: false,
+  // true when the user is logged in via cached vault credentials (no live server)
+  isOfflineSession: initialUser?.isOfflineSession || false,
 };
 
 const authSlice = createSlice({
@@ -93,17 +107,28 @@ const authSlice = createSlice({
           id: user.id || user.userId || user.patientId,
           userId: user.userId || user.id || user.patientId,
         };
+        state.isOfflineSession = user.isOfflineSession || false;
       } else {
         state.user = null;
+        state.isOfflineSession = false;
       }
       state.isAuthenticated = !!state.user;
       saveUser(state.user);
     },
     logout(state) {
-      state.user            = null;
-      state.isAuthenticated = false;
-      state.isChecking      = false;
+      state.user             = null;
+      state.isAuthenticated  = false;
+      state.isChecking       = false;
+      state.isOfflineSession = false;
       saveUser(null);
+    },
+    // Called when the device comes back online to clear the offline flag
+    setOfflineSession(state, action) {
+      state.isOfflineSession = action.payload;
+      if (state.user) {
+        state.user = { ...state.user, isOfflineSession: action.payload };
+        saveUser(state.user);
+      }
     },
   },
   extraReducers: (builder) => {
@@ -113,46 +138,68 @@ const authSlice = createSlice({
         state.isChecking = true;
       })
       .addCase(checkAuth.fulfilled, (state, action) => {
-        // CurrentUserResponse: { userId, firstName, lastName, email, organizationId, role }
         const data = action.payload;
         if (data) {
-          state.user = {
-            ...state.user,  // preserve tokens from login in memory
-            userId: data.userId || data.patientId, // Map patientId to userId for generic components
-            id: data.userId || data.patientId,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email || data.identifier, // patient might not have email
-            organizationId: data.organizationId,
-            role: data.role,
-            patientId: data.patientId, // Explicitly save patientId
-            accessToken: data.accessToken || data.token || state.user?.accessToken,
-            refreshToken: data.refreshToken || state.user?.refreshToken,
-          };
+          if (data.isOfflineSession) {
+            // Network was unavailable during checkAuth — preserve the existing
+            // session as-is and just flag it as offline. Do NOT overwrite user
+            // fields with stale vault data.
+            state.isOfflineSession = true;
+            if (state.user) {
+              state.user = { ...state.user, isOfflineSession: true };
+              saveUser(state.user);
+            }
+          } else {
+            // Normal online checkAuth — refresh user from server response
+            state.user = {
+              ...state.user,  // preserve tokens from login in memory
+              userId: data.userId || data.patientId,
+              id: data.userId || data.patientId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email || data.identifier,
+              organizationId: data.organizationId,
+              role: data.role,
+              patientId: data.patientId,
+              accessToken: data.accessToken || data.token || state.user?.accessToken,
+              refreshToken: data.refreshToken || state.user?.refreshToken,
+              isOfflineSession: false,
+            };
+            state.isOfflineSession = false;
+            saveUser(state.user);
+          }
         } else {
           state.user = null;
+          state.isOfflineSession = false;
         }
         state.isAuthenticated = !!data;
         state.isInitializing = false;
         state.isChecking = false;
-        saveUser(state.user);
       })
-      .addCase(checkAuth.rejected, (state) => {
-        // Server says not authenticated — clear stored data
-        state.user = null;
-        state.isAuthenticated = false;
-        state.isInitializing = false;
-        state.isChecking = false;
+      .addCase(checkAuth.rejected, (state, action) => {
+        // Pure network error with no cached user — don't wipe state, just stop initializing
+        if (action.payload === 'network_offline') {
+          state.isInitializing = false;
+          state.isChecking = false;
+          return;
+        }
+        // Server explicitly rejected authentication (401) — clear stored data
+        state.user             = null;
+        state.isAuthenticated  = false;
+        state.isInitializing   = false;
+        state.isChecking       = false;
+        state.isOfflineSession = false;
         saveUser(null);
       });
   },
 });
 
-export const { loginSuccess, logout } = authSlice.actions;
-export const selectAuth  = (s) => s.auth;
-export const selectUser  = (s) => s.auth.user;
-export const selectRole  = (s) => s.auth.user?.role;
-export const selectIsAuthenticated = (s) => s.auth.isAuthenticated;
-export const selectIsInitializing = (s) => s.auth.isInitializing;
+export const { loginSuccess, logout, setOfflineSession } = authSlice.actions;
+export const selectAuth              = (s) => s.auth;
+export const selectUser              = (s) => s.auth.user;
+export const selectRole              = (s) => s.auth.user?.role;
+export const selectIsAuthenticated   = (s) => s.auth.isAuthenticated;
+export const selectIsInitializing    = (s) => s.auth.isInitializing;
+export const selectIsOfflineSession  = (s) => s.auth.isOfflineSession || false;
 
 export default authSlice.reducer;

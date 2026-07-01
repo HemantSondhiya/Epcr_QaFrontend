@@ -8,6 +8,7 @@ import { RefreshCw } from 'lucide-react';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import RoleGate from './components/common/RoleGate';
+import OfflineBanner from './components/common/OfflineBanner';
 
 // Pages - Static (Core Views)
 import LandingPage   from './pages/LandingPage';
@@ -65,6 +66,15 @@ const AppRoutes = () => {
   useEffect(() => {
     dispatch(checkAuth());
   }, [dispatch]);
+
+  // Sync any pending offline audit logs once authentication is restored on startup
+  useEffect(() => {
+    if (isAuthenticated && navigator.onLine) {
+      import('./utils/offlineAudit').then(({ syncOfflineAudits }) => {
+        syncOfflineAudits().catch(() => {});
+      });
+    }
+  }, [isAuthenticated]);
 
   if (isInitializing) {
     return (
@@ -139,7 +149,9 @@ const AppRoutes = () => {
 };
 
 const App = () => (
-  <BrowserRouter>
+  <BrowserRouter basename="/epcr">
+    {/* Global offline status banner — visible on every page */}
+    <OfflineBanner />
     <AppRoutes />
   </BrowserRouter>
 );

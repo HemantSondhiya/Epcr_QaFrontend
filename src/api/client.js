@@ -23,6 +23,146 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+// Request interceptor: Intercept GET, POST, and PUT to /api/epcr/records when offline
+client.interceptors.request.use(async (config) => {
+  const isEpcrRoute = config.url && config.url.includes('/api/epcr/records');
+  if (isEpcrRoute && !navigator.onLine) {
+    const { getCachedRecords, getOfflineDrafts, saveOfflineDraft, enqueueSyncAction, getOfflineSyncQueue, saveOfflineSyncQueue, getOfflineDetailsCache } = await import('../utils/offlineEpcr');
+    
+    config.adapter = async (cfg) => {
+      const urlWithoutQuery = cfg.url.split('?')[0];
+      const parts = urlWithoutQuery.split('/');
+      const lastPart = parts[parts.length - 1]; // Can be 'records', 'submit', or '{id}'
+      
+      // GET request
+      if (cfg.method?.toLowerCase() === 'get') {
+        const isList = lastPart === 'records' || parts.includes('organization') || parts.includes('paramedic');
+        
+        console.log('[Offline GET] Intercepting:', cfg.url, 'isList:', isList, 'lastPart:', lastPart);
+        
+        if (isList) {
+          const cached = getCachedRecords();
+          const drafts = Object.values(getOfflineDrafts());
+          const all = [...drafts, ...cached];
+          
+          console.log('[Offline GET List] Total cached items:', all.length);
+          
+          if (lastPart === 'records') {
+            const params = cfg.params || {};
+            const page = parseInt(params.page || 0, 10);
+            const size = parseInt(params.size || 20, 10);
+            const start = page * size;
+            const sliceEnd = start + size;
+            const content = all.slice(start, sliceEnd);
+            
+            console.log('[Offline GET List] Paginated Page:', page, 'Size:', size, 'Returned:', content.length);
+            
+            return {
+              data: {
+                content: content,
+                totalPages: Math.ceil(all.length / size) || 1,
+                totalElements: all.length,
+                page: page,
+                size: size,
+                last: sliceEnd >= all.length
+              },
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: cfg
+            };
+          } else {
+            return {
+              data: all,
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: cfg
+            };
+          }
+        } else {
+          // Single record details fetch
+          const drafts = getOfflineDrafts();
+          const cached = getCachedRecords();
+          const detailsCache = getOfflineDetailsCache();
+          
+          const lookupId = lastPart.toLowerCase();
+          const found = drafts[lookupId] || detailsCache[lookupId] || cached.find(r => r.id?.toLowerCase() === lookupId);
+          
+          console.log('[Offline GET Details] lookupId:', lookupId, 'Found:', !!found);
+          
+          if (found) {
+            return {
+              data: found,
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: cfg
+            };
+          } else {
+            console.warn('[Offline GET Details] Not found in drafts/details/cache. Cached IDs available:', cached.map(r => r.id));
+            return {
+              data: { message: 'Record details not found offline' },
+              status: 404,
+              statusText: 'Not Found',
+              headers: {},
+              config: cfg
+            };
+          }
+        }
+      }
+      
+      // POST request (create)
+      if (cfg.method?.toLowerCase() === 'post') {
+        const payload = typeof cfg.data === 'string' ? JSON.parse(cfg.data) : cfg.data;
+        const tempId = 'temp-' + (self.crypto?.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).slice(2));
+        const localDraft = {
+          ...payload,
+          id: tempId,
+          incidentNumber: `DRAFT-${tempId.substring(5, 13).toUpperCase()}`,
+          status: 'DRAFT_OFFLINE',
+          isOfflineDraft: true
+        };
+        saveOfflineDraft(tempId, localDraft);
+        enqueueSyncAction({ type: 'CREATE', tempId, data: payload });
+        return {
+          data: localDraft,
+          status: 201,
+          statusText: 'Created',
+          headers: {},
+          config: cfg
+        };
+      }
+      
+      // PUT request (update)
+      if (cfg.method?.toLowerCase() === 'put') {
+        const payload = typeof cfg.data === 'string' ? JSON.parse(cfg.data) : cfg.data;
+        
+        if (lastPart.startsWith('temp-')) {
+          saveOfflineDraft(lastPart, payload);
+          const queue = getOfflineSyncQueue();
+          const idx = queue.findIndex(item => item.tempId === lastPart);
+          if (idx !== -1) {
+            queue[idx].data = payload;
+            saveOfflineSyncQueue(queue);
+          }
+        } else {
+          enqueueSyncAction({ type: 'UPDATE', recordId: lastPart, data: payload });
+        }
+        
+        return {
+          data: { ...payload, id: lastPart },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: cfg
+        };
+      }
+    };
+  }
+  return config;
+});
+
 // Request interceptor for CSRF and other outgoing logic
 client.interceptors.request.use(
   (config) => {
@@ -125,7 +265,73 @@ const onRefreshed = () => {
 
 // ── Response: centralised error handling ────────────────────────────
 client.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // If online and GET /api/epcr/records is successful, cache it and prepend local drafts
+    if (res.config.url && res.config.url.includes('/api/epcr/records') && res.config.method?.toLowerCase() === 'get') {
+      const cleanUrl = res.config.url.split('?')[0];
+      const parts = cleanUrl.split('/');
+      const lastPart = parts[parts.length - 1];
+      
+      const isList = lastPart === 'records' || parts.includes('organization') || parts.includes('paramedic');
+      
+      // Cache list fetches
+      if (isList) {
+        const records = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+        
+        return import('../utils/offlineEpcr').then(({ saveCachedRecords, getCachedRecords, getOfflineDrafts }) => {
+          const existing = getCachedRecords();
+          const recordMap = {};
+          
+          existing.forEach(r => { if (r.id) recordMap[r.id] = r; });
+          records.forEach(r => {
+            if (r.id) {
+              if (recordMap[r.id]) {
+                // Merge properties to prevent summary lists from overwriting full details with nulls
+                const existingRec = recordMap[r.id];
+                const mergedRec = { ...existingRec };
+                Object.keys(r).forEach(key => {
+                  if (r[key] !== null && r[key] !== undefined) {
+                    mergedRec[key] = r[key];
+                  }
+                });
+                recordMap[r.id] = mergedRec;
+              } else {
+                recordMap[r.id] = r;
+              }
+            }
+          });
+          
+          const merged = Object.values(recordMap);
+          merged.sort((a, b) => {
+            const dateA = new Date(a.incidentDateTime || a.timestamp || 0);
+            const dateB = new Date(b.incidentDateTime || b.timestamp || 0);
+            return dateB - dateA;
+          });
+          
+          saveCachedRecords(merged.slice(0, 1000));
+          
+          const drafts = Object.values(getOfflineDrafts());
+          if (drafts.length > 0) {
+            if (Array.isArray(res.data)) {
+              res.data = [...drafts, ...res.data];
+            } else if (res.data && res.data.content) {
+              res.data.content = [...drafts, ...res.data.content];
+            }
+          }
+          return res;
+        }).catch(() => res);
+      } else if (lastPart !== 'submit') {
+        // Single record details fetch online - cache full details in details cache
+        return import('../utils/offlineEpcr').then(({ saveOfflineDetailRecord }) => {
+          if (res.data && res.data.id) {
+            saveOfflineDetailRecord(res.data.id, res.data);
+          }
+          return res;
+        }).catch(() => res);
+      }
+    }
+    return res;
+  },
   (err) => {
     const status = err.response?.status;
     const message = extractErrorMessage(err);
@@ -151,7 +357,7 @@ client.interceptors.response.use(
         });
       }
 
-      const isLoginPage = window.location.pathname === '/login';
+      const isLoginPage = window.location.pathname === '/epcr/login' || window.location.pathname === '/login';
 
       if (isLoginPage) {
         return Promise.reject(err);
@@ -189,8 +395,8 @@ client.interceptors.response.use(
             isRefreshing = false;
             refreshSubscribers = [];
             _store?.dispatch(logout());
-            if (window.location.pathname !== '/login') {
-              window.location.href = '/login';
+            if (window.location.pathname !== '/epcr/login' && window.location.pathname !== '/login') {
+              window.location.href = '/epcr/login';
             }
             reject(refreshErr);
           });
@@ -199,10 +405,158 @@ client.interceptors.response.use(
 
     if (status === 401 && originalRequest.url.includes('/api/auth/refresh')) {
       _store?.dispatch(logout());
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      if (window.location.pathname !== '/epcr/login' && window.location.pathname !== '/login') {
+        window.location.href = '/epcr/login';
       }
     }
+
+    // ── ePCR OFFLINE FALLBACK ON WRITE FAILURE ──────────────────────────────
+    const isEpcrWrite = originalRequest && originalRequest.url && originalRequest.url.includes('/api/epcr/records') && ['post', 'put'].includes(originalRequest.method?.toLowerCase());
+    if (isEpcrWrite && !err.response) {
+      let cleanUrl = originalRequest.url.split('?')[0];
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+      const parts = cleanUrl.split('/');
+      const lastPart = parts[parts.length - 1]; // Can be 'records', 'submit', or '{id}'
+      
+      return import('../utils/offlineEpcr').then(({ saveOfflineDraft, getOfflineDrafts, getCachedRecords, enqueueSyncAction, getOfflineSyncQueue, saveOfflineSyncQueue }) => {
+        if (originalRequest.method.toLowerCase() === 'post') {
+          if (lastPart === 'records') {
+            // CREATE new record fallback
+            const payload = typeof originalRequest.data === 'string' && originalRequest.data ? JSON.parse(originalRequest.data) : (originalRequest.data || {});
+            const tempId = 'temp-' + (self.crypto?.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).slice(2));
+            const localDraft = {
+              ...payload,
+              id: tempId,
+              incidentNumber: `DRAFT-${tempId.substring(5, 13).toUpperCase()}`,
+              status: 'DRAFT_OFFLINE',
+              isOfflineDraft: true
+            };
+            saveOfflineDraft(tempId, localDraft);
+            enqueueSyncAction({ type: 'CREATE', tempId, data: payload });
+            return {
+              data: localDraft,
+              status: 201,
+              statusText: 'Created',
+              headers: {},
+              config: originalRequest
+            };
+          } else if (lastPart === 'submit') {
+            // SUBMIT record fallback
+            const id = parts[parts.length - 2];
+            const drafts = getOfflineDrafts();
+            const cached = getCachedRecords();
+            const record = drafts[id] || cached.find(r => r.id === id);
+            
+            if (record) {
+              record.status = 'SUBMITTED';
+              if (drafts[id]) {
+                saveOfflineDraft(id, record);
+              }
+              enqueueSyncAction({ type: 'SUBMIT', recordId: id });
+              return {
+                data: record,
+                status: 200,
+                statusText: 'OK',
+                headers: {},
+                config: originalRequest
+              };
+            }
+          }
+        } else {
+          // PUT update fallback
+          const payload = typeof originalRequest.data === 'string' && originalRequest.data ? JSON.parse(originalRequest.data) : (originalRequest.data || {});
+          if (lastPart.startsWith('temp-')) {
+            saveOfflineDraft(lastPart, payload);
+            const queue = getOfflineSyncQueue();
+            const idx = queue.findIndex(item => item.tempId === lastPart);
+            if (idx !== -1) {
+              queue[idx].data = payload;
+              saveOfflineSyncQueue(queue);
+            }
+          } else {
+            enqueueSyncAction({ type: 'UPDATE', recordId: lastPart, data: payload });
+          }
+          return {
+            data: { ...payload, id: lastPart },
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            config: originalRequest
+          };
+        }
+        return Promise.reject(err);
+      }).catch(() => Promise.reject(err));
+    }
+    
+    // ── ePCR OFFLINE FALLBACK ON READ FAILURE ───────────────────────────────
+    const isEpcrGet = originalRequest && originalRequest.url && originalRequest.url.includes('/api/epcr/records') && originalRequest.method?.toLowerCase() === 'get';
+    if (isEpcrGet && !err.response) {
+      let cleanUrl = originalRequest.url.split('?')[0];
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+      const parts = cleanUrl.split('/');
+      const lastPart = parts[parts.length - 1]; // Can be 'records', or '{id}'
+      
+      return import('../utils/offlineEpcr').then(({ getCachedRecords, getOfflineDrafts, getOfflineDetailsCache }) => {
+        const isList = lastPart === 'records' || parts.includes('organization') || parts.includes('paramedic');
+        const cached = getCachedRecords();
+        const drafts = Object.values(getOfflineDrafts());
+        const all = [...drafts, ...cached];
+        
+        if (isList) {
+          if (lastPart === 'records') {
+            const params = originalRequest.params || {};
+            const page = parseInt(params.page || 0, 10);
+            const size = parseInt(params.size || 20, 10);
+            const start = page * size;
+            const sliceEnd = start + size;
+            const content = all.slice(start, sliceEnd);
+            
+            return {
+              data: {
+                content: content,
+                totalPages: Math.ceil(all.length / size) || 1,
+                totalElements: all.length,
+                page: page,
+                size: size,
+                last: sliceEnd >= all.length
+              },
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: originalRequest
+            };
+          } else {
+            return {
+              data: all,
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: originalRequest
+            };
+          }
+        } else {
+          // Single details view fallback
+          const detailsCache = getOfflineDetailsCache();
+          const lookupId = lastPart.toLowerCase();
+          const found = drafts[lookupId] || detailsCache[lookupId] || cached.find(r => r.id?.toLowerCase() === lookupId);
+          if (found) {
+            return {
+              data: found,
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: originalRequest
+            };
+          }
+        }
+        return Promise.reject(err);
+      }).catch(() => Promise.reject(err));
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     if (err.config?.hideToast) {
       return Promise.reject(err);

@@ -328,6 +328,14 @@ const Dashboard = () => {
           promises.push(dispatch(fetchFollowUps({ status: 'PENDING', size: 20 })));
         }
 
+        // Silent background pre-cache of detailed ePCR records for offline support
+        if (ROLE_MENU[role]?.includes('EPCR') && navigator.onLine) {
+          const fetchUrl = user?.organizationId 
+            ? `/api/epcr/records/organization/${user.organizationId}` 
+            : '/api/epcr/records?page=0&size=1000';
+          promises.push(client.get(fetchUrl, { hideToast: true }).catch(() => {}));
+        }
+
         if (isFirst) {
           await Promise.allSettled(promises);
           setIsInitialLoad(false);

@@ -1,5 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import client, { extractErrorMessage } from '../../api/client';
+import { getCachedRecords, getOfflineDrafts } from '../../utils/offlineEpcr';
+
+const cachedRecords = getCachedRecords();
+const offlineDrafts = Object.values(getOfflineDrafts());
+const initialRecords = [...offlineDrafts, ...cachedRecords];
 
 const asList = (data) => Array.isArray(data) ? data : (data?.content || []);
 
@@ -63,7 +68,7 @@ export const fetchIncidentTypes = createAsyncThunk('epcr/fetchIncidentTypes', as
 const epcrSlice = createSlice({
   name: 'epcr',
   initialState: {
-    records: [],
+    records: initialRecords,
     loading: false,
     error: null,
     selected: null,

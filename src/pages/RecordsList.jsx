@@ -78,6 +78,7 @@ const IncidentTypeBadge = ({ type }) => {
 
 const STATUS_BADGE = {
   DRAFT: 'badge badge-gray',
+  DRAFT_OFFLINE: 'badge bg-amber-50 text-amber-700 border-amber-200 animate-pulse',
   PENDING: 'badge badge-gray',
   IN_PROGRESS: 'badge badge-blue',
   ACTIVE: 'badge badge-blue',

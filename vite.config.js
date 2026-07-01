@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -8,7 +9,45 @@ export default defineConfig(({ mode }) => {
   const backendTarget = env.VITE_API_BASE_URL || env.API_BASE_URL || 'http://localhost:9091';
 
   return {
-    plugins: [react(), tailwindcss()],
+    base: '/epcr/',
+    plugins: [
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        devOptions: {
+          enabled: true
+        },
+        workbox: {
+          // Pre-cache all essential application shell files, including layouts and JS chunks
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+                    // Redirect all page route requests to index.html when offline (Single Page App routing)
+          navigateFallback: 'index.html',
+
+          // Bypass offline fallbacks for Spring Boot API controllers
+          navigateFallbackDenylist: [/^\/api/],
+        },
+        manifest: {
+          name: 'Med ePCR Clinical Portal',
+          short_name: 'Med ePCR',
+          description: 'Secure, offline-first HIPAA-compliant clinical ePCR assurance platform.',
+          theme_color: '#1a3c8f',
+          icons: [
+            {
+              src: 'favicon.svg',
+              sizes: '192x192',
+              type: 'image/svg+xml'
+            },
+            {
+              src: 'favicon.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml'
+            }
+          ]
+        }
+      })
+    ],
     build: {
       sourcemap: false,
       chunkSizeWarningLimit: 1000,
